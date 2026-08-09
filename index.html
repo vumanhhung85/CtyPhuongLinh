@@ -2017,7 +2017,8 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
   document.getElementById('bkProgressWrap').style.display = 'block';
   const progressText = document.getElementById('bkProgressText');
   const resultWrap = document.getElementById('bkResultWrap');
-  let tongThanhCong = 0, tongDaTonTai = 0, tongLoi = [];
+  resultWrap.innerHTML = '';
+  let tongThanhCong = 0, tongDaTonTai = 0, tongLoi = [], tongCanhBaoTonKhoAm = [];
 
   function xuLyChunk(idx) {
     if (idx >= chunks.length) {
@@ -2025,8 +2026,14 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
       if (tongThanhCong === 0 && tongDaTonTai === 0 && !tongLoi.length) {
         progressText.textContent += ' ⚠️ Không có phiếu nào được tạo nhưng cũng không báo lỗi — có thể server trả về dữ liệu bất thường. Mở Console trình duyệt (F12) để xem chi tiết đã ghi log.';
       }
+      if (tongCanhBaoTonKhoAm.length) {
+        const uniqueMap = {};
+        tongCanhBaoTonKhoAm.forEach(w => { uniqueMap[w.tenHH] = w.tonKho; });
+        resultWrap.innerHTML += `<p class="muted" style="color:var(--warn);margin-top:10px;">⚠️ ${Object.keys(uniqueMap).length} mặt hàng đang bị âm tồn kho sau khi nhập (do bán trước khi có phiếu nhập tương ứng trong dữ liệu) — anh rà lại ở tab Danh mục:</p>
+          <ul class="muted">${Object.keys(uniqueMap).map(ten => `<li>${ten}: còn ${uniqueMap[ten]}</li>`).join('')}</ul>`;
+      }
       if (tongLoi.length) {
-        resultWrap.innerHTML = `<div class="tableWrap"><table><thead><tr><th>Số HĐ</th><th>Ngày</th><th>Đối tác</th><th>Lỗi</th></tr></thead><tbody>
+        resultWrap.innerHTML += `<div class="tableWrap"><table><thead><tr><th>Số HĐ</th><th>Ngày</th><th>Đối tác</th><th>Lỗi</th></tr></thead><tbody>
           ${tongLoi.map(l => `<tr><td>${l.soHD}</td><td>${fmtDate(l.ngay)}</td><td>${l.doiTac || ''}</td><td>${l.error}</td></tr>`).join('')}
         </tbody></table></div>`;
       }
@@ -2043,6 +2050,7 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
         tongThanhCong += res.thanhCong;
         tongDaTonTai += Number(res.daTonTai) || 0;
         tongLoi = tongLoi.concat(res.loi || []);
+        tongCanhBaoTonKhoAm = tongCanhBaoTonKhoAm.concat(res.canhBaoTonKhoAm || []);
       }
       xuLyChunk(idx + 1);
     }).catch(err => {
