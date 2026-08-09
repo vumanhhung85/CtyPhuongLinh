@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Quản lý bán hàng - Phương Linh Tech</title>
+<style>
+  :root{
+    --ink:#1c1917;--ink-soft:#57534e;--paper:#faf9f7;--card:#ffffff;--line:#e7e3dd;
+    --brand:#c2540a;--brand-soft:#fdead9;--brand-deep:#8a3a06;
+    --good:#15803d;--good-soft:#e7f6ec;--bad:#b91c1c;--bad-soft:#fdeaea;
+    --warn:#a15c00;--warn-soft:#fdf2d9;--info:#1d4ed8;--info-soft:#e6ecfb;
+    --radius:10px;font-size:15px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--paper);color:var(--ink);}
+  input,select,button,textarea{font-family:inherit;font-size:16px;}
+
+  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#2a1607 0%,#4a2409 55%,#c2540a 100%);padding:20px;}
+  .loginCard{background:var(--card);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.35);}
+  .loginCard h1{font-size:20px;margin:0 0 2px;}
+  .loginCard .sub{color:var(--ink-soft);font-size:13px;margin:0 0 22px;}
+  .loginCard label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;font-weight:600;}
+  .loginCard input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:9px;margin-bottom:14px;}
+  .loginCard input:focus{outline:none;border-color:var(--brand);}
+  .btnPrimary{width:100%;padding:12px;border:none;border-radius:9px;background:var(--brand);color:#fff;font-weight:700;cursor:pointer;font-size:15px;}
+  .btnPrimary:hover{background:var(--brand-deep);}
+  .loginErr{color:var(--bad);font-size:13px;margin:-6px 0 14px;min-height:16px;}
+
+  #appShell{display:none;min-height:100vh;flex-direction:column;}
+  header.topbar{background:#1c1108;color:#fdead9;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+  header.topbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;}
+  header.topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--brand);}
+  header.topbar .userInfo{display:flex;align-items:center;gap:10px;}
+  header.topbar .userInfo .who{font-size:12px;color:#e7c9a8;text-align:right;line-height:1.3;}
+  header.topbar .logout{background:none;border:1px solid #6b4321;color:#fdead9;border-radius:7px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
+
+  nav.tabbar{display:flex;overflow-x:auto;background:var(--brand-soft);border-bottom:1px solid #f0cba3;position:sticky;top:53px;z-index:40;}
+  nav.tabbar button{flex:0 0 auto;padding:12px 14px;background:none;border:none;font-size:13px;font-weight:600;color:var(--brand-deep);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;}
+  nav.tabbar button.active{border-bottom-color:var(--brand);background:#fff;}
+
+  main{flex:1;padding:16px;max-width:1150px;margin:0 auto;width:100%;}
+  .view{display:none;animation:fade .15s ease;}
+  .view.active{display:block;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  h2.viewTitle{font-size:17px;margin:2px 0 14px;}
+
+  .cardGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px;}
+  .statCard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;}
+  .statCard .label{font-size:12px;color:var(--ink-soft);margin-bottom:6px;}
+  .statCard .val{font-size:19px;font-weight:700;}
+  .statCard.warn .val{color:var(--warn);}
+  .statCard.bad .val{color:var(--bad);}
+  .statCard.good .val{color:var(--good);}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .panel h3{font-size:14px;margin:0 0 10px;}
+
+  .tableWrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px;}
+  thead th{position:sticky;top:0;background:var(--brand-soft);color:var(--brand-deep);text-align:left;padding:9px 10px;font-weight:700;border-bottom:1px solid #f0cba3;white-space:nowrap;}
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fffaf4;}
+  .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+  .tag.good{background:var(--good-soft);color:var(--good);}
+  .tag.warn{background:var(--warn-soft);color:var(--warn);}
+  .tag.bad{background:var(--bad-soft);color:var(--bad);}
+  .tag.info{background:var(--info-soft);color:var(--info);}
+  .tag.hh{background:#e6ecfb;color:#1e3a8a;}
+  .tag.dv{background:#f3e8fd;color:#6b21a8;}
+
+  .rowActions{display:flex;gap:4px;flex-wrap:wrap;}
+  .rowActions button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;}
+  .rowActions button.danger{color:var(--bad);border-color:#f3c9c9;}
+  .rowActions button.primary{color:var(--brand-deep);border-color:#f0cba3;background:var(--brand-soft);}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+  .toolbar input[type=text],.toolbar input[type=date]{padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;flex:1;min-width:140px;}
+  .toolbar select{padding:9px;border-radius:8px;border:1.5px solid var(--line);}
+  .btn{padding:9px 15px;border-radius:8px;border:none;background:var(--brand);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;}
+  .btn.secondary{background:#fff;color:var(--ink);border:1.5px solid var(--line);}
+  .btn.small{padding:6px 11px;font-size:12.5px;}
+
+  .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .formGrid.full,.formGrid > .span2{grid-column:1/-1;}
+  @media (max-width:560px){.formGrid{grid-template-columns:1fr;}}
+  .field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  .field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1.5px solid var(--line);border-radius:8px;background:#fff;}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--brand);}
+  .field textarea{min-height:60px;resize:vertical;}
+
+  .itemsTable{width:100%;border-collapse:collapse;margin:10px 0;}
+  .itemsTable th{font-size:11.5px;text-align:left;color:var(--ink-soft);padding:6px 6px;}
+  .itemsTable td{padding:5px 6px;}
+  .itemsTable input,.itemsTable select{padding:7px 8px;}
+  .itemsTable .num{width:90px;}
+  .itemsTable .del{width:34px;text-align:center;}
+  .lineTotal{font-weight:700;font-size:13px;}
+  .grandTotal{text-align:right;font-size:16px;font-weight:800;margin-top:8px;color:var(--brand-deep);}
+
+  .modalBg{display:none;position:fixed;inset:0;background:rgba(28,17,8,.5);z-index:100;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;}
+  .modalBg.active{display:flex;}
+  .modalCard{background:var(--card);border-radius:14px;max-width:680px;width:100%;padding:22px;margin:20px 0;}
+  .modalCard h3{margin:0 0 16px;font-size:16px;}
+  .modalClose{float:right;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-soft);}
+  .modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap;}
+
+  .empty{padding:30px 10px;text-align:center;color:var(--ink-soft);font-size:13.5px;}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1c1108;color:#fff;padding:11px 18px;border-radius:9px;font-size:13.5px;z-index:200;display:none;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:90vw;}
+  .muted{color:var(--ink-soft);font-size:12.5px;}
+  .subhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+  .segTabs{display:flex;gap:6px;margin-bottom:14px;}
+  .segTabs button{flex:1;padding:9px;border:1.5px solid var(--line);background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  .segTabs button.active{background:var(--brand);color:#fff;border-color:var(--brand);}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <div class="loginCard">
+    <h1>Quản lý bán hàng</h1>
+    <p class="sub">Công ty TNHH Dịch vụ Công nghệ Phương Linh — MST 0317838601</p>
+    <label for="userInput">Tên đăng nhập</label>
+    <input type="text" id="userInput" placeholder="VD: admin" autocomplete="username">
+    <label for="pwInput">Mật khẩu</label>
+    <input type="password" id="pwInput" placeholder="Nhập mật khẩu" autocomplete="current-password">
+    <div class="loginErr" id="loginErr"></div>
+    <button class="btnPrimary" id="btnLogin">Đăng nhập</button>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="appShell">
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span><span id="companyNameLabel">Phương Linh Tech</span></div>
+    <div class="userInfo">
+      <div class="who"><span id="userHoTenLabel"></span><br><span id="userVaiTroLabel" class="muted" style="color:#d8a877;"></span></div>
+      <button class="logout" id="btnLogout">Đăng xuất</button>
+    </div>
+  </header>
+
+  <nav class="tabbar" id="tabbar">
+    <button data-tab="dashboard" class="active">Tổng quan</button>
+    <button data-tab="danhmuc">Danh mục</button>
+    <button data-tab="nhapkho">Nhập kho</button>
+    <button data-tab="xuatban">Xuất bán</button>
+    <button data-tab="suachua">Sửa chữa</button>
+    <button data-tab="giacong">Gia công</button>
+    <button data-tab="congno">Công nợ</button>
+    <button data-tab="baocao">Báo cáo</button>
+    <button data-tab="doitac">Đối tác</button>
+    <button data-tab="dongbohd">Đồng bộ HĐ</button>
+    <button data-tab="nguoidung">Người dùng</button>
+    <button data-tab="caidat">Cài đặt</button>
+  </nav>
+
+  <main>
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section class="view active" id="view-dashboard">
+      <h2 class="viewTitle">Tổng quan</h2>
+      <div class="cardGrid" id="dashCards"></div>
+      <div class="panel">
+        <h3>⚠️ Hàng sắp hết (dưới mức tồn tối thiểu)</h3>
+        <div id="dashLowStock" class="tableWrap"></div>
+      </div>
+    </section>
+
+    <!-- ---------- DANH MỤC ---------- -->
+    <section class="view" id="view-danhmuc">
+      <div class="subhead">
+        <h2 class="viewTitle" style="margin:0;">Danh mục hàng hoá / dịch vụ</h2>
+        <button class="btn" id="btnAddHH">+ Thêm mới</button>
+      </div>
+      <div class="toolbar">
+        <input type="text" id="searchHH" placeholder="Tìm theo tên hoặc mã...">
+        <select id="filterLoaiHH"><option value="">Tất cả loại</option><option value="HangHoa">Hàng hoá</option><option value="DichVu">Dịch vụ</option></select>
+      </div>
+      <div class="tableWrap" id="hhTableWrap"></div>
+    </section>
+
+    <!-- ---------- NHẬP KHO ---------- -->
+    <section class="view" id="view-nhapkho">
+      <div class="subhead">
+        <h2 class="viewTitle" style="margin:0;">Phiếu nhập kho</h2>
+        <button class="btn" id="btnAddNhap">+ Tạo phiếu nhập</button>
+      </div>
+      <div class="tableWrap" id="nhapTableWrap"></div>
+    </section>
+
+    <!-- ---------- XUẤT BÁN ---------- -->
+    <section class="view" id="view-xuatban">
+      <div class="subhead">
+        <h2 class="viewTitle" style="margin:0;">Phiếu xuất bán</h2>
+        <button class="btn" id="btnAddXuat">+ Tạo phiếu xuất</button>
+      </div>
+      <div class="tableWrap" id="xuatTableWrap"></div>
+    </section>
+
+    <!-- ---------- SỬA CHỮA ---------- -->
+    <section class="view" id="view-suachua">
+      <div class="subhead">
+        <h2 class="viewTitle" style="margin:0;">Phiếu sửa chữa</h2>
+        <button class="btn" id="btnAddSuaChua">+ Tiếp nhận sửa chữa</button>
+      </div>
+      <div class="toolbar">
+        <select id="filterTrangThaiSC">
+          <option value="">Tất cả trạng thái</option>
+          <option value="TiepNhan">Tiếp nhận</option>
+          <option value="DangSua">Đang sửa</option>
+          <option value="ChoLinhKien">Chờ linh kiện</option>
+          <option value="HoanThanh">Hoàn thành</option>
+          <option value="DaGiaoTra">Đã giao trả</option>
+          <option value="Huy">Huỷ</option>
+        </select>
+      </div>
+      <div class="tableWrap" id="suaChuaTableWrap"></div>
+    </section>
+
+    <!-- ---------- GIA CÔNG ---------- -->
+    <section class="view" id="view-giacong">
+      <div class="subhead">
+        <h2 class="viewTitle" style="margin:0;">Phiếu gia công</h2>
+        <button class="btn" id="btnAddGiaCong">+ Tạo phiếu gia công</button>
+      </div>
+      <div class="toolbar">
+        <select id="filterLoaiGC">
+          <option value="">Tất cả loại</option>
+          <option value="NhanGiaCongChoKhach">Nhận gia công cho khách</option>
+          <option value="ThueNgoaiGiaCong">Thuê ngoài gia công</option>
+        </select>
+      </div>
+      <div class="tableWrap" id="giaCongTableWrap"></div>
+    </section>
+
+    <!-- ---------- CÔNG NỢ ---------- -->
+    <section class="view" id="view-congno">
+      <h2 class="viewTitle">Công nợ</h2>
+      <div class="panel"><h3>Phải thu (khách hàng còn nợ — bán hàng / sửa chữa / gia công)</h3><div class="tableWrap" id="phaiThuWrap"></div></div>
+      <div class="panel"><h3>Phải trả (nhà cung cấp / thuê ngoài gia công)</h3><div class="tableWrap" id="phaiTraWrap"></div></div>
+    </section>
+
+    <!-- ---------- BÁO CÁO ---------- -->
+    <section class="view" id="view-baocao">
+      <h2 class="viewTitle">Báo cáo doanh thu &amp; lợi nhuận</h2>
+      <div class="toolbar">
+        <div class="field" style="flex:1;min-width:140px;"><label>Từ ngày</label><input type="date" id="baocaoTuNgay"></div>
+        <div class="field" style="flex:1;min-width:140px;"><label>Đến ngày</label><input type="date" id="baocaoDenNgay"></div>
+        <button class="btn" style="align-self:flex-end;" id="btnXemBaoCao">Xem báo cáo</button>
+      </div>
+      <div class="cardGrid" id="baocaoCards"></div>
+      <div class="panel"><h3>Top hàng bán chạy</h3><div class="tableWrap" id="baocaoTopWrap"></div></div>
+    </section>
+
+    <!-- ---------- ĐỐI TÁC ---------- -->
+    <section class="view" id="view-doitac">
+      <h2 class="viewTitle">Khách hàng &amp; Nhà cung cấp</h2>
+      <div class="subhead"><h3 style="margin:0;">Khách hàng</h3><button class="btn small" id="btnAddKH">+ Thêm khách hàng</button></div>
+      <div class="tableWrap" id="khTableWrap" style="margin-bottom:20px;"></div>
+      <div class="subhead"><h3 style="margin:0;">Nhà cung cấp</h3><button class="btn small" id="btnAddNCC">+ Thêm nhà cung cấp</button></div>
+      <div class="tableWrap" id="nccTableWrap"></div>
+    </section>
+
+    <!-- ---------- ĐỒNG BỘ HOÁ ĐƠN ---------- -->
+    <section class="view" id="view-dongbohd">
+      <h2 class="viewTitle">Đồng bộ hoá đơn từ bảng kê Excel (cổng thuế)</h2>
+      <div class="panel">
+        <p class="muted">Vào <b>hoadondientu.gdt.gov.vn</b> → Tra cứu → Tra cứu hoá đơn → chọn <b>HĐĐT bán ra</b> hoặc <b>HĐĐT mua vào</b> → xuất file Excel bảng kê → upload file đó vào đây. App sẽ tự khớp với các phiếu trong hệ thống theo mã số thuế + ngày + tổng tiền, anh xác nhận lại trước khi ghi vào.</p>
+        <div class="formGrid">
+          <div class="field">
+            <label>Loại bảng kê</label>
+            <select id="dongboLoai">
+              <option value="xuat">Hoá đơn bán ra (khớp với Xuất bán)</option>
+              <option value="nhap">Hoá đơn mua vào (khớp với Nhập kho)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Chọn file Excel (.xlsx, .xls, .csv)</label>
+            <input type="file" id="dongboFile" accept=".xlsx,.xls,.csv">
+          </div>
+        </div>
+        <button class="btn" id="btnDocFile" style="margin-top:6px;">Đọc file &amp; tự khớp</button>
+        <p class="muted" style="margin-top:8px;">Sai số cho phép khi khớp: tổng tiền chênh lệch tối đa 1.000đ, ngày lệch tối đa 5 ngày (để phòng hoá đơn xuất chậm hơn phiếu vài ngày).</p>
+      </div>
+      <div class="panel" id="dongboResultPanel" style="display:none;">
+        <div class="subhead">
+          <h3 style="margin:0;">Kết quả khớp (từ Excel) — kiểm tra lại trước khi ghi</h3>
+          <button class="btn small" id="btnApDungDongBo">Ghi vào hệ thống các dòng đã khớp</button>
+        </div>
+        <div class="tableWrap" id="dongboTableWrap"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Hoặc nhập từ file XML hoá đơn gốc (chính xác hơn, tự nhận diện mua vào/bán ra)</h3>
+        <p class="muted">File XML là bản gốc có giá trị pháp lý của hoá đơn điện tử. Khi khách hàng hoặc nhà cung cấp gửi email kèm file <b>.xml</b> (thường đi kèm PDF), anh chọn thẳng file đó vào đây — có thể chọn <b>nhiều file cùng lúc</b>. App tự đọc, tự nhận diện đây là hoá đơn công ty xuất ra hay nhận vào (dựa theo MST 0317838601 nằm ở vai người bán hay người mua trong file), rồi tự khớp với phiếu tương ứng.</p>
+        <div class="field"><label>Chọn file XML (có thể chọn nhiều file)</label><input type="file" id="dongboXmlFiles" accept=".xml" multiple></div>
+        <button class="btn small" id="btnDocXml" style="margin-top:8px;">Đọc file XML &amp; trích xuất</button>
+        <p class="muted" style="margin-top:8px;">Nếu file XML từ một số nhà cung cấp phần mềm hoá đơn dùng tên thẻ dữ liệu khác chuẩn thông thường, một vài trường có thể đọc thiếu — anh sửa trực tiếp trong bảng xem trước trước khi khớp, hoặc gửi 1 file mẫu để em tinh chỉnh lại cho đúng 100%.</p>
+      </div>
+      <div class="panel" id="xmlPreviewPanel" style="display:none;">
+        <h3>Dữ liệu trích xuất từ XML — kiểm tra / sửa nếu cần</h3>
+        <div class="tableWrap" id="xmlPreviewWrap"></div>
+        <button class="btn small" id="btnKhopXml" style="margin-top:10px;">Khớp dữ liệu với phiếu trong hệ thống</button>
+      </div>
+      <div class="panel" id="xmlResultPanel" style="display:none;">
+        <div class="subhead">
+          <h3 style="margin:0;">Kết quả khớp (từ XML) — kiểm tra lại trước khi ghi</h3>
+          <button class="btn small" id="btnApDungXml">Ghi vào hệ thống các dòng đã khớp</button>
+        </div>
+        <div class="tableWrap" id="xmlMatchWrap"></div>
+      </div>
+
+      <div class="panel" style="border-color:#f0cba3;background:#fffaf4;">
+        <h3>📦 Nhập dữ liệu lịch sử (tạo phiếu hàng loạt từ bảng kê Excel)</h3>
+        <p class="muted">Dùng cho dữ liệu <b>từ 18/5/2023 đến trước khi dùng app</b> — vì hệ thống chưa có phiếu nào cho giai đoạn này, nên đây là tạo phiếu MỚI (không phải gắn số HĐ vào phiếu có sẵn). Mỗi hoá đơn sẽ tạo 1 phiếu với 1 dòng gộp "hàng hoá/dịch vụ theo hoá đơn" (không tách chi tiết mặt hàng) — đủ để tính đúng doanh thu, chi phí, công nợ. Sau này có file XML gốc của hoá đơn cũ, có thể bổ sung chi tiết mặt hàng thật cho từng phiếu.</p>
+        <div class="formGrid">
+          <div class="field">
+            <label>Loại bảng kê</label>
+            <select id="lichSuLoai">
+              <option value="xuat">Hoá đơn bán ra (tạo phiếu Xuất bán)</option>
+              <option value="nhap">Hoá đơn mua vào (tạo phiếu Nhập kho)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Chọn file Excel bảng kê (.xlsx, .xls, .csv)</label>
+            <input type="file" id="lichSuFile" accept=".xlsx,.xls,.csv">
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:6px;">
+          <input type="checkbox" id="lichSuDaThanhToan" checked style="width:auto;">
+          Đánh dấu tất cả là <b>đã thanh toán đủ</b> (phù hợp với hoá đơn cũ đã tất toán — bỏ chọn nếu còn nợ)
+        </label>
+        <button class="btn" id="btnDocFileLichSu" style="margin-top:10px;">Đọc file &amp; xem trước</button>
+      </div>
+      <div class="panel" id="lichSuMapPanel" style="display:none;"></div>
+      <div class="panel" id="lichSuPreviewPanel" style="display:none;">
+        <div class="subhead">
+          <h3 style="margin:0;">Xem trước — bỏ chọn dòng nào không muốn tạo</h3>
+          <button class="btn small" id="btnTaoPhieuLichSu">Tạo phiếu hàng loạt cho các dòng đã chọn</button>
+        </div>
+        <div class="tableWrap" id="lichSuPreviewWrap"></div>
+      </div>
+    </section>
+
+    <!-- ---------- NGƯỜI DÙNG ---------- -->
+    <section class="view" id="view-nguoidung">
+      <div class="subhead">
+        <h2 class="viewTitle" style="margin:0;">Người dùng</h2>
+        <button class="btn" id="btnAddNguoiDung">+ Thêm người dùng</button>
+      </div>
+      <p class="muted">Vai trò: <b>Admin</b> (toàn quyền) · <b>Bán hàng</b> · <b>Kỹ thuật</b> · <b>Kế toán</b>. Hiện tại chỉ có tài khoản Admin — thêm nhân viên khi cần.</p>
+      <div class="tableWrap" id="nguoiDungTableWrap"></div>
+      <div class="panel" style="margin-top:16px;">
+        <h3>Đổi mật khẩu của tôi</h3>
+        <div class="formGrid">
+          <div class="field"><label>Mật khẩu hiện tại</label><input type="password" id="fMatKhauCu"></div>
+          <div class="field"><label>Mật khẩu mới (tối thiểu 6 ký tự)</label><input type="password" id="fMatKhauMoi"></div>
+        </div>
+        <button class="btn" style="margin-top:10px;" id="btnDoiMatKhau">Đổi mật khẩu</button>
+      </div>
+    </section>
+
+    <!-- ---------- CÀI ĐẶT ---------- -->
+    <section class="view" id="view-caidat">
+      <h2 class="viewTitle">Cài đặt kết nối</h2>
+      <div class="panel">
+        <h3>Địa chỉ Apps Script (Web App URL)</h3>
+        <p class="muted">Dán URL Web App sau khi Deploy Apps Script. URL sẽ được lưu trong trình duyệt này.</p>
+        <div class="field"><input type="text" id="settingsScriptUrl" placeholder="https://script.google.com/macros/s/xxxx/exec"></div>
+        <button class="btn" id="btnSaveScriptUrl" style="margin-top:10px;">Lưu địa chỉ</button>
+      </div>
+      <div class="panel">
+        <h3>Kết nối hoá đơn điện tử EasyInvoice</h3>
+        <p class="muted">Công ty đang dùng EasyInvoice (SoftDreams). Đồng bộ tự động số hoá đơn cần API key riêng cấp bởi SoftDreams (1900565653 / contact@softdreams.vn). Hiện số hoá đơn được nhập tay tại nút "HĐ" trên từng phiếu (Xuất bán / Sửa chữa / Gia công).</p>
+      </div>
+      <div class="panel">
+        <h3>Nhật ký hoạt động gần đây</h3>
+        <button class="btn secondary small" id="btnXemNhatKy">Xem nhật ký</button>
+        <div class="tableWrap" id="nhatKyWrap" style="margin-top:10px;"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="modalBg" id="modalBg"><div class="modalCard" id="modalCard"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= CONFIG ================= */
+const CONFIG = { SCRIPT_URL: localStorage.getItem('qlbh_script_url') || '' };
+
+let STATE = {
+  token: sessionStorage.getItem('qlbh_token') || '',
+  user: JSON.parse(sessionStorage.getItem('qlbh_user') || 'null'),
+  hangHoaList: [], khachHangList: [], nhaCungCapList: [],
+  nhapKhoList: [], xuatBanList: [], suaChuaList: [], giaCongList: []
+};
+
+/* ================= API HELPER ================= */
+function apiCall(action, extra) {
+  extra = extra || {};
+  const payload = Object.assign({ action, token: STATE.token }, extra);
+  if (!CONFIG.SCRIPT_URL) { showToast('Chưa cấu hình địa chỉ Apps Script — vào tab Cài đặt.'); return Promise.reject(new Error('NO_SCRIPT_URL')); }
+  return fetch(CONFIG.SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) })
+    .then(r => r.json())
+    .then(res => { if (!res.success) throw new Error(res.error || 'LOI_KHONG_XAC_DINH'); return res.data; });
+}
+function apiLogin(tenDangNhap, password) {
+  return fetch(CONFIG.SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'login', tenDangNhap, password }) }).then(r => r.json());
+}
+
+/* ================= UTIL ================= */
+function fmtMoney(n) { n = Number(n) || 0; return n.toLocaleString('vi-VN') + ' đ'; }
+function fmtDate(d) { if (!d) return ''; const dt = new Date(d); if (isNaN(dt)) return d; return dt.toLocaleDateString('vi-VN'); }
+function todayISO() { return new Date().toISOString().substring(0, 10); }
+function showToast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(window._toastTimer); window._toastTimer = setTimeout(() => (t.style.display = 'none'), 3200);
+}
+function openModal(html) { document.getElementById('modalCard').innerHTML = html; document.getElementById('modalBg').classList.add('active'); }
+function closeModal() { document.getElementById('modalBg').classList.remove('active'); }
+document.getElementById('modalBg').addEventListener('click', e => { if (e.target.id === 'modalBg') closeModal(); });
+function vaiTroLabel(v) { return { Admin: 'Quản trị viên', BanHang: 'Bán hàng', KyThuat: 'Kỹ thuật', KeToan: 'Kế toán' }[v] || v; }
+function trangThaiSCLabel(v) { return { TiepNhan: 'Tiếp nhận', DangSua: 'Đang sửa', ChoLinhKien: 'Chờ linh kiện', HoanThanh: 'Hoàn thành', DaGiaoTra: 'Đã giao trả', Huy: 'Huỷ' }[v] || v; }
+function trangThaiSCTag(v) {
+  const map = { TiepNhan: 'info', DangSua: 'warn', ChoLinhKien: 'warn', HoanThanh: 'good', DaGiaoTra: 'good', Huy: 'bad' };
+  return `<span class="tag ${map[v] || 'info'}">${trangThaiSCLabel(v)}</span>`;
+}
+
+/* ================= LOGIN FLOW ================= */
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('userInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+function doLogin() {
+  const tenDangNhap = document.getElementById('userInput').value.trim();
+  const pw = document.getElementById('pwInput').value;
+  if (!CONFIG.SCRIPT_URL) {
+    document.getElementById('loginErr').textContent = '';
+    enterApp(true);
+    switchTab('caidat');
+    showToast('Hãy nhập địa chỉ Apps Script ở tab Cài đặt trước, sau đó đăng xuất và đăng nhập lại.');
+    return;
+  }
+  if (!tenDangNhap || !pw) { document.getElementById('loginErr').textContent = 'Nhập đủ tài khoản và mật khẩu.'; return; }
+  document.getElementById('loginErr').textContent = 'Đang kiểm tra...';
+  apiLogin(tenDangNhap, pw).then(res => {
+    if (res.success) {
+      STATE.token = res.token; STATE.user = res.user;
+      sessionStorage.setItem('qlbh_token', res.token);
+      sessionStorage.setItem('qlbh_user', JSON.stringify(res.user));
+      document.getElementById('companyNameLabel').textContent = res.companyName || 'Phương Linh Tech';
+      document.getElementById('loginErr').textContent = '';
+      enterApp(false);
+    } else {
+      const msgMap = { SAI_TAI_KHOAN: 'Tài khoản không tồn tại.', SAI_MAT_KHAU: 'Sai mật khẩu.', TAI_KHOAN_BI_KHOA: 'Tài khoản đã bị khoá.' };
+      document.getElementById('loginErr').textContent = msgMap[res.error] || ('Lỗi: ' + res.error);
+    }
+  }).catch(err => { document.getElementById('loginErr').textContent = 'Lỗi kết nối: ' + err.message; });
+}
+
+document.getElementById('btnLogout').addEventListener('click', () => {
+  if (STATE.token && CONFIG.SCRIPT_URL) apiCall('logout').catch(() => {});
+  sessionStorage.removeItem('qlbh_token'); sessionStorage.removeItem('qlbh_user');
+  STATE.token = ''; STATE.user = null;
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+});
+
+function enterApp(isSetupOnly) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').style.display = 'flex';
+  document.getElementById('settingsScriptUrl').value = CONFIG.SCRIPT_URL;
+  if (STATE.user) {
+    document.getElementById('userHoTenLabel').textContent = STATE.user.hoTen;
+    document.getElementById('userVaiTroLabel').textContent = vaiTroLabel(STATE.user.vaiTro);
+    applyRoleVisibility();
+  }
+  if (!isSetupOnly) loadAllData();
+}
+
+function applyRoleVisibility() {
+  const role = STATE.user ? STATE.user.vaiTro : null;
+  const isAdmin = role === 'Admin';
+  document.querySelectorAll('#tabbar button[data-tab="nguoidung"]').forEach(b => b.style.display = isAdmin ? '' : 'none');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('settingsScriptUrl').value = CONFIG.SCRIPT_URL;
+  if (STATE.token && STATE.user && CONFIG.SCRIPT_URL) enterApp(false);
+});
+
+/* ================= TAB SWITCH ================= */
+document.getElementById('tabbar').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-tab]'); if (!btn) return; switchTab(btn.dataset.tab);
+});
+function switchTab(tab) {
+  document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + tab).classList.add('active');
+  const renderers = {
+    dashboard: renderDashboard, danhmuc: renderHangHoaTable, nhapkho: renderNhapKhoTable,
+    xuatban: renderXuatBanTable, suachua: renderSuaChuaTable, giacong: renderGiaCongTable,
+    congno: renderCongNo, doitac: () => { renderKhachHangTable(); renderNhaCungCapTable(); },
+    nguoidung: renderNguoiDungTable
+  };
+  if (renderers[tab]) renderers[tab]();
+}
+
+/* ================= LOAD DATA ================= */
+function loadAllData() {
+  Promise.all([
+    apiCall('getHangHoaList'), apiCall('getKhachHangList'), apiCall('getNhaCungCapList'),
+    apiCall('getNhapKhoList'), apiCall('getXuatBanList'), apiCall('getSuaChuaList'), apiCall('getGiaCongList')
+  ]).then(([hh, kh, ncc, nk, xb, sc, gc]) => {
+    STATE.hangHoaList = hh; STATE.khachHangList = kh; STATE.nhaCungCapList = ncc;
+    STATE.nhapKhoList = nk; STATE.xuatBanList = xb; STATE.suaChuaList = sc; STATE.giaCongList = gc;
+    renderDashboard();
+  }).catch(err => showToast('Lỗi tải dữ liệu: ' + err.message));
+}
+
+/* ================= DASHBOARD ================= */
+function renderDashboard() {
+  apiCall('getDashboard').then(d => {
+    const cards = [
+      { label: 'Doanh thu tháng này', val: fmtMoney(d.doanhThuThangNay), cls: 'good' },
+      { label: 'Nhập kho tháng này', val: fmtMoney(d.nhapKhoThangNay), cls: '' },
+      { label: 'Công nợ phải thu', val: fmtMoney(d.congNoPhaiThu), cls: 'warn' },
+      { label: 'Công nợ phải trả', val: fmtMoney(d.congNoPhaiTra), cls: 'bad' },
+      { label: 'Sửa chữa đang xử lý', val: d.suaChuaDangXuLy, cls: d.suaChuaDangXuLy > 0 ? 'warn' : '' },
+      { label: 'Gia công đang xử lý', val: d.giaCongDangXuLy, cls: d.giaCongDangXuLy > 0 ? 'warn' : '' },
+      { label: 'Số mặt hàng / dịch vụ', val: d.soLuongHangHoa + ' / ' + d.soLuongDichVu, cls: '' },
+      { label: 'Phiếu xuất tháng này', val: d.soPhieuXuatThangNay, cls: '' }
+    ];
+    document.getElementById('dashCards').innerHTML = cards.map(c => `<div class="statCard ${c.cls}"><div class="label">${c.label}</div><div class="val">${c.val}</div></div>`).join('');
+    const lowStockWrap = document.getElementById('dashLowStock');
+    if (!d.hangSapHet || d.hangSapHet.length === 0) {
+      lowStockWrap.innerHTML = '<div class="empty">Không có hàng nào dưới mức tồn tối thiểu.</div>';
+    } else {
+      lowStockWrap.innerHTML = `<table><thead><tr><th>Mã</th><th>Tên hàng</th><th>Tồn kho</th><th>Tồn tối thiểu</th></tr></thead><tbody>
+        ${d.hangSapHet.map(h => `<tr><td>${h.MaHH}</td><td>${h.TenHH}</td><td>${h.TonKho}</td><td>${h.TonKhoToiThieu}</td></tr>`).join('')}
+      </tbody></table>`;
+    }
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= DANH MỤC HÀNG HOÁ ================= */
+function renderHangHoaTable() {
+  apiCall('getHangHoaList').then(list => { STATE.hangHoaList = list; drawHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function drawHangHoaTable() {
+  const search = (document.getElementById('searchHH').value || '').toLowerCase();
+  const filterLoai = document.getElementById('filterLoaiHH').value;
+  let list = STATE.hangHoaList.filter(h => (!search || (h.TenHH || '').toLowerCase().includes(search) || (h.MaHH || '').toLowerCase().includes(search)) && (!filterLoai || h.Loai === filterLoai));
+  const wrap = document.getElementById('hhTableWrap');
+  if (list.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có hàng hoá / dịch vụ nào.</div>'; return; }
+  wrap.innerHTML = `<table><thead><tr><th>Mã</th><th>Tên</th><th>Loại</th><th>ĐVT</th><th>Giá vốn TB</th><th>Giá bán</th><th>Tồn kho</th><th></th></tr></thead><tbody>
+    ${list.map(h => `<tr>
+      <td>${h.MaHH}</td><td>${h.TenHH}</td>
+      <td>${h.Loai === 'HangHoa' ? '<span class="tag hh">Hàng hoá</span>' : '<span class="tag dv">Dịch vụ</span>'}</td>
+      <td>${h.DVT || ''}</td><td>${fmtMoney(h.GiaVonTB)}</td><td>${fmtMoney(h.GiaBan)}</td>
+      <td>${h.Loai === 'HangHoa' ? h.TonKho : '—'}</td>
+      <td class="rowActions"><button onclick="openEditHH('${h.MaHH}')">Sửa</button><button class="danger" onclick="deleteHH('${h.MaHH}')">Xoá</button></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+document.getElementById('searchHH').addEventListener('input', drawHangHoaTable);
+document.getElementById('filterLoaiHH').addEventListener('change', drawHangHoaTable);
+document.getElementById('btnAddHH').addEventListener('click', () => openEditHH(null));
+
+function openEditHH(maHH) {
+  const item = maHH ? STATE.hangHoaList.find(h => h.MaHH === maHH) : null;
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>${item ? 'Sửa hàng hoá / dịch vụ' : 'Thêm hàng hoá / dịch vụ'}</h3>
+    <div class="formGrid">
+      <div class="field span2"><label>Tên</label><input id="fTenHH" value="${item ? item.TenHH : ''}"></div>
+      <div class="field"><label>Loại</label><select id="fLoai">
+        <option value="HangHoa" ${item && item.Loai === 'HangHoa' ? 'selected' : ''}>Hàng hoá (có tồn kho)</option>
+        <option value="DichVu" ${item && item.Loai === 'DichVu' ? 'selected' : ''}>Dịch vụ (không tồn kho)</option>
+      </select></div>
+      <div class="field"><label>Đơn vị tính</label><input id="fDVT" value="${item ? item.DVT : ''}" placeholder="cái, bộ, giờ..."></div>
+      <div class="field"><label>Giá bán</label><input id="fGiaBan" type="number" value="${item ? item.GiaBan : ''}"></div>
+      <div class="field"><label>Tồn kho tối thiểu (cảnh báo)</label><input id="fTonToiThieu" type="number" value="${item ? item.TonKhoToiThieu : 0}"></div>
+      <div class="field span2"><label>Ghi chú</label><input id="fGhiChu" value="${item ? item.GhiChu || '' : ''}"></div>
+    </div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="saveHH('${item ? item.MaHH : ''}')">Lưu</button></div>
+  `);
+}
+function saveHH(maHH) {
+  const data = {
+    MaHH: maHH || undefined, TenHH: document.getElementById('fTenHH').value.trim(),
+    Loai: document.getElementById('fLoai').value, DVT: document.getElementById('fDVT').value.trim(),
+    GiaBan: Number(document.getElementById('fGiaBan').value) || 0,
+    TonKhoToiThieu: Number(document.getElementById('fTonToiThieu').value) || 0,
+    GhiChu: document.getElementById('fGhiChu').value.trim()
+  };
+  if (!data.TenHH) { showToast('Vui lòng nhập tên.'); return; }
+  apiCall('saveHangHoa', { data }).then(() => { closeModal(); showToast('Đã lưu.'); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function deleteHH(maHH) {
+  if (!confirm('Xoá mục này khỏi danh mục?')) return;
+  apiCall('deleteHangHoa', { maHH }).then(() => { showToast('Đã xoá.'); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= HÀM DÙNG CHUNG: FORM ITEMS (danh sách hàng hoá trong phiếu) ================= */
+const THUE_SUAT_OPTIONS = ['0', '5', '8', '10', 'KCT'];
+function thueSuatLabel(v) { return v === 'KCT' ? 'KCT' : v + '%'; }
+function thueSuatOptionsHtml(selected) {
+  return THUE_SUAT_OPTIONS.map(v => `<option value="${v}" ${String(selected) === v ? 'selected' : ''}>${thueSuatLabel(v)}</option>`).join('');
+}
+function tinhTienThueJS(soTien, thueSuat) {
+  if (!thueSuat || thueSuat === 'KCT') return 0;
+  const rate = parseFloat(String(thueSuat).replace('%', '')) || 0;
+  return Math.round(soTien * rate / 100);
+}
+
+function itemsToOptionsHtml(mode) {
+  // mode: 'gia_von' dùng cho nhập kho (giá gợi ý = giá vốn); 'gia_ban' dùng cho xuất bán/linh kiện
+  return STATE.hangHoaList.map(h => `<option value="${h.MaHH}" data-ten="${h.TenHH}" data-gia="${mode === 'gia_von' ? h.GiaVonTB : h.GiaBan}">${h.TenHH} (${h.MaHH})</option>`).join('');
+}
+function renderItemsTableInto(containerId, mode) {
+  document.getElementById(containerId).innerHTML = `
+    <table class="itemsTable" id="${containerId}_table">
+      <thead><tr><th style="min-width:160px;">Hàng hoá / dịch vụ</th><th class="num">SL</th><th class="num">Đơn giá</th><th style="width:80px;">Thuế</th><th>Thành tiền</th><th class="del"></th></tr></thead>
+      <tbody id="${containerId}_tbody"></tbody>
+    </table>
+    <button class="btn secondary small" type="button" onclick="addItemRowInto('${containerId}','${mode}')">+ Thêm dòng hàng</button>
+    <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
+      Tạm tính (trước thuế): <b id="${containerId}_grandTruoc">0 đ</b><br>
+      Tiền thuế GTGT: <b id="${containerId}_grandThue">0 đ</b><br>
+      <span style="font-size:16px;font-weight:800;color:var(--brand-deep);">Tổng thanh toán: <span id="${containerId}_grand">0 đ</span></span>
+    </div>
+  `;
+  window['_itemsMode_' + containerId] = mode;
+}
+function addItemRowInto(containerId, mode) {
+  const tbody = document.getElementById(containerId + '_tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><select class="itemHH" onchange="onItemHHChangeGeneric(this,'${containerId}')"><option value="">-- Chọn --</option>${itemsToOptionsHtml(mode)}</select></td>
+    <td class="num"><input type="number" class="itemSL num" value="1" min="0.01" step="0.01" oninput="updateLineTotalGeneric(this,'${containerId}')"></td>
+    <td class="num"><input type="number" class="itemGia num" value="0" min="0" oninput="updateLineTotalGeneric(this,'${containerId}')"></td>
+    <td><select class="itemThueSuat" onchange="updateLineTotalGeneric(this,'${containerId}')">${thueSuatOptionsHtml('8')}</select></td>
+    <td class="lineTotal">0 đ</td>
+    <td class="del"><button class="btn secondary small" type="button" onclick="this.closest('tr').remove(); recalcGrandTotalGeneric('${containerId}');">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+function onItemHHChangeGeneric(sel, containerId) {
+  const opt = sel.selectedOptions[0]; const tr = sel.closest('tr');
+  if (opt && opt.dataset.gia) tr.querySelector('.itemGia').value = Math.round(Number(opt.dataset.gia));
+  updateLineTotalGeneric(sel, containerId);
+}
+function updateLineTotalGeneric(el, containerId) {
+  const tr = el.closest('tr');
+  const sl = Number(tr.querySelector('.itemSL').value) || 0;
+  const gia = Number(tr.querySelector('.itemGia').value) || 0;
+  const thueSuat = tr.querySelector('.itemThueSuat').value;
+  const truocThue = sl * gia;
+  const tienThue = tinhTienThueJS(truocThue, thueSuat);
+  tr.querySelector('.lineTotal').textContent = fmtMoney(truocThue + tienThue);
+  recalcGrandTotalGeneric(containerId);
+}
+function recalcGrandTotalGeneric(containerId) {
+  let truoc = 0, thue = 0;
+  document.querySelectorAll('#' + containerId + '_tbody tr').forEach(tr => {
+    const sl = Number(tr.querySelector('.itemSL').value) || 0;
+    const gia = Number(tr.querySelector('.itemGia').value) || 0;
+    const thueSuat = tr.querySelector('.itemThueSuat').value;
+    const t = sl * gia;
+    truoc += t; thue += tinhTienThueJS(t, thueSuat);
+  });
+  const grandEl = document.getElementById(containerId + '_grand');
+  const grandTruocEl = document.getElementById(containerId + '_grandTruoc');
+  const grandThueEl = document.getElementById(containerId + '_grandThue');
+  if (grandEl) grandEl.textContent = fmtMoney(truoc + thue);
+  if (grandTruocEl) grandTruocEl.textContent = fmtMoney(truoc);
+  if (grandThueEl) grandThueEl.textContent = fmtMoney(thue);
+  return truoc + thue;
+}
+function readItemsFrom(containerId) {
+  return [...document.querySelectorAll('#' + containerId + '_tbody tr')].map(tr => {
+    const sel = tr.querySelector('.itemHH'); const opt = sel.selectedOptions[0];
+    return {
+      MaHH: sel.value, TenHH: opt ? opt.dataset.ten : '',
+      SoLuong: Number(tr.querySelector('.itemSL').value) || 0,
+      DonGia: Number(tr.querySelector('.itemGia').value) || 0,
+      ThueSuat: tr.querySelector('.itemThueSuat').value
+    };
+  }).filter(it => it.MaHH && it.SoLuong > 0);
+}
+
+/* ================= NHẬP KHO ================= */
+function renderNhapKhoTable() {
+  apiCall('getNhapKhoList').then(list => {
+    STATE.nhapKhoList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
+    const wrap = document.getElementById('nhapTableWrap');
+    if (list.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu nhập kho nào.</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Nhà cung cấp</th><th>Số HĐ mua vào</th><th>Tổng thanh toán</th><th>Đã trả</th><th>Còn nợ</th><th>Người tạo</th><th></th></tr></thead><tbody>
+      ${STATE.nhapKhoList.map(n => { const conNo = (Number(n.TongTien) || 0) - (Number(n.DaTra) || 0); return `<tr>
+        <td>${fmtDate(n.Ngay)}</td><td>${n.TenNCC || '—'}</td><td>${n.SoHDMuaVao || '—'}</td>
+        <td>${fmtMoney(n.TongTien)}</td><td>${fmtMoney(n.DaTra)}</td>
+        <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã trả đủ</span>'}</td>
+        <td class="muted">${n.NguoiTao || ''}</td>
+        <td class="rowActions"><button onclick="viewPhieuNhapXuat('nhap','${n.IDPhieu}')">Xem</button><button class="danger" onclick="xoaPhieuUI('nhap','${n.IDPhieu}')">Xoá</button></td>
+      </tr>`; }).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+document.getElementById('btnAddNhap').addEventListener('click', openPhieuNhapForm);
+
+function openPhieuNhapForm() {
+  const doiTacOptions = STATE.nhaCungCapList.map(d => `<option value="${d.MaNCC}" data-ten="${d.TenNCC}">${d.TenNCC}</option>`).join('');
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>Tạo phiếu nhập kho</h3>
+    <div class="formGrid">
+      <div class="field"><label>Ngày</label><input type="date" id="fNgay" value="${todayISO()}"></div>
+      <div class="field"><label>Nhà cung cấp</label><select id="fDoiTac"><option value="">-- Chọn hoặc để trống --</option>${doiTacOptions}</select></div>
+      <div class="field span2"><label>Số hoá đơn mua vào (đầu vào)</label><input id="fSoHD" placeholder="Số hoá đơn từ nhà cung cấp"></div>
+      <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu"></div>
+    </div>
+    <div id="nhapItemsContainer"></div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="submitPhieuNhap()">Lưu phiếu</button></div>
+  `);
+  renderItemsTableInto('nhapItemsContainer', 'gia_von');
+  addItemRowInto('nhapItemsContainer', 'gia_von');
+}
+function submitPhieuNhap() {
+  const items = readItemsFrom('nhapItemsContainer');
+  if (items.length === 0) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
+  const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
+  const data = {
+    Ngay: document.getElementById('fNgay').value, GhiChu: document.getElementById('fGhiChuPhieu').value,
+    MaNCC: doiTacSel.value, TenNCC: doiTacOpt ? doiTacOpt.dataset.ten : '',
+    SoHDMuaVao: document.getElementById('fSoHD').value, items
+  };
+  apiCall('saveNhapKho', { data }).then(() => { closeModal(); showToast('Đã lưu phiếu nhập kho.'); renderNhapKhoTable(); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= XUẤT BÁN ================= */
+function renderXuatBanTable() {
+  apiCall('getXuatBanList').then(list => {
+    STATE.xuatBanList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
+    const wrap = document.getElementById('xuatTableWrap');
+    if (list.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu xuất bán nào.</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Khách hàng</th><th>Số HĐĐT</th><th>Tổng thanh toán</th><th>Đã thu</th><th>Còn nợ</th><th>Trạng thái HĐ</th><th>Người tạo</th><th></th></tr></thead><tbody>
+      ${STATE.xuatBanList.map(x => { const conNo = (Number(x.TongTien) || 0) - (Number(x.DaThu) || 0); return `<tr>
+        <td>${fmtDate(x.Ngay)}</td><td>${x.TenKH || 'Khách lẻ'}</td><td>${x.SoHDDT || '—'}</td>
+        <td>${fmtMoney(x.TongTien)}</td><td>${fmtMoney(x.DaThu)}</td>
+        <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã thu đủ</span>'}</td>
+        <td>${x.TrangThaiHD === 'DaXuat' ? '<span class="tag good">Đã xuất HĐ</span>' : '<span class="tag bad">Chưa xuất HĐ</span>'}</td>
+        <td class="muted">${x.NguoiTao || ''}</td>
+        <td class="rowActions"><button onclick="openCapNhatHD('xuat','${x.IDPhieu}')">HĐ</button><button onclick="viewPhieuNhapXuat('xuat','${x.IDPhieu}')">Xem</button><button class="danger" onclick="xoaPhieuUI('xuat','${x.IDPhieu}')">Xoá</button></td>
+      </tr>`; }).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+document.getElementById('btnAddXuat').addEventListener('click', openPhieuXuatForm);
+
+function openPhieuXuatForm() {
+  const doiTacOptions = STATE.khachHangList.map(d => `<option value="${d.MaKH}" data-ten="${d.TenKH}">${d.TenKH}</option>`).join('');
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>Tạo phiếu xuất bán</h3>
+    <div class="formGrid">
+      <div class="field"><label>Ngày</label><input type="date" id="fNgay" value="${todayISO()}"></div>
+      <div class="field"><label>Khách hàng</label><select id="fDoiTac"><option value="">-- Chọn hoặc để trống (khách lẻ) --</option>${doiTacOptions}</select></div>
+      <div class="field span2"><label>MST khách hàng (nếu xuất hoá đơn)</label><input id="fMSTKhach" placeholder="Có thể để trống nếu bán lẻ"></div>
+      <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu"></div>
+    </div>
+    <div id="xuatItemsContainer"></div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="submitPhieuXuat()">Lưu phiếu</button></div>
+  `);
+  renderItemsTableInto('xuatItemsContainer', 'gia_ban');
+  addItemRowInto('xuatItemsContainer', 'gia_ban');
+}
+function submitPhieuXuat() {
+  const items = readItemsFrom('xuatItemsContainer');
+  if (items.length === 0) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
+  const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
+  const data = {
+    Ngay: document.getElementById('fNgay').value, GhiChu: document.getElementById('fGhiChuPhieu').value,
+    MaKH: doiTacSel.value, TenKH: doiTacOpt ? doiTacOpt.dataset.ten : '',
+    MSTKhachHang: document.getElementById('fMSTKhach').value, items
+  };
+  apiCall('saveXuatBan', { data }).then(() => { closeModal(); showToast('Đã lưu phiếu xuất bán.'); renderXuatBanTable(); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= SỬA CHỮA ================= */
+function renderSuaChuaTable() {
+  apiCall('getSuaChuaList').then(list => {
+    STATE.suaChuaList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
+    const filterTT = document.getElementById('filterTrangThaiSC').value;
+    const filtered = filterTT ? STATE.suaChuaList.filter(x => x.TrangThai === filterTT) : STATE.suaChuaList;
+    const wrap = document.getElementById('suaChuaTableWrap');
+    if (filtered.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu sửa chữa nào.</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Khách hàng</th><th>Thiết bị</th><th>Trạng thái</th><th>Tổng thanh toán</th><th>Còn nợ</th><th>Kỹ thuật viên</th><th></th></tr></thead><tbody>
+      ${filtered.map(s => { const conNo = (Number(s.TongTien) || 0) - (Number(s.DaThu) || 0); return `<tr>
+        <td>${fmtDate(s.Ngay)}</td><td>${s.TenKH || '—'}<div class="muted">${s.SDT || ''}</div></td>
+        <td>${s.ThietBi || ''}</td><td>${trangThaiSCTag(s.TrangThai)}</td>
+        <td>${fmtMoney(s.TongTien)}</td>
+        <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã thu đủ</span>'}</td>
+        <td>${s.NguoiPhuTrach || ''}</td>
+        <td class="rowActions">
+          <button onclick="viewPhieuSuaChua('${s.IDPhieu}')">Xem</button>
+          <button onclick="openCapNhatTrangThaiSC('${s.IDPhieu}')">Trạng thái</button>
+          <button onclick="openCapNhatHD('suachua','${s.IDPhieu}')">HĐ</button>
+          <button class="danger" onclick="xoaPhieuGeneric('xoaPhieuSuaChua','${s.IDPhieu}',renderSuaChuaTable)">Xoá</button>
+        </td>
+      </tr>`; }).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+document.getElementById('filterTrangThaiSC').addEventListener('change', renderSuaChuaTable);
+document.getElementById('btnAddSuaChua').addEventListener('click', openPhieuSuaChuaForm);
+
+function openPhieuSuaChuaForm() {
+  const doiTacOptions = STATE.khachHangList.map(d => `<option value="${d.MaKH}" data-ten="${d.TenKH}" data-sdt="${d.SDT || ''}">${d.TenKH}</option>`).join('');
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>Tiếp nhận sửa chữa</h3>
+    <div class="formGrid">
+      <div class="field"><label>Ngày tiếp nhận</label><input type="date" id="fNgay" value="${todayISO()}"></div>
+      <div class="field"><label>Khách hàng</label><select id="fDoiTac" onchange="autoFillSDT()"><option value="">-- Chọn hoặc nhập tay --</option>${doiTacOptions}</select></div>
+      <div class="field"><label>Tên khách (nếu không có trong danh sách)</label><input id="fTenKhachTay" placeholder="Có thể để trống nếu đã chọn ở trên"></div>
+      <div class="field"><label>Số điện thoại</label><input id="fSDT"></div>
+      <div class="field span2"><label>Thiết bị</label><input id="fThietBi" placeholder="VD: Laptop Dell Inspiron, máy in Canon..."></div>
+      <div class="field span2"><label>Tình trạng khi tiếp nhận / mô tả lỗi</label><textarea id="fTinhTrang"></textarea></div>
+      <div class="field span2"><label>Phụ kiện kèm theo</label><input id="fPhuKien" placeholder="VD: sạc, túi đựng..."></div>
+      <div class="field"><label>Kỹ thuật viên phụ trách</label><input id="fNguoiPhuTrach"></div>
+      <div class="field"><label>Ngày hẹn trả</label><input type="date" id="fNgayHenTra"></div>
+      <div class="field"><label>Bảo hành (số ngày)</label><input type="number" id="fBaoHanh" value="0"></div>
+      <div class="field"><label>Tiền công sửa chữa (trước thuế)</label><input type="number" id="fTienCong" value="0"></div>
+      <div class="field"><label>Thuế suất tiền công</label><select id="fTienCongThueSuat">${thueSuatOptionsHtml('8')}</select></div>
+      <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu"></div>
+    </div>
+    <p class="muted" style="margin:12px 0 4px;">Linh kiện thay thế (nếu có — sẽ tự động trừ tồn kho):</p>
+    <div id="scItemsContainer"></div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="submitPhieuSuaChua()">Lưu phiếu tiếp nhận</button></div>
+  `);
+  renderItemsTableInto('scItemsContainer', 'gia_ban');
+}
+function autoFillSDT() {
+  const sel = document.getElementById('fDoiTac'); const opt = sel.selectedOptions[0];
+  if (opt && opt.dataset.sdt) document.getElementById('fSDT').value = opt.dataset.sdt;
+}
+function submitPhieuSuaChua() {
+  const items = readItemsFrom('scItemsContainer');
+  const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
+  const tenKhachTay = document.getElementById('fTenKhachTay').value.trim();
+  const data = {
+    Ngay: document.getElementById('fNgay').value,
+    MaKH: doiTacSel.value, TenKH: tenKhachTay || (doiTacOpt ? doiTacOpt.dataset.ten : ''),
+    SDT: document.getElementById('fSDT').value.trim(),
+    ThietBi: document.getElementById('fThietBi').value.trim(),
+    TinhTrangTiepNhan: document.getElementById('fTinhTrang').value.trim(),
+    PhuKienKemTheo: document.getElementById('fPhuKien').value.trim(),
+    NguoiPhuTrach: document.getElementById('fNguoiPhuTrach').value.trim(),
+    NgayHenTra: document.getElementById('fNgayHenTra').value,
+    BaoHanhNgay: Number(document.getElementById('fBaoHanh').value) || 0,
+    TienCong: Number(document.getElementById('fTienCong').value) || 0,
+    TienCongThueSuat: document.getElementById('fTienCongThueSuat').value,
+    GhiChu: document.getElementById('fGhiChuPhieu').value.trim(),
+    TrangThai: 'TiepNhan', items
+  };
+  if (!data.ThietBi) { showToast('Vui lòng nhập tên thiết bị.'); return; }
+  apiCall('saveSuaChua', { data }).then(() => { closeModal(); showToast('Đã lưu phiếu tiếp nhận sửa chữa.'); renderSuaChuaTable(); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+function viewPhieuSuaChua(idPhieu) {
+  const phieu = STATE.suaChuaList.find(p => p.IDPhieu === idPhieu);
+  apiCall('getSuaChuaDetail', { idPhieu }).then(res => {
+    const items = res.items || [];
+    const conNo = (Number(phieu.TongTien) || 0) - (Number(phieu.DaThu) || 0);
+    openModal(`
+      <button class="modalClose" onclick="closeModal()">&times;</button>
+      <h3>Chi tiết phiếu sửa chữa ${idPhieu}</h3>
+      <p class="muted">Ngày: ${fmtDate(phieu.Ngay)} · Khách: ${phieu.TenKH || '—'} (${phieu.SDT || ''}) · Trạng thái: ${trangThaiSCTag(phieu.TrangThai)}</p>
+      <p><b>Thiết bị:</b> ${phieu.ThietBi || ''}</p>
+      <p><b>Tình trạng tiếp nhận:</b> ${phieu.TinhTrangTiepNhan || ''}</p>
+      <p><b>Phụ kiện kèm theo:</b> ${phieu.PhuKienKemTheo || '—'}</p>
+      <p><b>Kỹ thuật viên:</b> ${phieu.NguoiPhuTrach || '—'} &nbsp;|&nbsp; <b>Bảo hành:</b> ${phieu.BaoHanhNgay || 0} ngày</p>
+      ${items.length ? `<table class="itemsTable"><thead><tr><th>Linh kiện</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Không có linh kiện thay thế.</p>'}
+      <p>Tiền công (trước thuế): ${fmtMoney(phieu.TienCong)} — thuế ${thueSuatLabel(phieu.TienCongThueSuat || '0')} &nbsp;|&nbsp; Tiền linh kiện (trước thuế): ${fmtMoney(phieu.TongTienLinhKien)}</p>
+      <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
+        Tạm tính (trước thuế): <b>${fmtMoney(phieu.TongTienTruocThue != null ? phieu.TongTienTruocThue : phieu.TongTien)}</b><br>
+        Tiền thuế GTGT: <b>${fmtMoney(phieu.TongTienThue || 0)}</b><br>
+        <span style="font-size:16px;font-weight:800;color:var(--brand-deep);">Tổng thanh toán: ${fmtMoney(phieu.TongTien)}</span>
+      </div>
+      <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
+      ${conNo > 0 ? `
+        <div class="formGrid"><div class="field span2"><label>Ghi nhận thu tiền từ khách</label><input type="number" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThuSuaChua('${idPhieu}')">Ghi nhận thanh toán</button></div>
+      ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
+    `);
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function ghiNhanThuSuaChua(idPhieu) {
+  const soTien = Number(document.getElementById('fSoTienTT').value) || 0;
+  if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  apiCall('capNhatDaThuSuaChua', { idPhieu, soTien }).then(() => { closeModal(); showToast('Đã ghi nhận thanh toán.'); renderSuaChuaTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function openCapNhatTrangThaiSC(idPhieu) {
+  const phieu = STATE.suaChuaList.find(p => p.IDPhieu === idPhieu);
+  const options = ['TiepNhan', 'DangSua', 'ChoLinhKien', 'HoanThanh', 'DaGiaoTra', 'Huy'];
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>Cập nhật trạng thái sửa chữa</h3>
+    <div class="formGrid">
+      <div class="field span2"><label>Trạng thái</label><select id="fTrangThaiSC">${options.map(o => `<option value="${o}" ${phieu.TrangThai === o ? 'selected' : ''}>${trangThaiSCLabel(o)}</option>`).join('')}</select></div>
+      <div class="field span2"><label>Ngày hoàn thành (nếu có)</label><input type="date" id="fNgayHoanThanhSC" value="${phieu.NgayHoanThanh ? formatForInput(phieu.NgayHoanThanh) : ''}"></div>
+    </div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="luuTrangThaiSC('${idPhieu}')">Lưu</button></div>
+  `);
+}
+function formatForInput(d) { const dt = new Date(d); if (isNaN(dt)) return ''; return dt.toISOString().substring(0, 10); }
+function luuTrangThaiSC(idPhieu) {
+  const trangThai = document.getElementById('fTrangThaiSC').value;
+  const ngayHoanThanh = document.getElementById('fNgayHoanThanhSC').value;
+  apiCall('capNhatTrangThaiSuaChua', { idPhieu, trangThai, ngayHoanThanh }).then(() => { closeModal(); showToast('Đã cập nhật trạng thái.'); renderSuaChuaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= GIA CÔNG ================= */
+function loaiGCLabel(v) { return v === 'NhanGiaCongChoKhach' ? 'Nhận gia công cho khách' : 'Thuê ngoài gia công'; }
+function trangThaiGCLabel(v) { return { TiepNhan: 'Tiếp nhận', DangGiaCong: 'Đang gia công', HoanThanh: 'Hoàn thành', DaGiao: 'Đã giao' }[v] || v; }
+function trangThaiGCTag(v) { const map = { TiepNhan: 'info', DangGiaCong: 'warn', HoanThanh: 'good', DaGiao: 'good' }; return `<span class="tag ${map[v] || 'info'}">${trangThaiGCLabel(v)}</span>`; }
+
+function renderGiaCongTable() {
+  apiCall('getGiaCongList').then(list => {
+    STATE.giaCongList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
+    const filterLoai = document.getElementById('filterLoaiGC').value;
+    const filtered = filterLoai ? STATE.giaCongList.filter(g => g.Loai === filterLoai) : STATE.giaCongList;
+    const wrap = document.getElementById('giaCongTableWrap');
+    if (filtered.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu gia công nào.</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Đối tác</th><th>Công việc</th><th>Trạng thái</th><th>Chi phí (sau thuế)</th><th>Còn nợ</th><th></th></tr></thead><tbody>
+      ${filtered.map(g => {
+        const isThu = g.Loai === 'NhanGiaCongChoKhach';
+        const daXong = isThu ? Number(g.DaThu) || 0 : Number(g.DaTra) || 0;
+        const conNo = (Number(g.ChiPhiGiaCong) || 0) - daXong;
+        return `<tr>
+          <td>${fmtDate(g.Ngay)}</td>
+          <td>${isThu ? '<span class="tag hh">Nhận GC</span>' : '<span class="tag dv">Thuê ngoài</span>'}</td>
+          <td>${g.TenDoiTac || '—'}</td><td>${g.MoTaCongViec || ''}</td>
+          <td>${trangThaiGCTag(g.TrangThai)}</td><td>${fmtMoney(g.ChiPhiGiaCong)}</td>
+          <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã xong</span>'}</td>
+          <td class="rowActions">
+            <button onclick="viewPhieuGiaCong('${g.IDPhieu}')">Xem</button>
+            <button onclick="openCapNhatTrangThaiGC('${g.IDPhieu}')">Trạng thái</button>
+            <button onclick="openCapNhatHD('giacong','${g.IDPhieu}')">HĐ</button>
+            <button class="danger" onclick="xoaPhieuGeneric('xoaPhieuGiaCong','${g.IDPhieu}',renderGiaCongTable)">Xoá</button>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+document.getElementById('filterLoaiGC').addEventListener('change', renderGiaCongTable);
+document.getElementById('btnAddGiaCong').addEventListener('click', () => openPhieuGiaCongForm());
+
+function openPhieuGiaCongForm() {
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>Tạo phiếu gia công</h3>
+    <div class="segTabs">
+      <button type="button" class="active" id="segNhanGC" onclick="chonLoaiGC('NhanGiaCongChoKhach')">Nhận gia công cho khách</button>
+      <button type="button" id="segThueGC" onclick="chonLoaiGC('ThueNgoaiGiaCong')">Thuê ngoài gia công</button>
+    </div>
+    <input type="hidden" id="fLoaiGC" value="NhanGiaCongChoKhach">
+    <div class="formGrid">
+      <div class="field"><label>Ngày</label><input type="date" id="fNgay" value="${todayISO()}"></div>
+      <div class="field"><label id="fDoiTacLabel">Khách hàng</label><select id="fDoiTac"><option value="">-- Chọn hoặc để trống --</option></select></div>
+      <div class="field span2"><label>Mô tả công việc gia công</label><textarea id="fMoTaCongViec" placeholder="VD: Gia công 500 tấm biển quảng cáo, in 1000 tờ rơi..."></textarea></div>
+      <div class="field"><label>Số lượng sản phẩm</label><input type="number" id="fSoLuongSP" value="1"></div>
+      <div class="field"><label>Đơn vị tính</label><input id="fDonViTinh" placeholder="cái, bộ, tờ..."></div>
+      <div class="field"><label id="fChiPhiLabel">Chi phí gia công (trước thuế)</label><input type="number" id="fChiPhiGC" value="0"></div>
+      <div class="field"><label>Thuế suất</label><select id="fChiPhiGCThueSuat">${thueSuatOptionsHtml('8')}</select></div>
+      <div class="field"><label>Ngày hẹn trả</label><input type="date" id="fNgayHenTra"></div>
+      <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu"></div>
+    </div>
+    <p class="muted" style="margin:12px 0 4px;">Vật tư / nguyên liệu xuất từ kho (nếu có — sẽ tự động trừ tồn kho):</p>
+    <div id="gcItemsContainer"></div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="submitPhieuGiaCong()">Lưu phiếu</button></div>
+  `);
+  renderItemsTableInto('gcItemsContainer', 'gia_ban');
+  chonLoaiGC('NhanGiaCongChoKhach');
+}
+function chonLoaiGC(loai) {
+  document.getElementById('fLoaiGC').value = loai;
+  document.getElementById('segNhanGC').classList.toggle('active', loai === 'NhanGiaCongChoKhach');
+  document.getElementById('segThueGC').classList.toggle('active', loai === 'ThueNgoaiGiaCong');
+  document.getElementById('fDoiTacLabel').textContent = loai === 'NhanGiaCongChoKhach' ? 'Khách hàng' : 'Nhà cung cấp gia công';
+  document.getElementById('fChiPhiLabel').textContent = (loai === 'NhanGiaCongChoKhach' ? 'Chi phí gia công (thu từ khách, trước thuế)' : 'Chi phí gia công (trả cho bên nhận gia công, trước thuế)');
+  const list = loai === 'NhanGiaCongChoKhach' ? STATE.khachHangList : STATE.nhaCungCapList;
+  const idField = loai === 'NhanGiaCongChoKhach' ? 'MaKH' : 'MaNCC';
+  const tenField = loai === 'NhanGiaCongChoKhach' ? 'TenKH' : 'TenNCC';
+  document.getElementById('fDoiTac').innerHTML = '<option value="">-- Chọn hoặc để trống --</option>' + list.map(d => `<option value="${d[idField]}" data-ten="${d[tenField]}">${d[tenField]}</option>`).join('');
+}
+function submitPhieuGiaCong() {
+  const items = readItemsFrom('gcItemsContainer');
+  const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
+  const data = {
+    Loai: document.getElementById('fLoaiGC').value,
+    Ngay: document.getElementById('fNgay').value,
+    MaDoiTac: doiTacSel.value, TenDoiTac: doiTacOpt ? doiTacOpt.dataset.ten : '',
+    MoTaCongViec: document.getElementById('fMoTaCongViec').value.trim(),
+    SoLuongSanPham: Number(document.getElementById('fSoLuongSP').value) || 0,
+    DonViTinh: document.getElementById('fDonViTinh').value.trim(),
+    ChiPhiGiaCong: Number(document.getElementById('fChiPhiGC').value) || 0,
+    ThueSuatGiaCong: document.getElementById('fChiPhiGCThueSuat').value,
+    NgayHenTra: document.getElementById('fNgayHenTra').value,
+    GhiChu: document.getElementById('fGhiChuPhieu').value.trim(),
+    TrangThai: 'TiepNhan', items
+  };
+  if (!data.MoTaCongViec) { showToast('Vui lòng nhập mô tả công việc.'); return; }
+  apiCall('saveGiaCong', { data }).then(() => { closeModal(); showToast('Đã lưu phiếu gia công.'); renderGiaCongTable(); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+function viewPhieuGiaCong(idPhieu) {
+  const phieu = STATE.giaCongList.find(p => p.IDPhieu === idPhieu);
+  apiCall('getGiaCongDetail', { idPhieu }).then(res => {
+    const items = res.items || [];
+    const isThu = phieu.Loai === 'NhanGiaCongChoKhach';
+    const daXong = isThu ? Number(phieu.DaThu) || 0 : Number(phieu.DaTra) || 0;
+    const conNo = (Number(phieu.ChiPhiGiaCong) || 0) - daXong;
+    openModal(`
+      <button class="modalClose" onclick="closeModal()">&times;</button>
+      <h3>Chi tiết phiếu gia công ${idPhieu}</h3>
+      <p class="muted">${loaiGCLabel(phieu.Loai)} · Ngày: ${fmtDate(phieu.Ngay)} · Đối tác: ${phieu.TenDoiTac || '—'} · Trạng thái: ${trangThaiGCTag(phieu.TrangThai)}</p>
+      <p><b>Mô tả công việc:</b> ${phieu.MoTaCongViec || ''}</p>
+      <p><b>Số lượng sản phẩm:</b> ${phieu.SoLuongSanPham || 0} ${phieu.DonViTinh || ''}</p>
+      ${items.length ? `<table class="itemsTable"><thead><tr><th>Vật tư</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>` : ''}
+      <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
+        Chi phí gia công (trước thuế): <b>${fmtMoney(phieu.ChiPhiGiaCongTruocThue != null ? phieu.ChiPhiGiaCongTruocThue : phieu.ChiPhiGiaCong)}</b> — thuế ${thueSuatLabel(phieu.ThueSuatGiaCong || '0')}<br>
+        Tiền thuế GTGT: <b>${fmtMoney(phieu.TienThueGiaCong || 0)}</b><br>
+        <span style="font-size:16px;font-weight:800;color:var(--brand-deep);">Tổng thanh toán: ${fmtMoney(phieu.ChiPhiGiaCong)}</span>
+      </div>
+      <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
+      ${conNo > 0 ? `
+        <div class="formGrid"><div class="field span2"><label>${isThu ? 'Ghi nhận thu tiền từ khách' : 'Ghi nhận trả tiền cho bên gia công'}</label><input type="number" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanGC('${idPhieu}','${isThu ? 'DaThu' : 'DaTra'}')">Ghi nhận</button></div>
+      ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
+    `);
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function ghiNhanThanhToanGC(idPhieu, loaiTien) {
+  const soTien = Number(document.getElementById('fSoTienTT').value) || 0;
+  if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  apiCall('capNhatThanhToanGiaCong', { idPhieu, loaiTien, soTien }).then(() => { closeModal(); showToast('Đã ghi nhận.'); renderGiaCongTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function openCapNhatTrangThaiGC(idPhieu) {
+  const phieu = STATE.giaCongList.find(p => p.IDPhieu === idPhieu);
+  const options = ['TiepNhan', 'DangGiaCong', 'HoanThanh', 'DaGiao'];
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>Cập nhật trạng thái gia công</h3>
+    <div class="formGrid">
+      <div class="field span2"><label>Trạng thái</label><select id="fTrangThaiGC">${options.map(o => `<option value="${o}" ${phieu.TrangThai === o ? 'selected' : ''}>${trangThaiGCLabel(o)}</option>`).join('')}</select></div>
+      <div class="field span2"><label>Ngày hoàn thành (nếu có)</label><input type="date" id="fNgayHoanThanhGC" value="${phieu.NgayHoanThanh ? formatForInput(phieu.NgayHoanThanh) : ''}"></div>
+    </div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="luuTrangThaiGC('${idPhieu}')">Lưu</button></div>
+  `);
+}
+function luuTrangThaiGC(idPhieu) {
+  const trangThai = document.getElementById('fTrangThaiGC').value;
+  const ngayHoanThanh = document.getElementById('fNgayHoanThanhGC').value;
+  apiCall('capNhatTrangThaiGiaCong', { idPhieu, trangThai, ngayHoanThanh }).then(() => { closeModal(); showToast('Đã cập nhật trạng thái.'); renderGiaCongTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= HOÁ ĐƠN DÙNG CHUNG (xuất bán / sửa chữa / gia công) ================= */
+function openCapNhatHD(loai, idPhieu) {
+  const listMap = { xuat: STATE.xuatBanList, suachua: STATE.suaChuaList, giacong: STATE.giaCongList };
+  const phieu = listMap[loai].find(x => x.IDPhieu === idPhieu);
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>Cập nhật hoá đơn điện tử</h3>
+    <p class="muted">Nhập số hoá đơn đã xuất từ EasyInvoice cho phiếu này.</p>
+    <div class="formGrid">
+      <div class="field"><label>Số hoá đơn điện tử</label><input id="fSoHDDT" value="${phieu.SoHDDT || ''}"></div>
+      <div class="field"><label>Ký hiệu hoá đơn</label><input id="fKyHieuHD" value="${phieu.KyHieuHD || ''}" placeholder="VD: 1C25TAB"></div>
+    </div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="luuHoaDon('${loai}','${idPhieu}')">Lưu</button></div>
+  `);
+}
+function luuHoaDon(loai, idPhieu) {
+  const soHDDT = document.getElementById('fSoHDDT').value.trim();
+  const kyHieuHD = document.getElementById('fKyHieuHD').value.trim();
+  const actionMap = { xuat: 'capNhatHoaDonXuatBan', suachua: 'capNhatHoaDonSuaChua', giacong: 'capNhatHoaDonGiaCong' };
+  const rendererMap = { xuat: renderXuatBanTable, suachua: renderSuaChuaTable, giacong: renderGiaCongTable };
+  apiCall(actionMap[loai], { idPhieu, soHDDT, kyHieuHD }).then(() => { closeModal(); showToast('Đã cập nhật hoá đơn.'); rendererMap[loai](); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= XEM / XOÁ PHIẾU NHẬP-XUẤT ================= */
+function viewPhieuNhapXuat(loai, idPhieu) {
+  const action = loai === 'nhap' ? 'getNhapKhoDetail' : 'getXuatBanDetail';
+  const listSrc = loai === 'nhap' ? STATE.nhapKhoList : STATE.xuatBanList;
+  const phieu = listSrc.find(p => p.IDPhieu === idPhieu);
+  apiCall(action, { idPhieu }).then(res => {
+    const items = res.items || [];
+    const conNo = (Number(phieu.TongTien) || 0) - (Number(loai === 'nhap' ? phieu.DaTra : phieu.DaThu) || 0);
+    openModal(`
+      <button class="modalClose" onclick="closeModal()">&times;</button>
+      <h3>Chi tiết phiếu ${idPhieu}</h3>
+      <p class="muted">Ngày: ${fmtDate(phieu.Ngay)} &nbsp;|&nbsp; ${loai === 'nhap' ? 'NCC: ' + (phieu.TenNCC || '—') : 'Khách: ' + (phieu.TenKH || 'Khách lẻ')}</p>
+      <table class="itemsTable"><thead><tr><th>Hàng hoá/dịch vụ</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>
+      <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
+        Tạm tính (trước thuế): <b>${fmtMoney(phieu.TongTienTruocThue != null ? phieu.TongTienTruocThue : phieu.TongTien)}</b><br>
+        Tiền thuế GTGT: <b>${fmtMoney(phieu.TongTienThue || 0)}</b><br>
+        <span style="font-size:16px;font-weight:800;color:var(--brand-deep);">Tổng thanh toán: ${fmtMoney(phieu.TongTien)}</span>
+      </div>
+      <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
+      ${conNo > 0 ? `
+        <div class="formGrid"><div class="field span2"><label>${loai === 'nhap' ? 'Ghi nhận thanh toán cho NCC' : 'Ghi nhận thu tiền từ khách'}</label><input type="number" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanNX('${loai}','${idPhieu}')">Ghi nhận thanh toán</button></div>
+      ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
+    `);
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function ghiNhanThanhToanNX(loai, idPhieu) {
+  const soTien = Number(document.getElementById('fSoTienTT').value) || 0;
+  if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  const action = loai === 'nhap' ? 'capNhatDaTraNCC' : 'capNhatDaThuKH';
+  apiCall(action, { idPhieu, soTien }).then(() => {
+    closeModal(); showToast('Đã ghi nhận thanh toán.');
+    if (loai === 'nhap') renderNhapKhoTable(); else renderXuatBanTable();
+    renderCongNo();
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function xoaPhieuUI(loai, idPhieu) {
+  if (!confirm('Xoá phiếu này? Lưu ý: xoá phiếu KHÔNG tự hoàn lại tồn kho.')) return;
+  const action = loai === 'nhap' ? 'xoaPhieuNhap' : 'xoaPhieuXuat';
+  apiCall(action, { idPhieu }).then(() => { showToast('Đã xoá phiếu.'); if (loai === 'nhap') renderNhapKhoTable(); else renderXuatBanTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function xoaPhieuGeneric(action, idPhieu, rerender) {
+  if (!confirm('Xoá phiếu này? Lưu ý: xoá phiếu KHÔNG tự hoàn lại tồn kho.')) return;
+  apiCall(action, { idPhieu }).then(() => { showToast('Đã xoá phiếu.'); rerender(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= CÔNG NỢ ================= */
+function renderCongNo() {
+  apiCall('getCongNo').then(res => {
+    const thuWrap = document.getElementById('phaiThuWrap');
+    if (!res.phaiThu.length) { thuWrap.innerHTML = '<div class="empty">Không có công nợ phải thu.</div>'; }
+    else {
+      thuWrap.innerHTML = `<table><thead><tr><th>Loại</th><th>Ngày</th><th>Khách hàng</th><th>Tổng tiền</th><th>Đã thu</th><th>Còn nợ</th></tr></thead><tbody>
+        ${res.phaiThu.map(x => `<tr><td><span class="tag info">${x.loai}</span></td><td>${fmtDate(x.ngay)}</td><td>${x.doiTac || 'Khách lẻ'}</td><td>${fmtMoney(x.tongTien)}</td><td>${fmtMoney(x.daNhan)}</td><td><span class="tag warn">${fmtMoney(x.conNo)}</span></td></tr>`).join('')}
+      </tbody></table>`;
+    }
+    const traWrap = document.getElementById('phaiTraWrap');
+    if (!res.phaiTra.length) { traWrap.innerHTML = '<div class="empty">Không có công nợ phải trả.</div>'; }
+    else {
+      traWrap.innerHTML = `<table><thead><tr><th>Loại</th><th>Ngày</th><th>Đối tác</th><th>Tổng tiền</th><th>Đã trả</th><th>Còn nợ</th></tr></thead><tbody>
+        ${res.phaiTra.map(n => `<tr><td><span class="tag info">${n.loai}</span></td><td>${fmtDate(n.ngay)}</td><td>${n.doiTac || '—'}</td><td>${fmtMoney(n.tongTien)}</td><td>${fmtMoney(n.daTra)}</td><td><span class="tag bad">${fmtMoney(n.conNo)}</span></td></tr>`).join('')}
+      </tbody></table>`;
+    }
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= BÁO CÁO ================= */
+(function initBaoCaoDates() {
+  const now = new Date();
+  document.getElementById('baocaoTuNgay').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().substring(0, 10);
+  document.getElementById('baocaoDenNgay').value = todayISO();
+})();
+document.getElementById('btnXemBaoCao').addEventListener('click', renderBaoCao);
+function renderBaoCao() {
+  const tuNgay = document.getElementById('baocaoTuNgay').value;
+  const denNgay = document.getElementById('baocaoDenNgay').value;
+  apiCall('getBaoCaoDoanhThu', { tuNgay, denNgay }).then(d => {
+    const cards = [
+      { label: 'Tổng doanh thu (trước thuế)', val: fmtMoney(d.doanhThu), cls: 'good' },
+      { label: '— Doanh thu bán hàng', val: fmtMoney(d.doanhThuBanHang), cls: '' },
+      { label: '— Doanh thu sửa chữa', val: fmtMoney(d.doanhThuSuaChua), cls: '' },
+      { label: '— Doanh thu nhận gia công', val: fmtMoney(d.doanhThuGiaCongThu), cls: '' },
+      { label: 'Lợi nhuận gộp', val: fmtMoney(d.loiNhuanGop), cls: d.loiNhuanGop >= 0 ? 'good' : 'bad' },
+      { label: 'Tổng nhập kho (trước thuế)', val: fmtMoney(d.tongNhap), cls: '' },
+      { label: 'Thuế GTGT đầu ra (thu hộ)', val: fmtMoney(d.thueDauRa), cls: 'warn' },
+      { label: 'Thuế GTGT đầu vào (được khấu trừ)', val: fmtMoney(d.thueDauVao), cls: 'warn' },
+      { label: 'Số phiếu xuất bán', val: d.soPhieuXuat, cls: '' },
+      { label: 'Số phiếu sửa chữa', val: d.soPhieuSuaChua, cls: '' },
+      { label: 'Số phiếu gia công', val: d.soPhieuGiaCong, cls: '' }
+    ];
+    document.getElementById('baocaoCards').innerHTML = cards.map(c => `<div class="statCard ${c.cls}"><div class="label">${c.label}</div><div class="val">${c.val}</div></div>`).join('');
+    const topWrap = document.getElementById('baocaoTopWrap');
+    if (!d.topBanChay.length) { topWrap.innerHTML = '<div class="empty">Chưa có dữ liệu trong khoảng thời gian này.</div>'; }
+    else { topWrap.innerHTML = `<table><thead><tr><th>Hàng hoá</th><th class="num">SL bán</th><th class="num">Doanh thu</th></tr></thead><tbody>${d.topBanChay.map(t => `<tr><td>${t.ten}</td><td>${t.soLuong}</td><td>${fmtMoney(t.doanhThu)}</td></tr>`).join('')}</tbody></table>`; }
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= ĐỐI TÁC (KH / NCC) ================= */
+function renderKhachHangTable() {
+  apiCall('getKhachHangList').then(list => {
+    STATE.khachHangList = list;
+    const wrap = document.getElementById('khTableWrap');
+    if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có khách hàng nào.</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>Tên</th><th>MST</th><th>SĐT</th><th>Địa chỉ</th><th></th></tr></thead><tbody>
+      ${list.map(k => `<tr><td>${k.TenKH}</td><td>${k.MST || ''}</td><td>${k.SDT || ''}</td><td>${k.DiaChi || ''}</td><td class="rowActions"><button class="danger" onclick="deleteDoiTac('kh','${k.MaKH}')">Xoá</button></td></tr>`).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function renderNhaCungCapTable() {
+  apiCall('getNhaCungCapList').then(list => {
+    STATE.nhaCungCapList = list;
+    const wrap = document.getElementById('nccTableWrap');
+    if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có nhà cung cấp nào.</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>Tên</th><th>MST</th><th>SĐT</th><th>Địa chỉ</th><th></th></tr></thead><tbody>
+      ${list.map(n => `<tr><td>${n.TenNCC}</td><td>${n.MST || ''}</td><td>${n.SDT || ''}</td><td>${n.DiaChi || ''}</td><td class="rowActions"><button class="danger" onclick="deleteDoiTac('ncc','${n.MaNCC}')">Xoá</button></td></tr>`).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+document.getElementById('btnAddKH').addEventListener('click', () => openDoiTacForm('kh'));
+document.getElementById('btnAddNCC').addEventListener('click', () => openDoiTacForm('ncc'));
+function openDoiTacForm(loai) {
+  const isKH = loai === 'kh';
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>Thêm ${isKH ? 'khách hàng' : 'nhà cung cấp'}</h3>
+    <div class="formGrid">
+      <div class="field span2"><label>Tên ${isKH ? 'khách hàng' : 'nhà cung cấp'}</label><input id="fTenDT"></div>
+      <div class="field"><label>Mã số thuế</label><input id="fMSTDT"></div>
+      <div class="field"><label>Số điện thoại</label><input id="fSDTDT"></div>
+      <div class="field span2"><label>Địa chỉ</label><input id="fDiaChiDT"></div>
+      <div class="field span2"><label>Ghi chú</label><input id="fGhiChuDT"></div>
+    </div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="saveDoiTacUI('${loai}')">Lưu</button></div>
+  `);
+}
+function saveDoiTacUI(loai) {
+  const isKH = loai === 'kh'; const ten = document.getElementById('fTenDT').value.trim();
+  if (!ten) { showToast('Vui lòng nhập tên.'); return; }
+  const data = { MST: document.getElementById('fMSTDT').value.trim(), SDT: document.getElementById('fSDTDT').value.trim(), DiaChi: document.getElementById('fDiaChiDT').value.trim(), GhiChu: document.getElementById('fGhiChuDT').value.trim() };
+  if (isKH) data.TenKH = ten; else data.TenNCC = ten;
+  apiCall(isKH ? 'saveKhachHang' : 'saveNhaCungCap', { data }).then(() => { closeModal(); showToast('Đã lưu.'); if (isKH) renderKhachHangTable(); else renderNhaCungCapTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function deleteDoiTac(loai, id) {
+  if (!confirm('Xoá mục này?')) return;
+  const isKH = loai === 'kh';
+  apiCall(isKH ? 'deleteKhachHang' : 'deleteNhaCungCap', isKH ? { maKH: id } : { maNCC: id }).then(() => { showToast('Đã xoá.'); if (isKH) renderKhachHangTable(); else renderNhaCungCapTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= NGƯỜI DÙNG ================= */
+function renderNguoiDungTable() {
+  apiCall('getNguoiDungList').then(list => {
+    const wrap = document.getElementById('nguoiDungTableWrap');
+    wrap.innerHTML = `<table><thead><tr><th>Họ tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+      ${list.map(u => `<tr><td>${u.HoTen}</td><td>${u.TenDangNhap}</td><td>${vaiTroLabel(u.VaiTro)}</td>
+        <td>${u.TrangThai === 'Active' ? '<span class="tag good">Hoạt động</span>' : '<span class="tag bad">Đã khoá</span>'}</td>
+        <td class="rowActions">
+          <button onclick="openEditNguoiDung('${u.MaNV}')">Sửa</button>
+          ${u.TenDangNhap !== 'admin' ? `<button onclick="toggleKhoaNguoiDung('${u.MaNV}','${u.TrangThai === 'Active' ? 'Locked' : 'Active'}')">${u.TrangThai === 'Active' ? 'Khoá' : 'Mở khoá'}</button>` : ''}
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+document.getElementById('btnAddNguoiDung').addEventListener('click', () => openEditNguoiDung(null));
+function openEditNguoiDung(maNV) {
+  apiCall('getNguoiDungList').then(list => {
+    const item = maNV ? list.find(u => u.MaNV === maNV) : null;
+    openModal(`
+      <button class="modalClose" onclick="closeModal()">&times;</button>
+      <h3>${item ? 'Sửa người dùng' : 'Thêm người dùng'}</h3>
+      <div class="formGrid">
+        <div class="field span2"><label>Họ tên</label><input id="fHoTen" value="${item ? item.HoTen : ''}"></div>
+        <div class="field"><label>Tên đăng nhập</label><input id="fTenDangNhap" value="${item ? item.TenDangNhap : ''}" ${item ? 'disabled' : ''}></div>
+        <div class="field"><label>Vai trò</label><select id="fVaiTro">
+          <option value="Admin" ${item && item.VaiTro === 'Admin' ? 'selected' : ''}>Quản trị viên (toàn quyền)</option>
+          <option value="BanHang" ${item && item.VaiTro === 'BanHang' ? 'selected' : ''}>Bán hàng</option>
+          <option value="KyThuat" ${item && item.VaiTro === 'KyThuat' ? 'selected' : ''}>Kỹ thuật</option>
+          <option value="KeToan" ${item && item.VaiTro === 'KeToan' ? 'selected' : ''}>Kế toán</option>
+        </select></div>
+        <div class="field span2"><label>${item ? 'Đặt lại mật khẩu (để trống nếu không đổi)' : 'Mật khẩu ban đầu'}</label><input type="password" id="fMatKhauMoiND" placeholder="Tối thiểu 6 ký tự"></div>
+      </div>
+      <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="saveNguoiDungUI('${item ? item.MaNV : ''}')">Lưu</button></div>
+    `);
+  });
+}
+function saveNguoiDungUI(maNV) {
+  const data = {
+    MaNV: maNV || undefined, HoTen: document.getElementById('fHoTen').value.trim(),
+    TenDangNhap: document.getElementById('fTenDangNhap').value.trim(), VaiTro: document.getElementById('fVaiTro').value,
+    MatKhauMoi: document.getElementById('fMatKhauMoiND').value
+  };
+  if (!data.HoTen || !data.TenDangNhap) { showToast('Vui lòng nhập đủ họ tên và tên đăng nhập.'); return; }
+  apiCall('saveNguoiDung', { data }).then(() => { closeModal(); showToast('Đã lưu.'); renderNguoiDungTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function toggleKhoaNguoiDung(maNV, trangThai) {
+  apiCall('khoaMoNguoiDung', { maNV, trangThai }).then(() => { showToast('Đã cập nhật trạng thái.'); renderNguoiDungTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+document.getElementById('btnDoiMatKhau').addEventListener('click', () => {
+  const matKhauCu = document.getElementById('fMatKhauCu').value;
+  const matKhauMoi = document.getElementById('fMatKhauMoi').value;
+  if (!matKhauCu || !matKhauMoi) { showToast('Nhập đủ mật khẩu hiện tại và mật khẩu mới.'); return; }
+  apiCall('doiMatKhau', { matKhauCu, matKhauMoi }).then(() => {
+    showToast('Đã đổi mật khẩu.'); document.getElementById('fMatKhauCu').value = ''; document.getElementById('fMatKhauMoi').value = '';
+  }).catch(err => showToast('Lỗi: ' + err.message));
+});
+
+/* ================= ĐỒNG BỘ HOÁ ĐƠN TỪ EXCEL ================= */
+let DONGBO_STATE = { headers: [], dataRows: [], matches: [] };
+
+function normalizeVN(str) {
+  return (str || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').trim();
+}
+function guessColumn(headers, keywords) {
+  for (let i = 0; i < headers.length; i++) {
+    const h = normalizeVN(headers[i]);
+    if (keywords.some(k => h.includes(k))) return i;
+  }
+  return -1;
+}
+function dongboLoaiIsXuat() { return document.getElementById('dongboLoai').value === 'xuat'; }
+function parseVNDate(val) {
+  if (!val && val !== 0) return null;
+  val = String(val).trim();
+  let m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  m = val.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const num = Number(val);
+  if (!isNaN(num) && num > 20000 && num < 80000) return new Date(Math.round((num - 25569) * 86400 * 1000));
+  const d = new Date(val);
+  return isNaN(d) ? null : d;
+}
+function parseMoney(val) {
+  if (val === undefined || val === null || val === '') return NaN;
+  const digits = String(val).replace(/[^\d]/g, '');
+  return digits ? Number(digits) : NaN;
+}
+
+document.getElementById('btnDocFile').addEventListener('click', () => {
+  const fileInput = document.getElementById('dongboFile');
+  if (!fileInput.files.length) { showToast('Chọn file trước.'); return; }
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      let headerRowIdx = 0;
+      for (let i = 0; i < Math.min(15, aoa.length); i++) {
+        const rowText = normalizeVN((aoa[i] || []).join(' '));
+        if (rowText.includes('so hoa don') || rowText.includes('ky hieu') || rowText.includes('ngay lap')) { headerRowIdx = i; break; }
+      }
+      const headers = (aoa[headerRowIdx] || []).map(h => String(h || '').trim());
+      const dataRows = aoa.slice(headerRowIdx + 1).filter(r => r.some(c => String(c || '').trim() !== ''));
+      if (!headers.length || !dataRows.length) { showToast('Không đọc được dữ liệu từ file. Kiểm tra lại file Excel.'); return; }
+      DONGBO_STATE.headers = headers; DONGBO_STATE.dataRows = dataRows;
+      showColumnMapping();
+    } catch (err) { showToast('Lỗi đọc file: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function showColumnMapping() {
+  const headers = DONGBO_STATE.headers;
+  const isXuat = dongboLoaiIsXuat();
+  const guess = {
+    soHD: guessColumn(headers, ['so hoa don', 'so hddt', 'so ct', 'so ct/hd']),
+    kyHieu: guessColumn(headers, ['ky hieu']),
+    ngay: guessColumn(headers, ['ngay lap', 'ngay hoa don', 'ngay ct']),
+    mst: guessColumn(headers, isXuat ? ['ma so thue nguoi mua', 'mst nguoi mua', 'mst ben mua'] : ['ma so thue nguoi ban', 'mst nguoi ban', 'mst ben ban']),
+    tongTien: guessColumn(headers, ['tong tien thanh toan', 'tong cong tien thanh toan', 'tong tien'])
+  };
+  const optionsHtml = sel => '<option value="-1">-- không có --</option>' + headers.map((h, i) => `<option value="${i}" ${sel === i ? 'selected' : ''}>${h || ('(cột ' + (i + 1) + ')')}</option>`).join('');
+  document.getElementById('dongboResultPanel').style.display = 'block';
+  document.getElementById('dongboTableWrap').innerHTML = `
+    <p class="muted">App đã đoán các cột bên dưới dựa theo tiêu đề trong file — anh kiểm tra lại và sửa nếu chưa đúng, rồi bấm "Khớp dữ liệu".</p>
+    <div class="formGrid" style="margin-bottom:10px;">
+      <div class="field"><label>Cột: Số hoá đơn *</label><select id="mapSoHD">${optionsHtml(guess.soHD)}</select></div>
+      <div class="field"><label>Cột: Ký hiệu hoá đơn</label><select id="mapKyHieu">${optionsHtml(guess.kyHieu)}</select></div>
+      <div class="field"><label>Cột: Ngày lập</label><select id="mapNgay">${optionsHtml(guess.ngay)}</select></div>
+      <div class="field"><label>Cột: Mã số thuế đối tác *</label><select id="mapMST">${optionsHtml(guess.mst)}</select></div>
+      <div class="field span2"><label>Cột: Tổng tiền thanh toán *</label><select id="mapTongTien">${optionsHtml(guess.tongTien)}</select></div>
+    </div>
+    <button class="btn small" onclick="thucHienKhop()">Khớp dữ liệu (${DONGBO_STATE.dataRows.length} dòng)</button>
+    <div id="dongboMatchResult" style="margin-top:14px;"></div>
+  `;
+}
+
+function buildCandidates(loai) {
+  if (loai === 'xuat') {
+    return STATE.xuatBanList.map(x => ({ idPhieu: x.IDPhieu, mst: (x.MSTKhachHang || '').trim(), tongTien: Number(x.TongTien) || 0, ngay: new Date(x.Ngay), ten: x.TenKH, hienTaiSoHD: x.SoHDDT }));
+  } else if (loai === 'nhap') {
+    return STATE.nhapKhoList.map(n => {
+      const ncc = STATE.nhaCungCapList.find(c => c.MaNCC === n.MaNCC);
+      return { idPhieu: n.IDPhieu, mst: ((ncc && ncc.MST) || '').trim(), tongTien: Number(n.TongTien) || 0, ngay: new Date(n.Ngay), ten: n.TenNCC, hienTaiSoHD: n.SoHDMuaVao };
+    });
+  }
+  return [];
+}
+function khopMotDong(row) {
+  const candidates = buildCandidates(row.loai);
+  const ngay = row.ngay ? (row.ngay instanceof Date ? row.ngay : parseVNDate(row.ngay)) : null;
+  const found = candidates.filter(c => {
+    if (!row.mst || c.mst !== row.mst) return false;
+    if (!isNaN(row.tongTien) && Math.abs(c.tongTien - row.tongTien) > 1000) return false;
+    if (ngay && c.ngay && !isNaN(c.ngay) && Math.abs(c.ngay - ngay) > 5 * 86400 * 1000) return false;
+    return true;
+  }).map(c => {
+    let trangThai = 'moi';
+    if (c.hienTaiSoHD) trangThai = (String(c.hienTaiSoHD).trim() === row.soHD) ? 'daDongBo' : 'khacHD';
+    return { ...c, trangThai };
+  });
+  return { ...row, ungVien: found };
+}
+
+function thucHienKhop() {
+  const loai = document.getElementById('dongboLoai').value;
+  const idxSoHD = Number(document.getElementById('mapSoHD').value);
+  const idxKyHieu = Number(document.getElementById('mapKyHieu').value);
+  const idxNgay = Number(document.getElementById('mapNgay').value);
+  const idxMST = Number(document.getElementById('mapMST').value);
+  const idxTongTien = Number(document.getElementById('mapTongTien').value);
+  if (idxSoHD < 0 || idxTongTien < 0 || idxMST < 0) { showToast('Cần chọn ít nhất cột Số hoá đơn, MST đối tác, Tổng tiền.'); return; }
+
+  const rows = DONGBO_STATE.dataRows.map(row => {
+    const soHD = String(row[idxSoHD] || '').trim();
+    if (!soHD) return null;
+    return {
+      soHD, kyHieu: idxKyHieu >= 0 ? String(row[idxKyHieu] || '').trim() : '',
+      ngay: idxNgay >= 0 ? parseVNDate(row[idxNgay]) : null,
+      mst: String(row[idxMST] || '').trim(),
+      tongTien: parseMoney(row[idxTongTien]), loai
+    };
+  }).filter(Boolean);
+
+  DONGBO_STATE.matches = rows.map(khopMotDong);
+  renderMatchResult();
+}
+
+function renderMatchResult() {
+  const wrap = document.getElementById('dongboMatchResult');
+  renderMatchTable(wrap, DONGBO_STATE.matches, true);
+}
+
+function renderMatchTable(wrap, matches, showLoaiFixed) {
+  if (!matches.length) { wrap.innerHTML = '<div class="empty">Không đọc được dòng dữ liệu nào hợp lệ.</div>'; return; }
+  const soKhopDuoc = matches.filter(m => m.ungVien.length > 0).length;
+  const soDaDongBo = matches.filter(m => m.ungVien.some(c => c.trangThai === 'daDongBo')).length;
+  wrap.innerHTML = `<p class="muted">Khớp được ${soKhopDuoc}/${matches.length} dòng · ${soDaDongBo} dòng đã đồng bộ từ trước (tự động bỏ qua). Nhãn <span class="tag bad">HĐ khác</span> nghĩa là phiếu đã có số hoá đơn khác — chỉ ghi đè nếu chọn thủ công.</p>
+    <table><thead><tr>${showLoaiFixed ? '' : '<th>Loại</th>'}<th>Số HĐ</th><th>Ký hiệu</th><th>MST</th><th>Tổng tiền</th><th>Khớp với phiếu</th></tr></thead><tbody>
+    ${matches.map((m, idx) => {
+      const daDongBo = m.ungVien.find(c => c.trangThai === 'daDongBo');
+      let selectHtml;
+      if (m.ungVien.length === 0) selectHtml = '<span class="tag bad">Không tìm thấy phiếu phù hợp</span>';
+      else if (daDongBo && m.ungVien.length === 1) selectHtml = `<span class="tag good">Đã đồng bộ trước đó — ${daDongBo.idPhieu}</span>`;
+      else {
+        selectHtml = `<select data-idx="${idx}" class="matchSelectGeneric">
+          <option value="-1">-- Bỏ qua --</option>
+          ${m.ungVien.map(c => {
+            if (c.trangThai === 'daDongBo') return `<option value="${c.idPhieu}" data-trangthai="daDongBo">${c.idPhieu} — ${c.ten || ''} — ${fmtMoney(c.tongTien)} (đã đồng bộ đúng HĐ này)</option>`;
+            if (c.trangThai === 'khacHD') return `<option value="${c.idPhieu}" data-trangthai="khacHD">⚠ ${c.idPhieu} — ${c.ten || ''} — ${fmtMoney(c.tongTien)} (đang có HĐ khác: ${c.hienTaiSoHD} — chọn = GHI ĐÈ)</option>`;
+            return `<option value="${c.idPhieu}" data-trangthai="moi" selected>${c.idPhieu} — ${c.ten || ''} — ${fmtMoney(c.tongTien)}</option>`;
+          }).join('')}
+        </select>`;
+      }
+      const tagTrangThai = daDongBo ? '' : (m.ungVien.some(c => c.trangThai === 'khacHD') ? '<span class="tag bad" style="margin-left:6px;">HĐ khác</span>' : (m.ungVien.length ? '<span class="tag good" style="margin-left:6px;">Mới</span>' : ''));
+      return `<tr>${showLoaiFixed ? '' : `<td>${m.loai === 'xuat' ? 'Bán ra' : (m.loai === 'nhap' ? 'Mua vào' : '<span class="tag bad">Không rõ</span>')}</td>`}<td>${m.soHD}</td><td>${m.kyHieu}</td><td>${m.mst}</td><td>${fmtMoney(m.tongTien)}</td><td>${selectHtml}${tagTrangThai}</td></tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+function apDungKhop(matches, selectClass, rerenderFns) {
+  const selects = document.querySelectorAll('.' + selectClass);
+  const items = []; let soGhiDe = 0;
+  selects.forEach(sel => {
+    const idx = Number(sel.dataset.idx);
+    const idPhieu = sel.value;
+    if (idPhieu && idPhieu !== '-1') {
+      const m = matches[idx];
+      const opt = sel.selectedOptions[0];
+      if (opt && opt.dataset.trangthai === 'khacHD') soGhiDe++;
+      if (opt && opt.dataset.trangthai === 'daDongBo') return;
+      items.push({ sheetType: m.loai, idPhieu, soHDDT: m.soHD, kyHieuHD: m.kyHieu });
+    }
+  });
+  if (!items.length) { showToast('Không có dòng nào cần ghi (có thể đã đồng bộ từ trước hoặc chưa chọn).'); return; }
+  if (soGhiDe > 0 && !confirm(`Có ${soGhiDe} phiếu đang GHI ĐÈ số hoá đơn khác đã có sẵn. Anh chắc chắn muốn tiếp tục?`)) return;
+  apiCall('bulkCapNhatHoaDon', { items }).then(res => {
+    showToast(`Đã ghi ${res.thanhCong}/${res.tongSo} hoá đơn.`);
+    rerenderFns.forEach(fn => fn());
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+document.getElementById('btnApDungDongBo').addEventListener('click', () => {
+  apDungKhop(DONGBO_STATE.matches, 'matchSelectGeneric', [renderXuatBanTable, renderNhapKhoTable]);
+});
+
+/* ---- Nhập từ XML ---- */
+let DONGBO_XML_ROWS = [];
+let DONGBO_XML_MATCHES = [];
+const COMPANY_MST = '0317838601';
+
+function findByTagNames(root, names) {
+  const all = root.getElementsByTagName('*');
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    const ln = (el.localName || el.tagName.split(':').pop()).toLowerCase();
+    if (names.includes(ln)) return el;
+  }
+  return null;
+}
+function textOfTag(root, names) { const el = findByTagNames(root, names); return el ? el.textContent.trim() : ''; }
+
+function trichXuatXML(xmlDoc, fileName) {
+  const nBanEl = findByTagNames(xmlDoc, ['nban', 'sellerinfo']);
+  const nMuaEl = findByTagNames(xmlDoc, ['nmua', 'buyerinfo']);
+  const mstBan = nBanEl ? textOfTag(nBanEl, ['mst']) : '';
+  const mstMua = nMuaEl ? textOfTag(nMuaEl, ['mst']) : '';
+  const soHD = textOfTag(xmlDoc, ['shdon', 'sohoadon']);
+  const kyHieu = textOfTag(xmlDoc, ['khhdon', 'kyhieuhoadon']);
+  const ngay = textOfTag(xmlDoc, ['nlap', 'ngaylap']);
+  const tongTienRaw = textOfTag(xmlDoc, ['tgtttbso', 'tongtienthanhtoan']);
+
+  let loai = '';
+  if (mstBan.trim() === COMPANY_MST) loai = 'xuat';
+  else if (mstMua.trim() === COMPANY_MST) loai = 'nhap';
+
+  return {
+    fileName, soHD, kyHieu, ngay, mstBan: mstBan.trim(), mstMua: mstMua.trim(),
+    mst: loai === 'xuat' ? mstMua.trim() : (loai === 'nhap' ? mstBan.trim() : ''),
+    tongTien: parseMoney(tongTienRaw), loai
+  };
+}
+
+document.getElementById('btnDocXml').addEventListener('click', () => {
+  const files = document.getElementById('dongboXmlFiles').files;
+  if (!files.length) { showToast('Chọn ít nhất 1 file XML.'); return; }
+  const readers = [...files].map(file => new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(e.target.result, 'application/xml');
+        if (xmlDoc.querySelector('parsererror')) { resolve({ fileName: file.name, error: 'Không đọc được XML (file lỗi hoặc không đúng định dạng)' }); return; }
+        resolve(trichXuatXML(xmlDoc, file.name));
+      } catch (err) { resolve({ fileName: file.name, error: err.message }); }
+    };
+    reader.readAsText(file);
+  }));
+  Promise.all(readers).then(rows => { DONGBO_XML_ROWS = rows; renderXmlPreview(); });
+});
+
+function renderXmlPreview() {
+  document.getElementById('xmlPreviewPanel').style.display = 'block';
+  const wrap = document.getElementById('xmlPreviewWrap');
+  wrap.innerHTML = `<table><thead><tr><th>File</th><th>Loại</th><th>Số HĐ</th><th>Ký hiệu</th><th>Ngày lập</th><th>MST đối tác</th><th>Tổng tiền</th></tr></thead><tbody>
+    ${DONGBO_XML_ROWS.map((r, idx) => {
+      if (r.error) return `<tr><td>${r.fileName}</td><td colspan="6"><span class="tag bad">${r.error}</span></td></tr>`;
+      return `<tr>
+        <td>${r.fileName}</td>
+        <td><select data-idx="${idx}" class="xmlEditLoai" onchange="xmlEditField(${idx},'loai',this.value)">
+          <option value="xuat" ${r.loai === 'xuat' ? 'selected' : ''}>Bán ra</option>
+          <option value="nhap" ${r.loai === 'nhap' ? 'selected' : ''}>Mua vào</option>
+          <option value="" ${!r.loai ? 'selected' : ''}>Không rõ — chọn tay</option>
+        </select></td>
+        <td><input value="${r.soHD}" data-idx="${idx}" oninput="xmlEditField(${idx},'soHD',this.value)"></td>
+        <td><input value="${r.kyHieu}" data-idx="${idx}" oninput="xmlEditField(${idx},'kyHieu',this.value)"></td>
+        <td><input value="${r.ngay}" data-idx="${idx}" oninput="xmlEditField(${idx},'ngay',this.value)" placeholder="dd/mm/yyyy"></td>
+        <td><input value="${r.mst}" data-idx="${idx}" oninput="xmlEditField(${idx},'mst',this.value)"></td>
+        <td><input value="${r.tongTien || ''}" type="number" data-idx="${idx}" oninput="xmlEditField(${idx},'tongTien',this.value)"></td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+function xmlEditField(idx, field, value) {
+  DONGBO_XML_ROWS[idx][field] = field === 'tongTien' ? Number(value) : value;
+}
+
+document.getElementById('btnKhopXml').addEventListener('click', () => {
+  const validRows = DONGBO_XML_ROWS.filter(r => !r.error && r.soHD && r.loai);
+  if (!validRows.length) { showToast('Không có dòng hợp lệ để khớp (thiếu Số HĐ hoặc chưa xác định Loại).'); return; }
+  DONGBO_XML_MATCHES = validRows.map(khopMotDong);
+  document.getElementById('xmlResultPanel').style.display = 'block';
+  renderMatchTable(document.getElementById('xmlMatchWrap'), DONGBO_XML_MATCHES, false);
+  document.querySelectorAll('#xmlMatchWrap .matchSelectGeneric').forEach(el => el.classList.replace('matchSelectGeneric', 'matchSelectXml'));
+});
+document.getElementById('btnApDungXml').addEventListener('click', () => {
+  apDungKhop(DONGBO_XML_MATCHES, 'matchSelectXml', [renderXuatBanTable, renderNhapKhoTable]);
+});
+
+/* ---- Nhập dữ liệu lịch sử (tạo phiếu hàng loạt) ---- */
+let LICHSU_HEADERS = [];
+let LICHSU_ROWS = [];
+
+document.getElementById('btnDocFileLichSu').addEventListener('click', () => {
+  const fileInput = document.getElementById('lichSuFile');
+  if (!fileInput.files.length) { showToast('Chọn file trước.'); return; }
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      let headerRowIdx = 0;
+      for (let i = 0; i < Math.min(15, aoa.length); i++) {
+        const rowText = normalizeVN((aoa[i] || []).join(' '));
+        if (rowText.includes('so hoa don') || rowText.includes('ky hieu') || rowText.includes('ngay lap')) { headerRowIdx = i; break; }
+      }
+      const headers = (aoa[headerRowIdx] || []).map(h => String(h || '').trim());
+      const dataRows = aoa.slice(headerRowIdx + 1).filter(r => r.some(c => String(c || '').trim() !== ''));
+      if (!headers.length || !dataRows.length) { showToast('Không đọc được dữ liệu từ file.'); return; }
+      LICHSU_HEADERS = headers; LICHSU_ROWS = dataRows;
+      showLichSuMapping();
+    } catch (err) { showToast('Lỗi đọc file: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function showLichSuMapping() {
+  const headers = LICHSU_HEADERS;
+  const isXuat = document.getElementById('lichSuLoai').value === 'xuat';
+  const guess = {
+    soHD: guessColumn(headers, ['so hoa don', 'so hddt', 'so ct']),
+    kyHieu: guessColumn(headers, ['ky hieu']),
+    ngay: guessColumn(headers, ['ngay lap', 'ngay hoa don', 'ngay ct']),
+    ten: guessColumn(headers, isXuat ? ['ten nguoi mua', 'ten khach hang'] : ['ten nguoi ban', 'ten ncc', 'ten nha cung cap']),
+    mst: guessColumn(headers, isXuat ? ['ma so thue nguoi mua', 'mst nguoi mua'] : ['ma so thue nguoi ban', 'mst nguoi ban']),
+    tongTien: guessColumn(headers, ['tong tien thanh toan', 'tong cong tien thanh toan', 'tong tien'])
+  };
+  const optionsHtml = sel => '<option value="-1">-- không có --</option>' + headers.map((h, i) => `<option value="${i}" ${sel === i ? 'selected' : ''}>${h || ('(cột ' + (i + 1) + ')')}</option>`).join('');
+  document.getElementById('lichSuMapPanel').style.display = 'block';
+  document.getElementById('lichSuMapPanel').innerHTML = `
+    <h3>Chọn đúng cột trong file</h3>
+    <div class="formGrid">
+      <div class="field"><label>Cột: Số hoá đơn *</label><select id="lsMapSoHD">${optionsHtml(guess.soHD)}</select></div>
+      <div class="field"><label>Cột: Ký hiệu hoá đơn</label><select id="lsMapKyHieu">${optionsHtml(guess.kyHieu)}</select></div>
+      <div class="field"><label>Cột: Ngày lập *</label><select id="lsMapNgay">${optionsHtml(guess.ngay)}</select></div>
+      <div class="field"><label>Cột: Tên đối tác *</label><select id="lsMapTen">${optionsHtml(guess.ten)}</select></div>
+      <div class="field"><label>Cột: Mã số thuế đối tác</label><select id="lsMapMST">${optionsHtml(guess.mst)}</select></div>
+      <div class="field"><label>Cột: Tổng tiền thanh toán *</label><select id="lsMapTongTien">${optionsHtml(guess.tongTien)}</select></div>
+    </div>
+    <button class="btn small" style="margin-top:10px;" onclick="xemTruocLichSu()">Xem trước (${LICHSU_ROWS.length} dòng)</button>
+  `;
+}
+
+function xemTruocLichSu() {
+  const idxSoHD = Number(document.getElementById('lsMapSoHD').value);
+  const idxKyHieu = Number(document.getElementById('lsMapKyHieu').value);
+  const idxNgay = Number(document.getElementById('lsMapNgay').value);
+  const idxTen = Number(document.getElementById('lsMapTen').value);
+  const idxMST = Number(document.getElementById('lsMapMST').value);
+  const idxTongTien = Number(document.getElementById('lsMapTongTien').value);
+  if (idxSoHD < 0 || idxNgay < 0 || idxTen < 0 || idxTongTien < 0) { showToast('Cần chọn ít nhất: Số hoá đơn, Ngày lập, Tên đối tác, Tổng tiền.'); return; }
+
+  const loai = document.getElementById('lichSuLoai').value;
+  const daThanhToanDu = document.getElementById('lichSuDaThanhToan').checked;
+
+  const rows = LICHSU_ROWS.map(row => {
+    const soHD = String(row[idxSoHD] || '').trim();
+    if (!soHD) return null;
+    const ngayRaw = parseVNDate(row[idxNgay]);
+    return {
+      loai, chon: true,
+      SoHDDT: soHD,
+      KyHieuHD: idxKyHieu >= 0 ? String(row[idxKyHieu] || '').trim() : '',
+      Ngay: ngayRaw ? ngayRaw.toISOString().substring(0, 10) : '',
+      TenDoiTac: String(row[idxTen] || '').trim(),
+      MST: idxMST >= 0 ? String(row[idxMST] || '').trim() : '',
+      TongTien: parseMoney(row[idxTongTien]),
+      daThanhToanDu
+    };
+  }).filter(Boolean);
+
+  LICHSU_ROWS_PARSED = rows;
+  renderLichSuPreview();
+}
+let LICHSU_ROWS_PARSED = [];
+
+function renderLichSuPreview() {
+  document.getElementById('lichSuPreviewPanel').style.display = 'block';
+  const wrap = document.getElementById('lichSuPreviewWrap');
+  const tongTienAll = LICHSU_ROWS_PARSED.reduce((s, r) => s + (Number(r.TongTien) || 0), 0);
+  wrap.innerHTML = `<p class="muted">${LICHSU_ROWS_PARSED.length} dòng · Tổng cộng: <b>${fmtMoney(tongTienAll)}</b></p>
+    <table><thead><tr><th><input type="checkbox" checked onclick="toggleAllLichSu(this)"></th><th>Ngày</th><th>Đối tác</th><th>MST</th><th>Số HĐ</th><th>Ký hiệu</th><th>Tổng tiền</th></tr></thead><tbody>
+    ${LICHSU_ROWS_PARSED.map((r, idx) => `<tr>
+      <td><input type="checkbox" ${r.chon ? 'checked' : ''} onchange="LICHSU_ROWS_PARSED[${idx}].chon=this.checked"></td>
+      <td>${fmtDate(r.Ngay)}</td><td>${r.TenDoiTac}</td><td>${r.MST}</td><td>${r.SoHDDT}</td><td>${r.KyHieuHD}</td><td>${fmtMoney(r.TongTien)}</td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+function toggleAllLichSu(cb) {
+  LICHSU_ROWS_PARSED.forEach(r => r.chon = cb.checked);
+  renderLichSuPreview();
+}
+
+document.getElementById('btnTaoPhieuLichSu').addEventListener('click', () => {
+  const items = LICHSU_ROWS_PARSED.filter(r => r.chon);
+  if (!items.length) { showToast('Chưa chọn dòng nào để tạo.'); return; }
+  if (!confirm(`Tạo mới ${items.length} phiếu trong hệ thống? Hành động này không thể tự động huỷ hàng loạt, chỉ xoá được từng phiếu.`)) return;
+  apiCall('importLichSuTuBangKe', { items }).then(res => {
+    showToast(`Đã tạo ${res.thanhCong}/${res.tongSo} phiếu.` + (res.loi.length ? ` Có ${res.loi.length} dòng lỗi.` : ''));
+    if (res.loi && res.loi.length) console.warn('Lỗi nhập lịch sử:', res.loi);
+    renderXuatBanTable(); renderNhapKhoTable(); renderHangHoaTable();
+  }).catch(err => showToast('Lỗi: ' + err.message));
+});
+
+/* ================= CÀI ĐẶT ================= */
+document.getElementById('btnSaveScriptUrl').addEventListener('click', () => {
+  const url = document.getElementById('settingsScriptUrl').value.trim();
+  if (!url) { showToast('Vui lòng nhập địa chỉ hợp lệ.'); return; }
+  localStorage.setItem('qlbh_script_url', url); CONFIG.SCRIPT_URL = url;
+  showToast('Đã lưu địa chỉ Apps Script. Vui lòng đăng xuất và đăng nhập lại.');
+});
+document.getElementById('btnXemNhatKy').addEventListener('click', () => {
+  apiCall('getNhatKy').then(list => {
+    const wrap = document.getElementById('nhatKyWrap');
+    if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có hoạt động nào.</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Hành động</th></tr></thead><tbody>
+      ${list.map(l => `<tr><td>${new Date(l.Timestamp).toLocaleString('vi-VN')}</td><td>${l.NguoiDung}</td><td>${l.HanhDong}</td></tr>`).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+});
+</script>
+</body>
+</html>
