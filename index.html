@@ -343,6 +343,35 @@
         </div>
         <div class="tableWrap" id="lichSuPreviewWrap"></div>
       </div>
+
+      <div class="panel" style="border-color:#c2540a;background:#fff4ea;">
+        <h3>📊 Nhập chi tiết đầy đủ từ bảng kê BKMV/BKBR (nhiều quý)</h3>
+        <p class="muted">Dùng khi anh có sẵn file bảng kê mua vào/bán ra dạng đầy đủ (sheet BKBR/BKMV, do kế toán xuất theo quý) — đã có sẵn chi tiết từng mặt hàng, số lượng, đơn giá, thuế suất. Khác với mục "Nhập dữ liệu lịch sử" ở trên (chỉ tạo 1 dòng gộp/hoá đơn), mục này tạo <b>đúng từng mặt hàng, đúng thuế suất</b>, đủ để dựng lại tồn kho chính xác. Chọn <b>tất cả các file quý cùng lúc</b> — app sẽ tự gộp và xử lý theo đúng trình tự thời gian.</p>
+        <div class="field"><label>Chọn các file bảng kê theo quý (.xlsb, .xlsx — chọn nhiều file cùng lúc)</label><input type="file" id="bkFiles" accept=".xlsb,.xlsx,.xls" multiple></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:6px;">
+          <input type="checkbox" id="bkDaThanhToan" checked style="width:auto;">
+          Đánh dấu tất cả là <b>đã thanh toán đủ</b> (bỏ chọn nếu cần đối chiếu công nợ thực tế sau)
+        </label>
+        <button class="btn" id="btnDocFileBK" style="margin-top:10px;">Đọc &amp; phân tích tất cả file</button>
+        <div id="bkParseStatus" class="muted" style="margin-top:8px;"></div>
+      </div>
+      <div class="panel" id="bkClassifyPanel" style="display:none;">
+        <h3>Phân loại hàng hoá / dịch vụ — kiểm tra lại trước khi tạo phiếu</h3>
+        <p class="muted">App đã tự đoán loại cho từng tên hàng xuất hiện trong các hoá đơn (dựa theo đơn vị tính và từ khoá). Sửa lại nếu cần — ảnh hưởng trực tiếp đến việc mặt hàng đó có được tính vào tồn kho hay không.</p>
+        <div class="toolbar"><input type="text" id="bkClassifySearch" placeholder="Tìm theo tên hàng..."></div>
+        <div class="tableWrap" id="bkClassifyWrap" style="max-height:420px;overflow-y:auto;"></div>
+        <button class="btn small" id="btnXacNhanPhanLoai" style="margin-top:10px;">Xác nhận phân loại, xem tổng kết</button>
+      </div>
+      <div class="panel" id="bkSummaryPanel" style="display:none;">
+        <h3>Tổng kết trước khi nhập</h3>
+        <div class="cardGrid" id="bkSummaryCards"></div>
+        <div id="bkErrorList"></div>
+        <button class="btn" id="btnBatDauNhapBK" style="margin-top:10px;">🚀 Bắt đầu nhập vào hệ thống</button>
+        <div id="bkProgressWrap" style="margin-top:12px;display:none;">
+          <div class="muted" id="bkProgressText">Đang xử lý...</div>
+          <div id="bkResultWrap" style="margin-top:10px;"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ---------- NGƯỜI DÙNG ---------- -->
@@ -1706,6 +1735,313 @@ document.getElementById('btnTaoPhieuLichSu').addEventListener('click', () => {
     if (res.loi && res.loi.length) console.warn('Lỗi nhập lịch sử:', res.loi);
     renderXuatBanTable(); renderNhapKhoTable(); renderHangHoaTable();
   }).catch(err => showToast('Lỗi: ' + err.message));
+});
+
+/* ================= NHẬP CHI TIẾT ĐẦY ĐỦ TỪ BKMV/BKBR (NHIỀU QUÝ) ================= */
+let BK_INVOICES = [];      // tất cả hoá đơn đã gộp từ mọi file, đã phân loại xong
+let BK_TEN_HANG_MAP = {};  // tenHangChuanHoa -> { tenGoc, dvt, loaiGoiY, loaiDaChon, soLanXuatHien }
+let BK_PARSE_ERRORS = [];
+
+function timHangHoaLoai(tenHang, dvt) {
+  const t = normalizeVN(tenHang);
+  const dvtTrim = (dvt || '').trim();
+  const tuKhoaDichVu = ['phi ', 'dich vu', 'gia cong', 'tu van', 'thue ', 'chung thuc', 'ho tro', 'quan tri', 'le phi', 'cuoc phi', 'phi ngan hang', 'bao tri', 'ban quyen', 'tien mang', 'internet', 'hosting', 'ten mien'];
+  if (tuKhoaDichVu.some(k => t.includes(k))) return 'DichVu';
+  if (!dvtTrim) return 'DichVu';
+  return 'HangHoa';
+}
+
+function parseVNNumber(val) {
+  if (val === undefined || val === null || val === '') return NaN;
+  const s = String(val).trim().replace(/,/g, ''); // bỏ dấu phẩy ngăn cách hàng nghìn, giữ dấu chấm thập phân
+  const num = parseFloat(s);
+  return isNaN(num) ? NaN : num;
+}
+
+function findColByKeywords(headerRow, keywords, fromIdx, exact) {
+  for (let c = fromIdx; c < headerRow.length; c++) {
+    const h = normalizeVN(headerRow[c] || '');
+    if (!h) continue;
+    if (exact ? keywords.includes(h) : keywords.some(k => h.includes(k))) return c;
+  }
+  return -1;
+}
+
+function parseBangKeSheet(aoa, loai, tenFile) {
+  let headerRowIdx = -1;
+  for (let i = 0; i < Math.min(20, aoa.length); i++) {
+    const row = aoa[i] || [];
+    const c1 = normalizeVN(row[1] || ''); const c2 = normalizeVN(row[2] || '');
+    if (c1 === 'stt' && c2.includes('ma hd')) { headerRowIdx = i; break; }
+  }
+  if (headerRowIdx < 0) return { invoices: [], error: `Không tìm thấy dòng tiêu đề (STT/Mã HĐ) trong sheet — bỏ qua.` };
+
+  const headerRow = aoa[headerRowIdx];
+  // Dò cột Số HĐ/Ngày/MST/Tên theo dòng phụ đề (ngay dưới dòng tiêu đề chính) — một số file có thêm
+  // cột "MĐT" chen giữa Ngày và MST khiến vị trí cố định bị lệch, nên phải dò theo tên nhãn.
+  const subHeaderRow = aoa[headerRowIdx + 1] || [];
+  const colSoHDFound = findColByKeywords(subHeaderRow, ['so'], 3, true);
+  const colNgayFound = findColByKeywords(subHeaderRow, ['ngay'], 3, true);
+  const colMSTFound = findColByKeywords(subHeaderRow, ['mst'], 3, true);
+  const colTenFound = findColByKeywords(subHeaderRow, ['ten'], 3, true);
+  const colSoHD = colSoHDFound >= 0 ? colSoHDFound : 5;
+  const colNgay = colNgayFound >= 0 ? colNgayFound : 6;
+  const colMST = colMSTFound >= 0 ? colMSTFound : 7;
+  const colTen = colTenFound >= 0 ? colTenFound : 8;
+
+  const colTenHang = findColByKeywords(headerRow, ['mat hang', 'ten hang hoa'], 9, false);
+  const colDvt = findColByKeywords(headerRow, ['dvt'], 9, false);
+  const colSoLuong = findColByKeywords(headerRow, ['sg'], 9, true);
+  const colDonGia = findColByKeywords(headerRow, ['don gia'], 9, false);
+  const colGiaTri = findColByKeywords(headerRow, ['gia tri'], 9, false);
+  const colTS = findColByKeywords(headerRow, ['ts'], 9, true);
+  const colThueTien = findColByKeywords(headerRow, ['thue gtgt'], 9, false);
+
+  if (colTenHang < 0) return { invoices: [], error: `Không tìm thấy cột "Mặt hàng/Tên hàng hóa" — bỏ qua sheet.` };
+
+  let dataStartIdx = headerRowIdx + 3;
+  for (let i = headerRowIdx + 1; i < Math.min(headerRowIdx + 6, aoa.length); i++) {
+    const row = aoa[i] || [];
+    if (String(row[colSoHD] || '').trim() && String(row[1] || '').trim()) { dataStartIdx = i; break; }
+  }
+
+  const invoices = [];
+  let current = null;
+  for (let i = dataStartIdx; i < aoa.length; i++) {
+    const row = aoa[i] || [];
+    if (!row.some(c => String(c || '').trim() !== '')) continue;
+    const tenHang = String(row[colTenHang] || '').trim();
+    if (normalizeVN(tenHang) === 'tong cong') break; // dòng tổng cộng cuối sheet -> hết dữ liệu thật
+    if (!tenHang || tenHang === '.') continue;
+
+    const stt = String(row[1] || '').trim();
+    const soHD = String(row[colSoHD] || '').trim();
+    const ngayRaw = row[colNgay];
+    const mst = String(row[colMST] || '').trim();
+    const tenDoiTac = String(row[colTen] || '').trim();
+
+    const isNewInvoice = stt && stt !== '0';
+    if (isNewInvoice) {
+      if (!soHD || !mst || !/\d/.test(soHD) || !/\d/.test(mst)) continue;
+      const ngay = parseVNDate(ngayRaw);
+      current = {
+        loai, soHD, kyHieu: '', ngay: ngay ? ngay.toISOString().substring(0, 10) : '',
+        mst, tenDoiTac, tenFile, items: []
+      };
+      invoices.push(current);
+    }
+    if (!current) continue;
+
+    const giaTri = colGiaTri >= 0 ? parseVNNumber(row[colGiaTri]) : NaN;
+    let soLuong = colSoLuong >= 0 ? parseVNNumber(row[colSoLuong]) : NaN;
+    let donGia = colDonGia >= 0 ? parseVNNumber(row[colDonGia]) : NaN;
+    if (isNaN(soLuong) || isNaN(donGia) || soLuong <= 0) {
+      soLuong = 1;
+      donGia = !isNaN(giaTri) ? giaTri : 0;
+    } else if (!isNaN(giaTri) && Math.abs(soLuong * donGia - giaTri) > 2) {
+      // Lệch so với giá trị gốc trong file (làm tròn) -> ưu tiên giá trị gốc, quy về 1 dòng
+      soLuong = 1; donGia = giaTri;
+    }
+
+    let thueSuat = '0';
+    if (colTS >= 0) {
+      const raw = String(row[colTS] || '').trim();
+      const rawNorm = normalizeVN(raw);
+      if (rawNorm.includes('kct') || rawNorm.includes('khong chiu')) thueSuat = 'KCT';
+      else if (raw) {
+        const num = parseFloat(raw.replace('%', '').replace(',', '.'));
+        if (!isNaN(num)) thueSuat = String(Math.round(num));
+      }
+    }
+    // Sửa lỗi gõ thừa số 0 rõ ràng (VD "1000%" thay vì "10%") — áp dụng cả khi dòng có giá trị 0
+    if (thueSuat !== 'KCT') {
+      const rateNum = parseFloat(thueSuat) || 0;
+      if (![0, 5, 8, 10].includes(rateNum) && rateNum > 10) {
+        const chiaThu = rateNum / 100;
+        if ([0, 5, 8, 10].includes(chiaThu)) thueSuat = String(chiaThu);
+      }
+    }
+    // Đối chiếu với số tiền thuế thực tế đã ghi trong file (nếu có) — sửa các trường hợp ô % bị gõ nhầm
+    // (ví dụ "1000%" thay vì "10%") bằng cách suy ngược tỉ lệ từ số tiền thuế ghi sẵn.
+    if (colThueTien >= 0 && thueSuat !== 'KCT' && !isNaN(giaTri) && giaTri > 0) {
+      const thueTienGhi = parseVNNumber(row[colThueTien]);
+      if (!isNaN(thueTienGhi)) {
+        const tyLeThucTe = Math.round((thueTienGhi / giaTri) * 100);
+        const parsedRate = parseFloat(thueSuat) || 0;
+        if (Math.abs(parsedRate - tyLeThucTe) > 1 && [0, 5, 8, 10].includes(tyLeThucTe)) {
+          thueSuat = String(tyLeThucTe);
+        }
+      }
+    }
+
+    current.items.push({
+      tenHang, dvt: colDvt >= 0 ? String(row[colDvt] || '').trim() : '',
+      soLuong, donGia: donGia || 0, thueSuat
+    });
+  }
+
+  return { invoices };
+}
+
+document.getElementById('btnDocFileBK').addEventListener('click', () => {
+  const files = document.getElementById('bkFiles').files;
+  if (!files.length) { showToast('Chọn ít nhất 1 file bảng kê.'); return; }
+  document.getElementById('bkParseStatus').textContent = `Đang đọc ${files.length} file...`;
+
+  const readers = [...files].map(file => new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const result = { fileName: file.name, invoices: [], errors: [] };
+        ['BKBR', 'BKMV'].forEach(sheetName => {
+          if (!wb.Sheets[sheetName]) { result.errors.push(`Không có sheet ${sheetName} trong file ${file.name}`); return; }
+          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: false, defval: '' });
+          const loai = sheetName === 'BKBR' ? 'xuat' : 'nhap';
+          const parsed = parseBangKeSheet(aoa, loai, file.name);
+          if (parsed.error) result.errors.push(`${file.name} / ${sheetName}: ${parsed.error}`);
+          result.invoices.push(...parsed.invoices);
+        });
+        resolve(result);
+      } catch (err) {
+        resolve({ fileName: file.name, invoices: [], errors: [`Lỗi đọc file: ${err.message}`] });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }));
+
+  Promise.all(readers).then(results => {
+    BK_INVOICES = [];
+    BK_PARSE_ERRORS = [];
+    results.forEach(r => { BK_INVOICES.push(...r.invoices); BK_PARSE_ERRORS.push(...r.errors); });
+    BK_INVOICES.sort((a, b) => new Date(a.ngay) - new Date(b.ngay));
+
+    document.getElementById('bkParseStatus').textContent =
+      `Đã đọc xong ${files.length} file — tìm được ${BK_INVOICES.length} hoá đơn` +
+      (BK_PARSE_ERRORS.length ? ` (có ${BK_PARSE_ERRORS.length} cảnh báo, xem bên dưới sau khi xác nhận phân loại).` : '.');
+
+    xayDungDanhSachTenHang();
+    renderBkClassifyTable();
+  });
+});
+
+function xayDungDanhSachTenHang() {
+  BK_TEN_HANG_MAP = {};
+  BK_INVOICES.forEach(inv => {
+    inv.items.forEach(it => {
+      const key = normalizeVN(it.tenHang);
+      if (!BK_TEN_HANG_MAP[key]) {
+        BK_TEN_HANG_MAP[key] = {
+          tenGoc: it.tenHang, dvt: it.dvt,
+          loaiGoiY: timHangHoaLoai(it.tenHang, it.dvt),
+          soLanXuatHien: 0
+        };
+      }
+      BK_TEN_HANG_MAP[key].soLanXuatHien++;
+    });
+  });
+}
+
+function renderBkClassifyTable() {
+  document.getElementById('bkClassifyPanel').style.display = 'block';
+  const search = (document.getElementById('bkClassifySearch').value || '').toLowerCase();
+  const wrap = document.getElementById('bkClassifyWrap');
+  const keys = Object.keys(BK_TEN_HANG_MAP)
+    .filter(k => !search || BK_TEN_HANG_MAP[k].tenGoc.toLowerCase().includes(search))
+    .sort((a, b) => BK_TEN_HANG_MAP[b].soLanXuatHien - BK_TEN_HANG_MAP[a].soLanXuatHien);
+
+  wrap.innerHTML = `<table><thead><tr><th>Tên hàng</th><th>ĐVT</th><th>Số lần xuất hiện</th><th>Phân loại</th></tr></thead><tbody>
+    ${keys.map(k => {
+      const item = BK_TEN_HANG_MAP[k];
+      return `<tr>
+        <td>${item.tenGoc}</td><td>${item.dvt || '—'}</td><td>${item.soLanXuatHien}</td>
+        <td><select data-key="${k}" onchange="BK_TEN_HANG_MAP['${k}'].loaiGoiY=this.value">
+          <option value="HangHoa" ${item.loaiGoiY === 'HangHoa' ? 'selected' : ''}>Hàng hoá (có tồn kho)</option>
+          <option value="DichVu" ${item.loaiGoiY === 'DichVu' ? 'selected' : ''}>Dịch vụ (không tồn kho)</option>
+        </select></td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+document.getElementById('bkClassifySearch').addEventListener('input', renderBkClassifyTable);
+
+document.getElementById('btnXacNhanPhanLoai').addEventListener('click', () => {
+  // Gán loại đã chọn vào từng dòng hàng trong hoá đơn
+  BK_INVOICES.forEach(inv => {
+    inv.items.forEach(it => {
+      const key = normalizeVN(it.tenHang);
+      it.loaiHangHoa = BK_TEN_HANG_MAP[key] ? BK_TEN_HANG_MAP[key].loaiGoiY : 'HangHoa';
+    });
+  });
+  renderBkSummary();
+});
+
+function renderBkSummary() {
+  document.getElementById('bkSummaryPanel').style.display = 'block';
+  const xuat = BK_INVOICES.filter(i => i.loai === 'xuat');
+  const nhap = BK_INVOICES.filter(i => i.loai === 'nhap');
+  const tongXuat = xuat.reduce((s, i) => s + i.items.reduce((s2, it) => s2 + it.soLuong * it.donGia, 0), 0);
+  const tongNhap = nhap.reduce((s, i) => s + i.items.reduce((s2, it) => s2 + it.soLuong * it.donGia, 0), 0);
+  const tuNgay = BK_INVOICES.length ? fmtDate(BK_INVOICES[0].ngay) : '—';
+  const denNgay = BK_INVOICES.length ? fmtDate(BK_INVOICES[BK_INVOICES.length - 1].ngay) : '—';
+
+  const cards = [
+    { label: 'Số hoá đơn bán ra', val: xuat.length },
+    { label: 'Số hoá đơn mua vào', val: nhap.length },
+    { label: 'Tổng giá trị bán ra (trước thuế)', val: fmtMoney(tongXuat) },
+    { label: 'Tổng giá trị mua vào (trước thuế)', val: fmtMoney(tongNhap) },
+    { label: 'Từ ngày', val: tuNgay },
+    { label: 'Đến ngày', val: denNgay }
+  ];
+  document.getElementById('bkSummaryCards').innerHTML = cards.map(c => `<div class="statCard"><div class="label">${c.label}</div><div class="val">${c.val}</div></div>`).join('');
+
+  const errWrap = document.getElementById('bkErrorList');
+  if (BK_PARSE_ERRORS.length) {
+    errWrap.innerHTML = `<p class="muted" style="color:var(--bad);">${BK_PARSE_ERRORS.length} cảnh báo khi đọc file:</p><ul class="muted">${BK_PARSE_ERRORS.map(e => `<li>${e}</li>`).join('')}</ul>`;
+  } else {
+    errWrap.innerHTML = '';
+  }
+}
+
+document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
+  if (!BK_INVOICES.length) { showToast('Chưa có dữ liệu để nhập.'); return; }
+  if (!confirm(`Sẽ tạo tối đa ${BK_INVOICES.length} phiếu (bỏ qua tự động các hoá đơn đã tồn tại trong hệ thống). Tiếp tục?`)) return;
+
+  const daThanhToanDu = document.getElementById('bkDaThanhToan').checked;
+  const invoicesToSend = BK_INVOICES.map(inv => ({ ...inv, daThanhToanDu }));
+  const CHUNK_SIZE = 25;
+  const chunks = [];
+  for (let i = 0; i < invoicesToSend.length; i += CHUNK_SIZE) chunks.push(invoicesToSend.slice(i, i + CHUNK_SIZE));
+
+  document.getElementById('bkProgressWrap').style.display = 'block';
+  const progressText = document.getElementById('bkProgressText');
+  const resultWrap = document.getElementById('bkResultWrap');
+  let tongThanhCong = 0, tongDaTonTai = 0, tongLoi = [];
+
+  function xuLyChunk(idx) {
+    if (idx >= chunks.length) {
+      progressText.textContent = `Hoàn tất: đã tạo ${tongThanhCong} phiếu, ${tongDaTonTai} hoá đơn đã tồn tại từ trước (bỏ qua), ${tongLoi.length} lỗi.`;
+      if (tongLoi.length) {
+        resultWrap.innerHTML = `<div class="tableWrap"><table><thead><tr><th>Số HĐ</th><th>Ngày</th><th>Đối tác</th><th>Lỗi</th></tr></thead><tbody>
+          ${tongLoi.map(l => `<tr><td>${l.soHD}</td><td>${fmtDate(l.ngay)}</td><td>${l.doiTac || ''}</td><td>${l.error}</td></tr>`).join('')}
+        </tbody></table></div>`;
+      }
+      renderXuatBanTable(); renderNhapKhoTable(); renderHangHoaTable(); renderKhachHangTable(); renderNhaCungCapTable();
+      showToast('Đã nhập xong dữ liệu chi tiết BKMV/BKBR.');
+      return;
+    }
+    progressText.textContent = `Đang xử lý lô ${idx + 1}/${chunks.length}...`;
+    apiCall('importChiTietBKMVBR', { invoices: chunks[idx] }).then(res => {
+      tongThanhCong += res.thanhCong; tongDaTonTai += res.daTonTai || 0;
+      tongLoi = tongLoi.concat(res.loi || []);
+      xuLyChunk(idx + 1);
+    }).catch(err => {
+      tongLoi.push({ soHD: '(lô ' + (idx + 1) + ')', error: err.message });
+      xuLyChunk(idx + 1);
+    });
+  }
+  xuLyChunk(0);
 });
 
 /* ================= CÀI ĐẶT ================= */
