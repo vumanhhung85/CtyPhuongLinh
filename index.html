@@ -2022,6 +2022,9 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
   function xuLyChunk(idx) {
     if (idx >= chunks.length) {
       progressText.textContent = `Hoàn tất: đã tạo ${tongThanhCong} phiếu, ${tongDaTonTai} hoá đơn đã tồn tại từ trước (bỏ qua), ${tongLoi.length} lỗi.`;
+      if (tongThanhCong === 0 && tongDaTonTai === 0 && !tongLoi.length) {
+        progressText.textContent += ' ⚠️ Không có phiếu nào được tạo nhưng cũng không báo lỗi — có thể server trả về dữ liệu bất thường. Mở Console trình duyệt (F12) để xem chi tiết đã ghi log.';
+      }
       if (tongLoi.length) {
         resultWrap.innerHTML = `<div class="tableWrap"><table><thead><tr><th>Số HĐ</th><th>Ngày</th><th>Đối tác</th><th>Lỗi</th></tr></thead><tbody>
           ${tongLoi.map(l => `<tr><td>${l.soHD}</td><td>${fmtDate(l.ngay)}</td><td>${l.doiTac || ''}</td><td>${l.error}</td></tr>`).join('')}
@@ -2033,10 +2036,17 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
     }
     progressText.textContent = `Đang xử lý lô ${idx + 1}/${chunks.length}...`;
     apiCall('importChiTietBKMVBR', { invoices: chunks[idx] }).then(res => {
-      tongThanhCong += res.thanhCong; tongDaTonTai += res.daTonTai || 0;
-      tongLoi = tongLoi.concat(res.loi || []);
+      console.log(`[Nhập BKMV/BKBR] Kết quả lô ${idx + 1}:`, res);
+      if (!res || typeof res.thanhCong !== 'number') {
+        tongLoi.push({ soHD: '(lô ' + (idx + 1) + ')', error: 'Phản hồi bất thường từ server: ' + JSON.stringify(res).substring(0, 200) });
+      } else {
+        tongThanhCong += res.thanhCong;
+        tongDaTonTai += Number(res.daTonTai) || 0;
+        tongLoi = tongLoi.concat(res.loi || []);
+      }
       xuLyChunk(idx + 1);
     }).catch(err => {
+      console.error(`[Nhập BKMV/BKBR] Lỗi lô ${idx + 1}:`, err);
       tongLoi.push({ soHD: '(lô ' + (idx + 1) + ')', error: err.message });
       xuLyChunk(idx + 1);
     });
