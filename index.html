@@ -63,7 +63,7 @@
 
   .tableWrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);}
   table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px;}
-  thead th{position:sticky;top:0;background:var(--brand-soft);color:var(--brand-deep);text-align:left;padding:9px 10px;font-weight:700;border-bottom:1px solid #c7d4f5;white-space:nowrap;}
+  thead th{position:sticky;top:94px;background:var(--brand-soft);color:var(--brand-deep);text-align:left;padding:9px 10px;font-weight:700;border-bottom:1px solid #c7d4f5;white-space:nowrap;z-index:30;}
   tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:#f4f7ff;}
@@ -130,6 +130,7 @@
   .hhComboTonThap{background:var(--warn-soft);color:var(--warn);}
   .hhComboTonHet{background:var(--bad-soft);color:var(--bad);}
   .hhComboEmpty{padding:16px;font-size:13.5px;color:var(--ink-soft);text-align:center;}
+  .hhComboItem.hhComboDisabled{opacity:.55;cursor:not-allowed;background:#faf9f7;}
   .lineTotal{font-weight:700;font-size:13px;}
   .grandTotal{text-align:right;font-size:16px;font-weight:800;margin-top:8px;color:var(--brand-deep);}
 
@@ -490,6 +491,17 @@ function apiLogin(tenDangNhap, password) {
 
 /* ================= UTIL ================= */
 function fmtMoney(n) { n = Number(n) || 0; return n.toLocaleString('vi-VN') + ' đ'; }
+function parseSoTien(val) { return Number(String(val || '').replace(/\D/g, '')) || 0; }
+function formatMoneyInputLive(el) {
+  const soChuSoTruocConTro = el.value.slice(0, el.selectionStart || 0).replace(/\D/g, '').length;
+  const raw = el.value.replace(/\D/g, '');
+  const formatted = raw ? Number(raw).toLocaleString('vi-VN') : '';
+  el.value = formatted;
+  let pos = 0, dem = 0;
+  while (pos < formatted.length && dem < soChuSoTruocConTro) { if (/\d/.test(formatted[pos])) dem++; pos++; }
+  try { el.setSelectionRange(pos, pos); } catch (e) { /* một số trình duyệt không hỗ trợ trên input type khác */ }
+}
+document.addEventListener('input', e => { if (e.target.classList && e.target.classList.contains('moneyInput')) formatMoneyInputLive(e.target); });
 function fmtDate(d) { if (!d) return ''; const dt = new Date(d); if (isNaN(dt)) return d; return dt.toLocaleDateString('vi-VN'); }
 function todayISO() { return new Date().toISOString().substring(0, 10); }
 function showToast(msg) {
@@ -498,7 +510,14 @@ function showToast(msg) {
 }
 function openModal(html) { document.getElementById('modalCard').innerHTML = html; document.getElementById('modalBg').classList.add('active'); }
 function closeModal() { document.getElementById('modalBg').classList.remove('active'); }
-document.getElementById('modalBg').addEventListener('click', e => { if (e.target.id === 'modalBg') closeModal(); });
+// Chỉ đóng modal khi CẢ mousedown lẫn click đều nhắm đúng vào nền mờ (không phải bôi đen text
+// trong ô rồi lỡ thả chuột ra ngoài — trường hợp đó click.target cũng là modalBg nhưng không phải ý định đóng).
+let _modalMouseDownOnBg = false;
+document.getElementById('modalBg').addEventListener('mousedown', e => { _modalMouseDownOnBg = (e.target.id === 'modalBg'); });
+document.getElementById('modalBg').addEventListener('click', e => {
+  if (e.target.id === 'modalBg' && _modalMouseDownOnBg) closeModal();
+  _modalMouseDownOnBg = false;
+});
 function vaiTroLabel(v) { return { Admin: 'Quản trị viên', BanHang: 'Bán hàng', KyThuat: 'Kỹ thuật', KeToan: 'Kế toán' }[v] || v; }
 function trangThaiSCLabel(v) { return { TiepNhan: 'Tiếp nhận', DangSua: 'Đang sửa', ChoLinhKien: 'Chờ linh kiện', HoanThanh: 'Hoàn thành', DaGiaoTra: 'Đã giao trả', Huy: 'Huỷ' }[v] || v; }
 function trangThaiSCTag(v) {
@@ -538,13 +557,49 @@ function doLogin() {
   }).catch(err => { document.getElementById('loginErr').textContent = 'Lỗi kết nối: ' + err.message; });
 }
 
-document.getElementById('btnLogout').addEventListener('click', () => {
+function thucHienDangXuat(lyDo) {
   if (STATE.token && CONFIG.SCRIPT_URL) apiCall('logout').catch(() => {});
   sessionStorage.removeItem('qlbh_token'); sessionStorage.removeItem('qlbh_user');
   STATE.token = ''; STATE.user = null;
+  dungGiamSatPhien();
   document.getElementById('appShell').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
+  if (lyDo) document.getElementById('loginErr').textContent = lyDo;
+}
+document.getElementById('btnLogout').addEventListener('click', () => thucHienDangXuat(''));
+
+/* ---- Tự đăng xuất sau 15 phút không thao tác ---- */
+const THOI_GIAN_CHO_KHONG_THAO_TAC_MS = 15 * 60 * 1000; // 15 phút
+let _henGioKhongThaoTac = null;
+function datLaiDemNguocKhongThaoTac() {
+  clearTimeout(_henGioKhongThaoTac);
+  _henGioKhongThaoTac = setTimeout(() => {
+    thucHienDangXuat('Đã tự động đăng xuất do không thao tác quá 15 phút.');
+  }, THOI_GIAN_CHO_KHONG_THAO_TAC_MS);
+}
+['mousedown', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
+  document.addEventListener(evt, () => { if (STATE.token) datLaiDemNguocKhongThaoTac(); }, { passive: true });
 });
+
+/* ---- Kiểm tra định kỳ phiên còn hiệu lực (bị đăng nhập ở máy khác thì tự đá ra) ---- */
+const CHU_KY_KIEM_TRA_PHIEN_MS = 30 * 1000; // 30 giây — không rút ngắn hơn để tránh chạm hạn ngạch Apps Script
+let _henGioKiemTraPhien = null;
+function batDauGiamSatPhien() {
+  dungGiamSatPhien();
+  datLaiDemNguocKhongThaoTac();
+  _henGioKiemTraPhien = setInterval(() => {
+    if (!STATE.token || !CONFIG.SCRIPT_URL) return;
+    apiCall('pingPhien').catch(err => {
+      if (String(err.message).includes('AUTH_FAILED')) {
+        thucHienDangXuat('Tài khoản này vừa đăng nhập ở thiết bị/trình duyệt khác — phiên trên máy này đã bị đăng xuất.');
+      }
+    });
+  }, CHU_KY_KIEM_TRA_PHIEN_MS);
+}
+function dungGiamSatPhien() {
+  clearTimeout(_henGioKhongThaoTac);
+  clearInterval(_henGioKiemTraPhien);
+}
 
 function enterApp(isSetupOnly) {
   document.getElementById('loginScreen').style.display = 'none';
@@ -555,7 +610,7 @@ function enterApp(isSetupOnly) {
     document.getElementById('userVaiTroLabel').textContent = vaiTroLabel(STATE.user.vaiTro);
     applyRoleVisibility();
   }
-  if (!isSetupOnly) loadAllData();
+  if (!isSetupOnly) { loadAllData(); batDauGiamSatPhien(); }
 }
 
 function applyRoleVisibility() {
@@ -672,7 +727,7 @@ function openEditHH(maHH) {
         <option value="DichVu" ${item && item.Loai === 'DichVu' ? 'selected' : ''}>Dịch vụ (không tồn kho)</option>
       </select></div>
       <div class="field"><label>Đơn vị tính</label><input id="fDVT" value="${item ? item.DVT : ''}" placeholder="cái, bộ, giờ..."></div>
-      <div class="field"><label>Giá bán</label><input id="fGiaBan" type="number" value="${item ? item.GiaBan : ''}"></div>
+      <div class="field"><label>Giá bán</label><input id="fGiaBan" type="text" inputmode="numeric" class="moneyInput" value="${item ? Number(item.GiaBan).toLocaleString('vi-VN') : ''}"></div>
       <div class="field"><label>Tồn kho tối thiểu (cảnh báo)</label><input id="fTonToiThieu" type="number" value="${item ? item.TonKhoToiThieu : 0}"></div>
       <div class="field span2"><label>Ghi chú</label><input id="fGhiChu" value="${item ? item.GhiChu || '' : ''}"></div>
     </div>
@@ -689,7 +744,7 @@ function saveHH(maHH) {
   const data = {
     MaHH: maHH || undefined, TenHH: document.getElementById('fTenHH').value.trim(),
     Loai: document.getElementById('fLoai').value, DVT: document.getElementById('fDVT').value.trim(),
-    GiaBan: Number(document.getElementById('fGiaBan').value) || 0,
+    GiaBan: parseSoTien(document.getElementById('fGiaBan').value),
     TonKhoToiThieu: Number(document.getElementById('fTonToiThieu').value) || 0,
     GhiChu: document.getElementById('fGhiChu').value.trim()
   };
@@ -749,7 +804,7 @@ function addItemRowInto(containerId, mode) {
     <div class="itemRowInfo">Chưa chọn hàng hoá / dịch vụ</div>
     <div class="itemRowGrid">
       <div class="field"><label>Số lượng</label><input type="number" class="itemSL" value="1" min="0.01" step="0.01" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
-      <div class="field"><label>Đơn giá</label><input type="number" class="itemGia" value="0" min="0" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
+      <div class="field"><label>Đơn giá</label><input type="text" inputmode="numeric" class="itemGia moneyInput" value="0" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
       <div class="field"><label>Thuế</label><select class="itemThueSuat" onchange="updateLineTotalGeneric(this,'${containerId}')">${thueSuatOptionsHtml('8')}</select></div>
       <div class="field itemRowTotal"><label>Thành tiền</label><div class="lineTotal">0 đ</div></div>
       <button class="itemRowDel" type="button" title="Xoá dòng" onclick="this.closest('.itemRow').remove(); recalcGrandTotalGeneric('${containerId}');">✕</button>
@@ -759,9 +814,19 @@ function addItemRowInto(containerId, mode) {
 }
 
 /* ---- Ô tìm kiếm hàng hoá có gợi ý kèm tồn kho + giá vốn + giá bán ---- */
+function tinhSoLuongDaDungTrongPhieu(containerId, maHH, boQuaRow) {
+  let daDung = 0;
+  document.querySelectorAll('#' + containerId + '_list .itemRow').forEach(r => {
+    if (r === boQuaRow) return;
+    if (r.dataset.mahh === maHH) daDung += Number(r.querySelector('.itemSL').value) || 0;
+  });
+  return daDung;
+}
 function hhComboFilter(input) {
   const mode = input.dataset.mode;
+  const containerId = input.dataset.container;
   const wrap = input.closest('.itemRowSearch');
+  const currentRow = input.closest('.itemRow');
   const listEl = wrap.querySelector('.hhComboList');
   const q = normalizeVN(input.value);
   let results = STATE.hangHoaList;
@@ -771,19 +836,29 @@ function hhComboFilter(input) {
     listEl.innerHTML = '<div class="hhComboEmpty">Không tìm thấy hàng hoá/dịch vụ phù hợp</div>';
   } else {
     listEl.innerHTML = results.map(h => {
-      const tonHet = h.Loai === 'HangHoa' && Number(h.TonKho) <= 0;
-      const tonThap = h.Loai === 'HangHoa' && !tonHet && Number(h.TonKho) <= Number(h.TonKhoToiThieu || 0);
+      const daDungDongKhac = tinhSoLuongDaDungTrongPhieu(containerId, h.MaHH, currentRow);
+      const tonThucTe = h.Loai === 'HangHoa' ? (Number(h.TonKho) || 0) - daDungDongKhac : null;
+      const tonHet = h.Loai === 'HangHoa' && tonThucTe <= 0;
+      const tonThap = h.Loai === 'HangHoa' && !tonHet && tonThucTe <= Number(h.TonKhoToiThieu || 0);
       const tonCls = tonHet ? 'hhComboTonHet' : (tonThap ? 'hhComboTonThap' : '');
-      const tonText = h.Loai === 'HangHoa' ? `Tồn: ${h.TonKho} ${h.DVT || ''}` : 'Dịch vụ';
-      return `<div class="hhComboItem" data-mahh="${h.MaHH}" data-ten="${(h.TenHH || '').replace(/"/g, '&quot;')}"
-          data-giavon="${h.GiaVonTB || 0}" data-giaban="${h.GiaBan || 0}" data-tonkho="${h.TonKho || 0}" data-dvt="${h.DVT || ''}" data-loai="${h.Loai}"
+      const tonText = h.Loai === 'HangHoa'
+        ? (daDungDongKhac > 0 ? `Còn lại: ${tonThucTe} ${h.DVT || ''} (đã dùng ${daDungDongKhac} ở dòng khác)` : `Tồn: ${h.TonKho} ${h.DVT || ''}`)
+        : 'Dịch vụ';
+      const dongKhacTag = daDungDongKhac > 0 ? `<span class="hhComboBadge hhComboTonThap">Đã có trong phiếu (SL: ${daDungDongKhac})</span>` : '';
+      // Chỉ chặn chọn khi ĐANG XUẤT/DÙNG hàng (gia_ban) và hết tồn thực tế — Nhập kho (gia_von) vẫn chọn được vì đang mua thêm
+      const khongChoChon = mode === 'gia_ban' && tonHet;
+      const disabledAttr = khongChoChon ? 'data-khongchochon="1"' : '';
+      const disabledCls = khongChoChon ? 'hhComboDisabled' : '';
+      return `<div class="hhComboItem ${disabledCls}" ${disabledAttr} data-mahh="${h.MaHH}" data-ten="${(h.TenHH || '').replace(/"/g, '&quot;')}"
+          data-giavon="${h.GiaVonTB || 0}" data-giaban="${h.GiaBan || 0}" data-tonkho="${h.TonKho || 0}" data-dvt="${h.DVT || ''}" data-loai="${h.Loai}" data-daudungdongkhac="${daDungDongKhac}"
           onmousedown="hhComboSelect(this)">
-        <div class="hhComboItemTen">${h.TenHH}</div>
+        <div class="hhComboItemTen">${h.TenHH}${khongChoChon ? ' <span class="hhComboBadge hhComboTonHet">Hết tồn — không thể chọn</span>' : ''}</div>
         <div class="hhComboItemSub">
           <span>${h.MaHH}</span>
           <span class="hhComboBadge ${tonCls}">${tonText}</span>
           <span>Giá vốn: ${fmtMoney(h.GiaVonTB)}</span>
           <span>Giá bán: ${fmtMoney(h.GiaBan)}</span>
+          ${dongKhacTag}
         </div>
       </div>`;
     }).join('');
@@ -794,6 +869,19 @@ function hhComboSelect(el) {
   const wrap = el.closest('.itemRowSearch');
   const row = el.closest('.itemRow');
   const input = wrap.querySelector('.itemHHSearch');
+  const containerId = input.dataset.container;
+  if (el.dataset.khongchochon === '1') {
+    showToast(`"${el.dataset.ten}" đã hết tồn kho (còn ${Number(el.dataset.tonkho) - Number(el.dataset.daudungdongkhac || 0)}) — vui lòng kiểm tra lại kho, không thể chọn để xuất/sử dụng.`);
+    return;
+  }
+  const daDungDongKhac = Number(el.dataset.daudungdongkhac) || 0;
+  if (daDungDongKhac > 0) {
+    const tiepTuc = confirm(`Mặt hàng "${el.dataset.ten}" đã có trong phiếu này ở dòng khác (số lượng: ${daDungDongKhac}).\n\nNên xoá dòng này và tăng số lượng ở dòng đã có thay vì tách thành 2 dòng riêng.\n\nVẫn muốn thêm dòng riêng cho mặt hàng này?`);
+    if (!tiepTuc) {
+      wrap.querySelector('.hhComboList').style.display = 'none';
+      return;
+    }
+  }
   const hidden = wrap.querySelector('.itemHH');
   hidden.value = el.dataset.mahh;
   input.value = el.dataset.ten;
@@ -806,9 +894,9 @@ function hhComboSelect(el) {
   row.dataset.loai = el.dataset.loai;
   const mode = input.dataset.mode;
   const giaGoiY = mode === 'gia_von' ? Number(el.dataset.giavon) || 0 : Number(el.dataset.giaban) || 0;
-  row.querySelector('.itemGia').value = Math.round(giaGoiY);
+  row.querySelector('.itemGia').value = Math.round(giaGoiY).toLocaleString('vi-VN');
   wrap.querySelector('.hhComboList').style.display = 'none';
-  updateLineTotalGeneric(input, input.dataset.container);
+  updateLineTotalGeneric(input, containerId);
 }
 function hhComboBlur(input) {
   setTimeout(() => {
@@ -829,7 +917,7 @@ function capNhatThongTinDong(row, mode) {
   const dvt = row.dataset.dvt || '';
   const giavon = Number(row.dataset.giavon) || 0;
   const giaban = Number(row.dataset.giaban) || 0;
-  const donGiaNhap = Number(row.querySelector('.itemGia').value) || 0;
+  const donGiaNhap = parseSoTien(row.querySelector('.itemGia').value);
   let html = loai === 'HangHoa' ? `Tồn kho hiện có: <b>${ton} ${dvt}</b> &nbsp;·&nbsp; ` : '';
   html += `Giá vốn: <b>${fmtMoney(giavon)}</b> &nbsp;·&nbsp; Giá bán tham khảo: <b>${fmtMoney(giaban)}</b>`;
   if (mode === 'gia_ban' && giavon > 0 && donGiaNhap > 0) {
@@ -841,7 +929,7 @@ function capNhatThongTinDong(row, mode) {
 function updateLineTotalGeneric(el, containerId) {
   const row = el.closest('.itemRow');
   const sl = Number(row.querySelector('.itemSL').value) || 0;
-  const gia = Number(row.querySelector('.itemGia').value) || 0;
+  const gia = parseSoTien(row.querySelector('.itemGia').value);
   const thueSuat = row.querySelector('.itemThueSuat').value;
   const truocThue = sl * gia;
   const tienThue = tinhTienThueJS(truocThue, thueSuat);
@@ -854,7 +942,7 @@ function recalcGrandTotalGeneric(containerId) {
   let truoc = 0, thue = 0;
   document.querySelectorAll('#' + containerId + '_list .itemRow').forEach(row => {
     const sl = Number(row.querySelector('.itemSL').value) || 0;
-    const gia = Number(row.querySelector('.itemGia').value) || 0;
+    const gia = parseSoTien(row.querySelector('.itemGia').value);
     const thueSuat = row.querySelector('.itemThueSuat').value;
     const t = sl * gia;
     truoc += t; thue += tinhTienThueJS(t, thueSuat);
@@ -874,7 +962,7 @@ function readItemsFrom(containerId) {
     return {
       MaHH: hidden ? hidden.value : '', TenHH: searchInput ? searchInput.value : '',
       SoLuong: Number(row.querySelector('.itemSL').value) || 0,
-      DonGia: Number(row.querySelector('.itemGia').value) || 0,
+      DonGia: parseSoTien(row.querySelector('.itemGia').value),
       ThueSuat: row.querySelector('.itemThueSuat').value
     };
   }).filter(it => it.MaHH && it.SoLuong > 0);
@@ -1021,7 +1109,7 @@ function openPhieuSuaChuaForm() {
       <div class="field"><label>Kỹ thuật viên phụ trách</label><input id="fNguoiPhuTrach"></div>
       <div class="field"><label>Ngày hẹn trả</label><input type="date" id="fNgayHenTra"></div>
       <div class="field"><label>Bảo hành (số ngày)</label><input type="number" id="fBaoHanh" value="0"></div>
-      <div class="field"><label>Tiền công sửa chữa (trước thuế)</label><input type="number" id="fTienCong" value="0"></div>
+      <div class="field"><label>Tiền công sửa chữa (trước thuế)</label><input type="text" inputmode="numeric" class="moneyInput" id="fTienCong" value="0"></div>
       <div class="field"><label>Thuế suất tiền công</label><select id="fTienCongThueSuat">${thueSuatOptionsHtml('8')}</select></div>
       <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu"></div>
     </div>
@@ -1049,7 +1137,7 @@ function submitPhieuSuaChua() {
     NguoiPhuTrach: document.getElementById('fNguoiPhuTrach').value.trim(),
     NgayHenTra: document.getElementById('fNgayHenTra').value,
     BaoHanhNgay: Number(document.getElementById('fBaoHanh').value) || 0,
-    TienCong: Number(document.getElementById('fTienCong').value) || 0,
+    TienCong: parseSoTien(document.getElementById('fTienCong').value),
     TienCongThueSuat: document.getElementById('fTienCongThueSuat').value,
     GhiChu: document.getElementById('fGhiChuPhieu').value.trim(),
     TrangThai: 'TiepNhan', items
@@ -1081,14 +1169,14 @@ function viewPhieuSuaChua(idPhieu) {
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>Ghi nhận thu tiền từ khách</label><input type="number" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="formGrid"><div class="field span2"><label>Ghi nhận thu tiền từ khách</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền"></div></div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThuSuaChua('${idPhieu}')">Ghi nhận thanh toán</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function ghiNhanThuSuaChua(idPhieu) {
-  const soTien = Number(document.getElementById('fSoTienTT').value) || 0;
+  const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
   if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
   apiCall('capNhatDaThuSuaChua', { idPhieu, soTien }).then(() => { closeModal(); showToast('Đã ghi nhận thanh toán.'); renderSuaChuaTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
@@ -1164,7 +1252,7 @@ function openPhieuGiaCongForm() {
       <div class="field span2"><label>Mô tả công việc gia công</label><textarea id="fMoTaCongViec" placeholder="VD: Gia công 500 tấm biển quảng cáo, in 1000 tờ rơi..."></textarea></div>
       <div class="field"><label>Số lượng sản phẩm</label><input type="number" id="fSoLuongSP" value="1"></div>
       <div class="field"><label>Đơn vị tính</label><input id="fDonViTinh" placeholder="cái, bộ, tờ..."></div>
-      <div class="field"><label id="fChiPhiLabel">Chi phí gia công (trước thuế)</label><input type="number" id="fChiPhiGC" value="0"></div>
+      <div class="field"><label id="fChiPhiLabel">Chi phí gia công (trước thuế)</label><input type="text" inputmode="numeric" class="moneyInput" id="fChiPhiGC" value="0"></div>
       <div class="field"><label>Thuế suất</label><select id="fChiPhiGCThueSuat">${thueSuatOptionsHtml('8')}</select></div>
       <div class="field"><label>Ngày hẹn trả</label><input type="date" id="fNgayHenTra"></div>
       <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu"></div>
@@ -1197,7 +1285,7 @@ function submitPhieuGiaCong() {
     MoTaCongViec: document.getElementById('fMoTaCongViec').value.trim(),
     SoLuongSanPham: Number(document.getElementById('fSoLuongSP').value) || 0,
     DonViTinh: document.getElementById('fDonViTinh').value.trim(),
-    ChiPhiGiaCong: Number(document.getElementById('fChiPhiGC').value) || 0,
+    ChiPhiGiaCong: parseSoTien(document.getElementById('fChiPhiGC').value),
     ThueSuatGiaCong: document.getElementById('fChiPhiGCThueSuat').value,
     NgayHenTra: document.getElementById('fNgayHenTra').value,
     GhiChu: document.getElementById('fGhiChuPhieu').value.trim(),
@@ -1229,14 +1317,14 @@ function viewPhieuGiaCong(idPhieu) {
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>${isThu ? 'Ghi nhận thu tiền từ khách' : 'Ghi nhận trả tiền cho bên gia công'}</label><input type="number" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="formGrid"><div class="field span2"><label>${isThu ? 'Ghi nhận thu tiền từ khách' : 'Ghi nhận trả tiền cho bên gia công'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền"></div></div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanGC('${idPhieu}','${isThu ? 'DaThu' : 'DaTra'}')">Ghi nhận</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function ghiNhanThanhToanGC(idPhieu, loaiTien) {
-  const soTien = Number(document.getElementById('fSoTienTT').value) || 0;
+  const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
   if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
   apiCall('capNhatThanhToanGiaCong', { idPhieu, loaiTien, soTien }).then(() => { closeModal(); showToast('Đã ghi nhận.'); renderGiaCongTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
@@ -1303,14 +1391,14 @@ function viewPhieuNhapXuat(loai, idPhieu) {
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>${loai === 'nhap' ? 'Ghi nhận thanh toán cho NCC' : 'Ghi nhận thu tiền từ khách'}</label><input type="number" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="formGrid"><div class="field span2"><label>${loai === 'nhap' ? 'Ghi nhận thanh toán cho NCC' : 'Ghi nhận thu tiền từ khách'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền"></div></div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanNX('${loai}','${idPhieu}')">Ghi nhận thanh toán</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function ghiNhanThanhToanNX(loai, idPhieu) {
-  const soTien = Number(document.getElementById('fSoTienTT').value) || 0;
+  const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
   if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
   const action = loai === 'nhap' ? 'capNhatDaTraNCC' : 'capNhatDaThuKH';
   apiCall(action, { idPhieu, soTien }).then(() => {
@@ -1636,7 +1724,7 @@ function thucHienKhop() {
       soHD, kyHieu: idxKyHieu >= 0 ? String(row[idxKyHieu] || '').trim() : '',
       ngay: idxNgay >= 0 ? parseVNDate(row[idxNgay]) : null,
       mst: String(row[idxMST] || '').trim(),
-      tongTien: parseMoney(row[idxTongTien]), loai
+      tongTien: parseVNNumber(row[idxTongTien]), loai
     };
   }).filter(Boolean);
 
@@ -1735,7 +1823,7 @@ function trichXuatXML(xmlDoc, fileName) {
   return {
     fileName, soHD, kyHieu, ngay, mstBan: mstBan.trim(), mstMua: mstMua.trim(),
     mst: loai === 'xuat' ? mstMua.trim() : (loai === 'nhap' ? mstBan.trim() : ''),
-    tongTien: parseMoney(tongTienRaw), loai
+    tongTien: parseVNNumber(tongTienRaw), loai
   };
 }
 
@@ -1875,7 +1963,7 @@ function xemTruocLichSu() {
       Ngay: ngayRaw ? ngayRaw.toISOString().substring(0, 10) : '',
       TenDoiTac: String(row[idxTen] || '').trim(),
       MST: idxMST >= 0 ? String(row[idxMST] || '').trim() : '',
-      TongTien: parseMoney(row[idxTongTien]),
+      TongTien: parseVNNumber(row[idxTongTien]),
       daThanhToanDu
     };
   }).filter(Boolean);
