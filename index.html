@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Quản lý bán hàng - Phương Linh Tech</title>
+<link rel="icon" type="image/png" href="Logo_PhuongLinh_KoVien.png">
 <style>
   :root{
     --ink:#1c1e26;--ink-soft:#5b6472;--paper:#f7f8fc;--card:#ffffff;--line:#e2e6f0;
@@ -20,6 +21,7 @@
   #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0d1b4d 0%,#173a94 55%,#2456d6 100%);padding:20px;}
   .loginCard{background:var(--card);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(10,20,60,.35);}
   .loginCard h1{font-size:20px;margin:0 0 2px;}
+  .loginCard .loginLogo{height:56px;width:auto;display:block;margin:0 auto 16px;object-fit:contain;}
   .loginCard .sub{color:var(--ink-soft);font-size:13px;margin:0 0 22px;}
   .loginCard label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;font-weight:600;}
   .loginCard input{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:9px;margin-bottom:14px;}
@@ -31,7 +33,8 @@
   #appShell{display:none;min-height:100vh;flex-direction:column;}
   header.topbar{background:#0d1b4d;color:#e9eefc;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
   header.topbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;}
-  header.topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--brand);}
+  header.topbar .brand .brandLogo{height:26px;width:auto;display:block;object-fit:contain;}
+  header.topbar .brand .brandLogo:not([src]),header.topbar .brand .brandLogo[src=""]{display:none;}
   header.topbar .userInfo{display:flex;align-items:center;gap:10px;}
   header.topbar .userInfo .who{font-size:12px;color:#a9bdf0;text-align:right;line-height:1.3;}
   header.topbar .logout{background:none;border:1px solid #33509e;color:#e9eefc;border-radius:7px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
@@ -136,6 +139,7 @@
 <!-- ================= LOGIN ================= -->
 <div id="loginScreen">
   <div class="loginCard">
+    <img src="Logo_PhuongLinh_KoVien.png" alt="Phương Linh" class="loginLogo" onerror="this.style.display='none'">
     <h1>Quản lý bán hàng</h1>
     <p class="sub">Công ty TNHH Dịch vụ Công nghệ Phương Linh — MST 0317838601</p>
     <label for="userInput">Tên đăng nhập</label>
@@ -150,7 +154,7 @@
 <!-- ================= APP ================= -->
 <div id="appShell">
   <header class="topbar">
-    <div class="brand"><span class="dot"></span><span id="companyNameLabel">Phương Linh Tech</span></div>
+    <div class="brand"><img src="Logo_PhuongLinh_KoVien.png" alt="" class="brandLogo" onerror="this.style.display='none'"><span id="companyNameLabel">Phương Linh Tech</span></div>
     <div class="userInfo">
       <div class="who"><span id="userHoTenLabel"></span><br><span id="userVaiTroLabel" class="muted" style="color:#a9bdf0;"></span></div>
       <button class="logout" id="btnLogout">Đăng xuất</button>
