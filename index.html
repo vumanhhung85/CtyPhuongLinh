@@ -643,12 +643,9 @@ function switchTab(tab) {
 
 /* ================= LOAD DATA ================= */
 function loadAllData() {
-  Promise.all([
-    apiCall('getHangHoaList'), apiCall('getKhachHangList'), apiCall('getNhaCungCapList'),
-    apiCall('getNhapKhoList'), apiCall('getXuatBanList'), apiCall('getSuaChuaList'), apiCall('getGiaCongList')
-  ]).then(([hh, kh, ncc, nk, xb, sc, gc]) => {
-    STATE.hangHoaList = hh; STATE.khachHangList = kh; STATE.nhaCungCapList = ncc;
-    STATE.nhapKhoList = nk; STATE.xuatBanList = xb; STATE.suaChuaList = sc; STATE.giaCongList = gc;
+  apiCall('getInitData').then(data => {
+    STATE.hangHoaList = data.hangHoaList; STATE.khachHangList = data.khachHangList; STATE.nhaCungCapList = data.nhaCungCapList;
+    STATE.nhapKhoList = data.nhapKhoList; STATE.xuatBanList = data.xuatBanList; STATE.suaChuaList = data.suaChuaList; STATE.giaCongList = data.giaCongList;
     renderDashboard();
   }).catch(err => showToast('Lỗi tải dữ liệu: ' + err.message));
 }
