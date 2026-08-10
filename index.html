@@ -95,26 +95,41 @@
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--brand);}
   .field textarea{min-height:60px;resize:vertical;}
 
-  .itemsTable{width:100%;border-collapse:collapse;margin:10px 0;}
+  .itemsWrap{margin:10px 0;}
+  .itemsTable{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px;}
   .itemsTable th{font-size:11.5px;text-align:left;color:var(--ink-soft);padding:6px 6px;}
-  .itemsTable td{padding:5px 6px;}
-  .itemsTable input,.itemsTable select{padding:7px 8px;}
-  .itemsTable .num{width:90px;}
-  .itemsTable .del{width:34px;text-align:center;}
-  .itemHHSearch{width:100%;padding:7px 8px;border:1.5px solid var(--line);border-radius:7px;}
+  .itemsTable td{padding:6px 6px;border-bottom:1px solid var(--line);}
+  .itemRow{border:1.5px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:#fff;}
+  .itemRowSearch{position:relative;margin-bottom:9px;}
+  .itemHHSearch{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:9px;font-size:16px;}
   .itemHHSearch:focus{outline:none;border-color:var(--brand);}
+  .itemRowInfo{font-size:12.5px;color:var(--ink-soft);margin-bottom:10px;min-height:18px;line-height:1.6;}
+  .itemRowInfo .warnGia{color:var(--bad);font-weight:700;}
+  .itemRowInfo .okGia{color:var(--good);font-weight:700;}
+  .itemRowGrid{display:grid;grid-template-columns:88px 1fr 84px 1fr 38px;gap:8px;align-items:end;}
+  .itemRowGrid .field label{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:4px;font-weight:600;}
+  .itemRowGrid input,.itemRowGrid select{width:100%;padding:10px;border:1.5px solid var(--line);border-radius:8px;font-size:15px;box-sizing:border-box;}
+  .itemRowTotal .lineTotal{font-weight:800;font-size:14.5px;padding:10px 0;color:var(--brand-deep);}
+  .itemRowDel{align-self:end;height:41px;width:38px;border:1.5px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;color:var(--bad);font-size:15px;}
+  @media (max-width:640px){
+    .itemRowGrid{grid-template-columns:1fr 1fr;}
+    .itemRowTotal{grid-column:1/-1;}
+    .itemRowDel{grid-column:1/-1;width:100%;}
+  }
   .hhComboList{
     display:none;position:absolute;top:100%;left:0;right:0;z-index:60;background:#fff;
-    border:1.5px solid var(--brand);border-radius:8px;box-shadow:0 10px 28px rgba(10,20,60,.18);
-    max-height:260px;overflow-y:auto;margin-top:2px;
+    border:1.5px solid var(--brand);border-radius:10px;box-shadow:0 12px 30px rgba(10,20,60,.2);
+    max-height:320px;overflow-y:auto;margin-top:4px;
   }
-  .hhComboItem{padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line);}
+  .hhComboItem{padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--line);}
   .hhComboItem:last-child{border-bottom:none;}
-  .hhComboItem:hover{background:var(--brand-soft);}
-  .hhComboItemTen{font-size:13.5px;font-weight:600;color:var(--ink);}
-  .hhComboItemSub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
-  .hhComboTonThap{color:var(--warn);font-weight:700;}
-  .hhComboEmpty{padding:12px 10px;font-size:13px;color:var(--ink-soft);text-align:center;}
+  .hhComboItem:hover,.hhComboItem:active{background:var(--brand-soft);}
+  .hhComboItemTen{font-size:14.5px;font-weight:700;color:var(--ink);}
+  .hhComboItemSub{font-size:12.5px;color:var(--ink-soft);margin-top:5px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .hhComboBadge{display:inline-block;padding:2px 8px;border-radius:6px;font-weight:700;background:var(--brand-soft);color:var(--brand-deep);}
+  .hhComboTonThap{background:var(--warn-soft);color:var(--warn);}
+  .hhComboTonHet{background:var(--bad-soft);color:var(--bad);}
+  .hhComboEmpty{padding:16px;font-size:13.5px;color:var(--ink-soft);text-align:center;}
   .lineTotal{font-weight:700;font-size:13px;}
   .grandTotal{text-align:right;font-size:16px;font-weight:800;margin-top:8px;color:var(--brand-deep);}
 
@@ -199,6 +214,10 @@
         <input type="text" id="searchHH" placeholder="Tìm theo tên hoặc mã...">
         <select id="filterLoaiHH"><option value="">Tất cả loại</option><option value="HangHoa">Hàng hoá</option><option value="DichVu">Dịch vụ</option></select>
       </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:-4px 0 12px;">
+        <input type="checkbox" id="filterAnHetTon" style="width:auto;">
+        Ẩn hàng hoá đã hết tồn kho (còn 0 hoặc âm)
+      </label>
       <div class="tableWrap" id="hhTableWrap"></div>
     </section>
 
@@ -607,21 +626,31 @@ function renderHangHoaTable() {
 function drawHangHoaTable() {
   const search = (document.getElementById('searchHH').value || '').toLowerCase();
   const filterLoai = document.getElementById('filterLoaiHH').value;
-  let list = STATE.hangHoaList.filter(h => (!search || (h.TenHH || '').toLowerCase().includes(search) || (h.MaHH || '').toLowerCase().includes(search)) && (!filterLoai || h.Loai === filterLoai));
+  const anHetTon = document.getElementById('filterAnHetTon').checked;
+  let list = STATE.hangHoaList.filter(h =>
+    (!search || (h.TenHH || '').toLowerCase().includes(search) || (h.MaHH || '').toLowerCase().includes(search)) &&
+    (!filterLoai || h.Loai === filterLoai) &&
+    (!anHetTon || h.Loai !== 'HangHoa' || Number(h.TonKho) > 0)
+  );
   const wrap = document.getElementById('hhTableWrap');
-  if (list.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có hàng hoá / dịch vụ nào.</div>'; return; }
+  if (list.length === 0) { wrap.innerHTML = '<div class="empty">Không có hàng hoá / dịch vụ nào phù hợp.</div>'; return; }
   wrap.innerHTML = `<table><thead><tr><th>Mã</th><th>Tên</th><th>Loại</th><th>ĐVT</th><th>Giá vốn TB</th><th>Giá bán</th><th>Tồn kho</th><th></th></tr></thead><tbody>
-    ${list.map(h => `<tr>
+    ${list.map(h => {
+      const ton = Number(h.TonKho);
+      const tonHtml = h.Loai === 'HangHoa' ? (ton <= 0 ? `<span class="tag bad">${ton}</span>` : ton) : '—';
+      return `<tr>
       <td>${h.MaHH}</td><td>${h.TenHH}</td>
       <td>${h.Loai === 'HangHoa' ? '<span class="tag hh">Hàng hoá</span>' : '<span class="tag dv">Dịch vụ</span>'}</td>
       <td>${h.DVT || ''}</td><td>${fmtMoney(h.GiaVonTB)}</td><td>${fmtMoney(h.GiaBan)}</td>
-      <td>${h.Loai === 'HangHoa' ? h.TonKho : '—'}</td>
+      <td>${tonHtml}</td>
       <td class="rowActions"><button onclick="openEditHH('${h.MaHH}')">Sửa</button><button class="danger" onclick="deleteHH('${h.MaHH}')">Xoá</button></td>
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
   </tbody></table>`;
 }
 document.getElementById('searchHH').addEventListener('input', drawHangHoaTable);
 document.getElementById('filterLoaiHH').addEventListener('change', drawHangHoaTable);
+document.getElementById('filterAnHetTon').addEventListener('change', drawHangHoaTable);
 document.getElementById('btnAddHH').addEventListener('click', () => openEditHH(null));
 
 function openEditHH(maHH) {
@@ -673,10 +702,7 @@ function tinhTienThueJS(soTien, thueSuat) {
 
 function renderItemsTableInto(containerId, mode) {
   document.getElementById(containerId).innerHTML = `
-    <table class="itemsTable" id="${containerId}_table">
-      <thead><tr><th style="min-width:220px;">Hàng hoá / dịch vụ</th><th class="num">SL</th><th class="num">Đơn giá</th><th style="width:80px;">Thuế</th><th>Thành tiền</th><th class="del"></th></tr></thead>
-      <tbody id="${containerId}_tbody"></tbody>
-    </table>
+    <div class="itemsWrap" id="${containerId}_list"></div>
     <button class="btn secondary small" type="button" onclick="addItemRowInto('${containerId}','${mode}')">+ Thêm dòng hàng</button>
     <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
       Tạm tính (trước thuế): <b id="${containerId}_grandTruoc">0 đ</b><br>
@@ -687,31 +713,34 @@ function renderItemsTableInto(containerId, mode) {
   window['_itemsMode_' + containerId] = mode;
 }
 function addItemRowInto(containerId, mode) {
-  const tbody = document.getElementById(containerId + '_tbody');
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td style="position:relative;min-width:200px;">
-      <input type="text" class="itemHHSearch" placeholder="Gõ tên hoặc mã hàng..." autocomplete="off"
+  const list = document.getElementById(containerId + '_list');
+  const row = document.createElement('div');
+  row.className = 'itemRow';
+  row.innerHTML = `
+    <div class="itemRowSearch">
+      <input type="text" class="itemHHSearch" placeholder="🔍 Gõ tên hoặc mã hàng để tìm..." autocomplete="off"
         data-container="${containerId}" data-mode="${mode}"
         oninput="hhComboFilter(this)" onfocus="hhComboFilter(this)" onblur="hhComboBlur(this)">
       <input type="hidden" class="itemHH">
       <div class="hhComboList"></div>
-    </td>
-    <td class="num"><input type="number" class="itemSL num" value="1" min="0.01" step="0.01" oninput="updateLineTotalGeneric(this,'${containerId}')"></td>
-    <td class="num"><input type="number" class="itemGia num" value="0" min="0" oninput="updateLineTotalGeneric(this,'${containerId}')"></td>
-    <td><select class="itemThueSuat" onchange="updateLineTotalGeneric(this,'${containerId}')">${thueSuatOptionsHtml('8')}</select></td>
-    <td class="lineTotal">0 đ</td>
-    <td class="del"><button class="btn secondary small" type="button" onclick="this.closest('tr').remove(); recalcGrandTotalGeneric('${containerId}');">✕</button></td>
+    </div>
+    <div class="itemRowInfo">Chưa chọn hàng hoá / dịch vụ</div>
+    <div class="itemRowGrid">
+      <div class="field"><label>Số lượng</label><input type="number" class="itemSL" value="1" min="0.01" step="0.01" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
+      <div class="field"><label>Đơn giá</label><input type="number" class="itemGia" value="0" min="0" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
+      <div class="field"><label>Thuế</label><select class="itemThueSuat" onchange="updateLineTotalGeneric(this,'${containerId}')">${thueSuatOptionsHtml('8')}</select></div>
+      <div class="field itemRowTotal"><label>Thành tiền</label><div class="lineTotal">0 đ</div></div>
+      <button class="itemRowDel" type="button" title="Xoá dòng" onclick="this.closest('.itemRow').remove(); recalcGrandTotalGeneric('${containerId}');">✕</button>
+    </div>
   `;
-  tbody.appendChild(tr);
+  list.appendChild(row);
 }
 
-/* ---- Ô tìm kiếm hàng hoá có gợi ý kèm tồn kho ---- */
+/* ---- Ô tìm kiếm hàng hoá có gợi ý kèm tồn kho + giá vốn + giá bán ---- */
 function hhComboFilter(input) {
-  const containerId = input.dataset.container;
   const mode = input.dataset.mode;
-  const td = input.closest('td');
-  const listEl = td.querySelector('.hhComboList');
+  const wrap = input.closest('.itemRowSearch');
+  const listEl = wrap.querySelector('.hhComboList');
   const q = normalizeVN(input.value);
   let results = STATE.hangHoaList;
   if (q) results = results.filter(h => normalizeVN(h.TenHH).includes(q) || normalizeVN(h.MaHH).includes(q));
@@ -720,58 +749,91 @@ function hhComboFilter(input) {
     listEl.innerHTML = '<div class="hhComboEmpty">Không tìm thấy hàng hoá/dịch vụ phù hợp</div>';
   } else {
     listEl.innerHTML = results.map(h => {
-      const gia = mode === 'gia_von' ? h.GiaVonTB : h.GiaBan;
-      const tonLabel = h.Loai === 'HangHoa' ? `Tồn: ${h.TonKho} ${h.DVT || ''}` : 'Dịch vụ';
-      const tonCls = h.Loai === 'HangHoa' && Number(h.TonKho) <= Number(h.TonKhoToiThieu || 0) ? 'hhComboTonThap' : '';
-      return `<div class="hhComboItem" data-mahh="${h.MaHH}" data-ten="${(h.TenHH || '').replace(/"/g, '&quot;')}" data-gia="${gia}" onmousedown="hhComboSelect(this)">
+      const tonHet = h.Loai === 'HangHoa' && Number(h.TonKho) <= 0;
+      const tonThap = h.Loai === 'HangHoa' && !tonHet && Number(h.TonKho) <= Number(h.TonKhoToiThieu || 0);
+      const tonCls = tonHet ? 'hhComboTonHet' : (tonThap ? 'hhComboTonThap' : '');
+      const tonText = h.Loai === 'HangHoa' ? `Tồn: ${h.TonKho} ${h.DVT || ''}` : 'Dịch vụ';
+      return `<div class="hhComboItem" data-mahh="${h.MaHH}" data-ten="${(h.TenHH || '').replace(/"/g, '&quot;')}"
+          data-giavon="${h.GiaVonTB || 0}" data-giaban="${h.GiaBan || 0}" data-tonkho="${h.TonKho || 0}" data-dvt="${h.DVT || ''}" data-loai="${h.Loai}"
+          onmousedown="hhComboSelect(this)">
         <div class="hhComboItemTen">${h.TenHH}</div>
-        <div class="hhComboItemSub">${h.MaHH} · <span class="${tonCls}">${tonLabel}</span> · ${fmtMoney(gia)}</div>
+        <div class="hhComboItemSub">
+          <span>${h.MaHH}</span>
+          <span class="hhComboBadge ${tonCls}">${tonText}</span>
+          <span>Giá vốn: ${fmtMoney(h.GiaVonTB)}</span>
+          <span>Giá bán: ${fmtMoney(h.GiaBan)}</span>
+        </div>
       </div>`;
     }).join('');
   }
   listEl.style.display = 'block';
 }
 function hhComboSelect(el) {
-  const td = el.closest('td');
-  const input = td.querySelector('.itemHHSearch');
-  const hidden = td.querySelector('.itemHH');
+  const wrap = el.closest('.itemRowSearch');
+  const row = el.closest('.itemRow');
+  const input = wrap.querySelector('.itemHHSearch');
+  const hidden = wrap.querySelector('.itemHH');
   hidden.value = el.dataset.mahh;
   input.value = el.dataset.ten;
   input.dataset.confirmed = el.dataset.ten;
-  const tr = td.closest('tr');
-  const gia = Number(el.dataset.gia) || 0;
-  tr.querySelector('.itemGia').value = Math.round(gia);
-  td.querySelector('.hhComboList').style.display = 'none';
+  row.dataset.mahh = el.dataset.mahh;
+  row.dataset.giavon = el.dataset.giavon;
+  row.dataset.giaban = el.dataset.giaban;
+  row.dataset.tonkho = el.dataset.tonkho;
+  row.dataset.dvt = el.dataset.dvt;
+  row.dataset.loai = el.dataset.loai;
+  const mode = input.dataset.mode;
+  const giaGoiY = mode === 'gia_von' ? Number(el.dataset.giavon) || 0 : Number(el.dataset.giaban) || 0;
+  row.querySelector('.itemGia').value = Math.round(giaGoiY);
+  wrap.querySelector('.hhComboList').style.display = 'none';
   updateLineTotalGeneric(input, input.dataset.container);
 }
 function hhComboBlur(input) {
   setTimeout(() => {
-    const td = input.closest('td');
-    if (!td) return;
-    const listEl = td.querySelector('.hhComboList');
+    const wrap = input.closest('.itemRowSearch');
+    if (!wrap) return;
+    const listEl = wrap.querySelector('.hhComboList');
     if (listEl) listEl.style.display = 'none';
-    const hidden = td.querySelector('.itemHH');
+    const hidden = wrap.querySelector('.itemHH');
     if (!hidden.value) input.value = '';
     else input.value = input.dataset.confirmed || input.value;
   }, 150);
 }
-
+function capNhatThongTinDong(row, mode) {
+  const infoEl = row.querySelector('.itemRowInfo');
+  if (!row.dataset.mahh) { infoEl.textContent = 'Chưa chọn hàng hoá / dịch vụ'; return; }
+  const loai = row.dataset.loai;
+  const ton = row.dataset.tonkho;
+  const dvt = row.dataset.dvt || '';
+  const giavon = Number(row.dataset.giavon) || 0;
+  const giaban = Number(row.dataset.giaban) || 0;
+  const donGiaNhap = Number(row.querySelector('.itemGia').value) || 0;
+  let html = loai === 'HangHoa' ? `Tồn kho hiện có: <b>${ton} ${dvt}</b> &nbsp;·&nbsp; ` : '';
+  html += `Giá vốn: <b>${fmtMoney(giavon)}</b> &nbsp;·&nbsp; Giá bán tham khảo: <b>${fmtMoney(giaban)}</b>`;
+  if (mode === 'gia_ban' && giavon > 0 && donGiaNhap > 0) {
+    if (donGiaNhap < giavon) html += ` &nbsp;— <span class="warnGia">⚠ Đang bán thấp hơn giá vốn (lỗ ${fmtMoney(giavon - donGiaNhap)}/đơn vị)!</span>`;
+    else html += ` &nbsp;— <span class="okGia">✓ Lãi ${fmtMoney(donGiaNhap - giavon)}/đơn vị</span>`;
+  }
+  infoEl.innerHTML = html;
+}
 function updateLineTotalGeneric(el, containerId) {
-  const tr = el.closest('tr');
-  const sl = Number(tr.querySelector('.itemSL').value) || 0;
-  const gia = Number(tr.querySelector('.itemGia').value) || 0;
-  const thueSuat = tr.querySelector('.itemThueSuat').value;
+  const row = el.closest('.itemRow');
+  const sl = Number(row.querySelector('.itemSL').value) || 0;
+  const gia = Number(row.querySelector('.itemGia').value) || 0;
+  const thueSuat = row.querySelector('.itemThueSuat').value;
   const truocThue = sl * gia;
   const tienThue = tinhTienThueJS(truocThue, thueSuat);
-  tr.querySelector('.lineTotal').textContent = fmtMoney(truocThue + tienThue);
+  row.querySelector('.lineTotal').textContent = fmtMoney(truocThue + tienThue);
+  const mode = row.querySelector('.itemHHSearch').dataset.mode;
+  capNhatThongTinDong(row, mode);
   recalcGrandTotalGeneric(containerId);
 }
 function recalcGrandTotalGeneric(containerId) {
   let truoc = 0, thue = 0;
-  document.querySelectorAll('#' + containerId + '_tbody tr').forEach(tr => {
-    const sl = Number(tr.querySelector('.itemSL').value) || 0;
-    const gia = Number(tr.querySelector('.itemGia').value) || 0;
-    const thueSuat = tr.querySelector('.itemThueSuat').value;
+  document.querySelectorAll('#' + containerId + '_list .itemRow').forEach(row => {
+    const sl = Number(row.querySelector('.itemSL').value) || 0;
+    const gia = Number(row.querySelector('.itemGia').value) || 0;
+    const thueSuat = row.querySelector('.itemThueSuat').value;
     const t = sl * gia;
     truoc += t; thue += tinhTienThueJS(t, thueSuat);
   });
@@ -784,14 +846,14 @@ function recalcGrandTotalGeneric(containerId) {
   return truoc + thue;
 }
 function readItemsFrom(containerId) {
-  return [...document.querySelectorAll('#' + containerId + '_tbody tr')].map(tr => {
-    const hidden = tr.querySelector('.itemHH');
-    const searchInput = tr.querySelector('.itemHHSearch');
+  return [...document.querySelectorAll('#' + containerId + '_list .itemRow')].map(row => {
+    const hidden = row.querySelector('.itemHH');
+    const searchInput = row.querySelector('.itemHHSearch');
     return {
       MaHH: hidden ? hidden.value : '', TenHH: searchInput ? searchInput.value : '',
-      SoLuong: Number(tr.querySelector('.itemSL').value) || 0,
-      DonGia: Number(tr.querySelector('.itemGia').value) || 0,
-      ThueSuat: tr.querySelector('.itemThueSuat').value
+      SoLuong: Number(row.querySelector('.itemSL').value) || 0,
+      DonGia: Number(row.querySelector('.itemGia').value) || 0,
+      ThueSuat: row.querySelector('.itemThueSuat').value
     };
   }).filter(it => it.MaHH && it.SoLuong > 0);
 }
