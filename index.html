@@ -214,9 +214,13 @@
         <input type="text" id="searchHH" placeholder="Tìm theo tên hoặc mã...">
         <select id="filterLoaiHH"><option value="">Tất cả loại</option><option value="HangHoa">Hàng hoá</option><option value="DichVu">Dịch vụ</option></select>
       </div>
-      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:-4px 0 12px;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:-4px 0 8px;">
         <input type="checkbox" id="filterAnHetTon" style="width:auto;">
         Ẩn hàng hoá đã hết tồn kho (còn 0 hoặc âm)
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 12px;">
+        <input type="checkbox" id="filterAnDichVu" style="width:auto;">
+        Ẩn Dịch vụ (chỉ hiện Hàng hoá)
       </label>
       <div class="tableWrap" id="hhTableWrap"></div>
     </section>
@@ -627,10 +631,12 @@ function drawHangHoaTable() {
   const search = (document.getElementById('searchHH').value || '').toLowerCase();
   const filterLoai = document.getElementById('filterLoaiHH').value;
   const anHetTon = document.getElementById('filterAnHetTon').checked;
+  const anDichVu = document.getElementById('filterAnDichVu').checked;
   let list = STATE.hangHoaList.filter(h =>
     (!search || (h.TenHH || '').toLowerCase().includes(search) || (h.MaHH || '').toLowerCase().includes(search)) &&
     (!filterLoai || h.Loai === filterLoai) &&
-    (!anHetTon || h.Loai !== 'HangHoa' || Number(h.TonKho) > 0)
+    (!anHetTon || h.Loai !== 'HangHoa' || Number(h.TonKho) > 0) &&
+    (!anDichVu || h.Loai !== 'DichVu')
   );
   const wrap = document.getElementById('hhTableWrap');
   if (list.length === 0) { wrap.innerHTML = '<div class="empty">Không có hàng hoá / dịch vụ nào phù hợp.</div>'; return; }
@@ -651,6 +657,7 @@ function drawHangHoaTable() {
 document.getElementById('searchHH').addEventListener('input', drawHangHoaTable);
 document.getElementById('filterLoaiHH').addEventListener('change', drawHangHoaTable);
 document.getElementById('filterAnHetTon').addEventListener('change', drawHangHoaTable);
+document.getElementById('filterAnDichVu').addEventListener('change', drawHangHoaTable);
 document.getElementById('btnAddHH').addEventListener('click', () => openEditHH(null));
 
 function openEditHH(maHH) {
@@ -669,6 +676,12 @@ function openEditHH(maHH) {
       <div class="field"><label>Tồn kho tối thiểu (cảnh báo)</label><input id="fTonToiThieu" type="number" value="${item ? item.TonKhoToiThieu : 0}"></div>
       <div class="field span2"><label>Ghi chú</label><input id="fGhiChu" value="${item ? item.GhiChu || '' : ''}"></div>
     </div>
+    ${item ? `
+    <div class="panel" style="margin:14px 0 0;background:#f4f7ff;border-color:var(--brand-soft);">
+      <p class="muted" style="margin:0 0 8px;">Nếu vừa đổi Loại (Hàng hoá ↔ Dịch vụ) hoặc nghi ngờ tồn kho sai — bấm nút này để quét lại toàn bộ lịch sử phiếu Nhập/Xuất/Sửa chữa/Gia công và tính lại đúng tồn kho + giá vốn từ đầu.</p>
+      <button class="btn secondary small" type="button" onclick="tinhLaiTonKhoUI('${item.MaHH}')">🔄 Tính lại tồn kho từ lịch sử</button>
+      <div id="ketQuaTinhLaiTon" style="margin-top:8px;font-size:13px;"></div>
+    </div>` : ''}
     <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="saveHH('${item ? item.MaHH : ''}')">Lưu</button></div>
   `);
 }
@@ -686,6 +699,15 @@ function saveHH(maHH) {
 function deleteHH(maHH) {
   if (!confirm('Xoá mục này khỏi danh mục?')) return;
   apiCall('deleteHangHoa', { maHH }).then(() => { showToast('Đã xoá.'); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function tinhLaiTonKhoUI(maHH) {
+  const box = document.getElementById('ketQuaTinhLaiTon');
+  box.textContent = 'Đang quét lịch sử phiếu...';
+  apiCall('tinhLaiTonKho', { maHH }).then(res => {
+    box.innerHTML = `Đã quét ${res.soSuKien} phiếu liên quan. <b>Tồn kho mới: ${res.tonKhoMoi}</b> · <b>Giá vốn mới: ${fmtMoney(res.giaVonMoi)}</b>`;
+    showToast('Đã tính lại tồn kho.');
+    renderHangHoaTable();
+  }).catch(err => { box.textContent = ''; showToast('Lỗi: ' + err.message); });
 }
 
 /* ================= HÀM DÙNG CHUNG: FORM ITEMS (danh sách hàng hoá trong phiếu) ================= */
@@ -1387,14 +1409,34 @@ function openDoiTacForm(loai) {
     <button class="modalClose" onclick="closeModal()">&times;</button>
     <h3>Thêm ${isKH ? 'khách hàng' : 'nhà cung cấp'}</h3>
     <div class="formGrid">
+      <div class="field"><label>Mã số thuế</label><input id="fMSTDT" placeholder="Nhập MST rồi bấm Tra cứu"></div>
+      <div class="field" style="align-self:end;"><button class="btn secondary" type="button" style="width:100%;" onclick="traCuuMST()">🔍 Tra cứu theo MST</button></div>
+      <div id="traCuuMSTStatus" class="muted span2" style="margin:-6px 0 0;"></div>
       <div class="field span2"><label>Tên ${isKH ? 'khách hàng' : 'nhà cung cấp'}</label><input id="fTenDT"></div>
-      <div class="field"><label>Mã số thuế</label><input id="fMSTDT"></div>
       <div class="field"><label>Số điện thoại</label><input id="fSDTDT"></div>
       <div class="field span2"><label>Địa chỉ</label><input id="fDiaChiDT"></div>
       <div class="field span2"><label>Ghi chú</label><input id="fGhiChuDT"></div>
     </div>
     <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="saveDoiTacUI('${loai}')">Lưu</button></div>
   `);
+}
+function traCuuMST() {
+  const mst = document.getElementById('fMSTDT').value.trim().replace(/\D/g, '');
+  const statusEl = document.getElementById('traCuuMSTStatus');
+  if (!mst || mst.length < 9) { statusEl.textContent = 'Nhập đúng mã số thuế (9-13 số) trước khi tra cứu.'; return; }
+  statusEl.textContent = 'Đang tra cứu...';
+  fetch('https://api.vietqr.io/v2/business/' + mst)
+    .then(r => r.json())
+    .then(res => {
+      if (res.code === '00' && res.data) {
+        document.getElementById('fTenDT').value = res.data.name || '';
+        document.getElementById('fDiaChiDT').value = res.data.address || '';
+        statusEl.textContent = '✓ Đã tự điền tên và địa chỉ theo MST. Anh kiểm tra lại trước khi lưu.';
+      } else {
+        statusEl.textContent = 'Không tìm thấy doanh nghiệp với MST này — vui lòng nhập tay.';
+      }
+    })
+    .catch(() => { statusEl.textContent = 'Không tra cứu được (lỗi mạng) — vui lòng nhập tay.'; });
 }
 function saveDoiTacUI(loai) {
   const isKH = loai === 'kh'; const ten = document.getElementById('fTenDT').value.trim();
