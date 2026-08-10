@@ -61,9 +61,9 @@
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
   .panel h3{font-size:14px;margin:0 0 10px;}
 
-  .tableWrap{overflow-x:auto;overflow-y:visible;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);}
+  .tableWrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);}
   table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px;}
-  thead th{position:sticky;top:94px;background:var(--brand-soft);color:var(--brand-deep);text-align:left;padding:9px 10px;font-weight:700;border-bottom:1px solid #c7d4f5;white-space:nowrap;z-index:30;}
+  thead th{position:sticky;top:0;background:var(--brand-soft);color:var(--brand-deep);text-align:left;padding:9px 10px;font-weight:700;border-bottom:1px solid #c7d4f5;white-space:nowrap;z-index:30;}
   tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:#f4f7ff;}
@@ -700,7 +700,7 @@ function drawHangHoaTable() {
       const ton = Number(h.TonKho);
       const tonHtml = h.Loai === 'HangHoa' ? (ton <= 0 ? `<span class="tag bad">${ton}</span>` : ton) : '—';
       return `<tr>
-      <td>${h.MaHH}</td><td>${h.TenHH}</td>
+      <td>${h.MaHH}</td><td>${h.TenHH}${h.DVTNhap && Number(h.HeSoQuyDoi) > 1 ? `<div class="muted" style="font-size:11.5px;">1 ${h.DVTNhap} = ${h.HeSoQuyDoi} ${h.DVT}</div>` : ''}</td>
       <td>${h.Loai === 'HangHoa' ? '<span class="tag hh">Hàng hoá</span>' : '<span class="tag dv">Dịch vụ</span>'}</td>
       <td>${h.DVT || ''}</td><td>${fmtMoney(h.GiaVonTB)}</td><td>${fmtMoney(h.GiaBan)}</td>
       <td>${tonHtml}</td>
@@ -726,9 +726,11 @@ function openEditHH(maHH) {
         <option value="HangHoa" ${item && item.Loai === 'HangHoa' ? 'selected' : ''}>Hàng hoá (có tồn kho)</option>
         <option value="DichVu" ${item && item.Loai === 'DichVu' ? 'selected' : ''}>Dịch vụ (không tồn kho)</option>
       </select></div>
-      <div class="field"><label>Đơn vị tính</label><input id="fDVT" value="${item ? item.DVT : ''}" placeholder="cái, bộ, giờ..."></div>
+      <div class="field"><label>Đơn vị tính (bán lẻ — dùng để theo dõi tồn kho)</label><input id="fDVT" value="${item ? item.DVT : ''}" placeholder="VD: Mét, Cái, Kg..."></div>
       <div class="field"><label>Giá bán</label><input id="fGiaBan" type="text" inputmode="numeric" class="moneyInput" value="${item ? Number(item.GiaBan).toLocaleString('vi-VN') : ''}"></div>
       <div class="field"><label>Tồn kho tối thiểu (cảnh báo)</label><input id="fTonToiThieu" type="number" value="${item ? item.TonKhoToiThieu : 0}"></div>
+      <div class="field"><label>Đơn vị nhập lớn (nếu có — VD: Cuộn)</label><input id="fDVTNhap" value="${item ? item.DVTNhap || '' : ''}" placeholder="Để trống nếu không có"></div>
+      <div class="field span2"><label>1 [Đơn vị nhập lớn] = ? [Đơn vị tính bán lẻ] <span class="muted">(VD: 1 Cuộn = 300 Mét — để trống hoặc 0 nếu không dùng đơn vị nhập lớn)</span></label><input id="fHeSoQuyDoi" type="number" min="0" step="0.01" value="${item ? item.HeSoQuyDoi || '' : ''}"></div>
       <div class="field span2"><label>Ghi chú</label><input id="fGhiChu" value="${item ? item.GhiChu || '' : ''}"></div>
     </div>
     ${item ? `
@@ -746,7 +748,9 @@ function saveHH(maHH) {
     Loai: document.getElementById('fLoai').value, DVT: document.getElementById('fDVT').value.trim(),
     GiaBan: parseSoTien(document.getElementById('fGiaBan').value),
     TonKhoToiThieu: Number(document.getElementById('fTonToiThieu').value) || 0,
-    GhiChu: document.getElementById('fGhiChu').value.trim()
+    GhiChu: document.getElementById('fGhiChu').value.trim(),
+    DVTNhap: document.getElementById('fDVTNhap').value.trim(),
+    HeSoQuyDoi: Number(document.getElementById('fHeSoQuyDoi').value) || 0
   };
   if (!data.TenHH) { showToast('Vui lòng nhập tên.'); return; }
   apiCall('saveHangHoa', { data }).then(() => { closeModal(); showToast('Đã lưu.'); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
@@ -802,6 +806,10 @@ function addItemRowInto(containerId, mode) {
       <div class="hhComboList"></div>
     </div>
     <div class="itemRowInfo">Chưa chọn hàng hoá / dịch vụ</div>
+    <div class="itemRowDonVi" style="display:none;margin-bottom:8px;">
+      <label style="display:block;font-size:11px;color:var(--ink-soft);font-weight:600;margin-bottom:4px;">Nhập theo đơn vị</label>
+      <select class="itemDonViChon" onchange="doiDonViNhap(this)" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;"></select>
+    </div>
     <div class="itemRowGrid">
       <div class="field"><label>Số lượng</label><input type="number" class="itemSL" value="1" min="0.01" step="0.01" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
       <div class="field"><label>Đơn giá</label><input type="text" inputmode="numeric" class="itemGia moneyInput" value="0" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
@@ -851,6 +859,7 @@ function hhComboFilter(input) {
       const disabledCls = khongChoChon ? 'hhComboDisabled' : '';
       return `<div class="hhComboItem ${disabledCls}" ${disabledAttr} data-mahh="${h.MaHH}" data-ten="${(h.TenHH || '').replace(/"/g, '&quot;')}"
           data-giavon="${h.GiaVonTB || 0}" data-giaban="${h.GiaBan || 0}" data-tonkho="${h.TonKho || 0}" data-dvt="${h.DVT || ''}" data-loai="${h.Loai}" data-daudungdongkhac="${daDungDongKhac}"
+          data-dvtnhap="${h.DVTNhap || ''}" data-hesoquydoi="${h.HeSoQuyDoi || ''}"
           onmousedown="hhComboSelect(this)">
         <div class="hhComboItemTen">${h.TenHH}${khongChoChon ? ' <span class="hhComboBadge hhComboTonHet">Hết tồn — không thể chọn</span>' : ''}</div>
         <div class="hhComboItemSub">
@@ -892,11 +901,37 @@ function hhComboSelect(el) {
   row.dataset.tonkho = el.dataset.tonkho;
   row.dataset.dvt = el.dataset.dvt;
   row.dataset.loai = el.dataset.loai;
+  row.dataset.dvtnhap = el.dataset.dvtnhap || '';
+  row.dataset.hesoquydoi = el.dataset.hesoquydoi || '';
   const mode = input.dataset.mode;
-  const giaGoiY = mode === 'gia_von' ? Number(el.dataset.giavon) || 0 : Number(el.dataset.giaban) || 0;
+  const heSo = Number(el.dataset.hesoquydoi) || 0;
+  const donViDiv = row.querySelector('.itemRowDonVi');
+  const donViSelect = row.querySelector('.itemDonViChon');
+  if (mode === 'gia_von' && heSo > 1 && el.dataset.dvtnhap) {
+    donViDiv.style.display = 'block';
+    donViSelect.innerHTML = `<option value="nhap">${el.dataset.dvtnhap} (1 ${el.dataset.dvtnhap} = ${heSo} ${el.dataset.dvt})</option><option value="goc">${el.dataset.dvt}</option>`;
+    donViSelect.value = 'nhap';
+    row.dataset.donvidachon = 'nhap';
+  } else {
+    donViDiv.style.display = 'none';
+    row.dataset.donvidachon = 'goc';
+  }
+  const giaGoiY = mode === 'gia_von'
+    ? (row.dataset.donvidachon === 'nhap' ? (Number(el.dataset.giavon) || 0) * heSo : Number(el.dataset.giavon) || 0)
+    : Number(el.dataset.giaban) || 0;
   row.querySelector('.itemGia').value = Math.round(giaGoiY).toLocaleString('vi-VN');
   wrap.querySelector('.hhComboList').style.display = 'none';
   updateLineTotalGeneric(input, containerId);
+}
+function doiDonViNhap(select) {
+  const row = select.closest('.itemRow');
+  row.dataset.donvidachon = select.value;
+  const heSo = Number(row.dataset.hesoquydoi) || 1;
+  const giavon = Number(row.dataset.giavon) || 0;
+  const giaGoiY = select.value === 'nhap' ? giavon * heSo : giavon;
+  row.querySelector('.itemGia').value = Math.round(giaGoiY).toLocaleString('vi-VN');
+  const containerId = row.querySelector('.itemHHSearch').dataset.container;
+  updateLineTotalGeneric(row.querySelector('.itemGia'), containerId);
 }
 function hhComboBlur(input) {
   setTimeout(() => {
@@ -920,6 +955,9 @@ function capNhatThongTinDong(row, mode) {
   const donGiaNhap = parseSoTien(row.querySelector('.itemGia').value);
   let html = loai === 'HangHoa' ? `Tồn kho hiện có: <b>${ton} ${dvt}</b> &nbsp;·&nbsp; ` : '';
   html += `Giá vốn: <b>${fmtMoney(giavon)}</b> &nbsp;·&nbsp; Giá bán tham khảo: <b>${fmtMoney(giaban)}</b>`;
+  if (row.dataset.donvidachon === 'nhap' && Number(row.dataset.hesoquydoi) > 1) {
+    html += ` &nbsp;·&nbsp; <span class="muted">(1 ${row.dataset.dvtnhap} = ${row.dataset.hesoquydoi} ${dvt} — giá vốn quy đổi mỗi ${dvt}: ${fmtMoney(giavon)})</span>`;
+  }
   if (mode === 'gia_ban' && giavon > 0 && donGiaNhap > 0) {
     if (donGiaNhap < giavon) html += ` &nbsp;— <span class="warnGia">⚠ Đang bán thấp hơn giá vốn (lỗ ${fmtMoney(giavon - donGiaNhap)}/đơn vị)!</span>`;
     else html += ` &nbsp;— <span class="okGia">✓ Lãi ${fmtMoney(donGiaNhap - giavon)}/đơn vị</span>`;
@@ -959,11 +997,14 @@ function readItemsFrom(containerId) {
   return [...document.querySelectorAll('#' + containerId + '_list .itemRow')].map(row => {
     const hidden = row.querySelector('.itemHH');
     const searchInput = row.querySelector('.itemHHSearch');
+    const donViDaChon = row.dataset.donvidachon || 'goc';
+    const dvtHienThi = donViDaChon === 'nhap' ? (row.dataset.dvtnhap || '') : (row.dataset.dvt || '');
     return {
       MaHH: hidden ? hidden.value : '', TenHH: searchInput ? searchInput.value : '',
       SoLuong: Number(row.querySelector('.itemSL').value) || 0,
       DonGia: parseSoTien(row.querySelector('.itemGia').value),
-      ThueSuat: row.querySelector('.itemThueSuat').value
+      ThueSuat: row.querySelector('.itemThueSuat').value,
+      DonViDaChon: donViDaChon, DVT: dvtHienThi
     };
   }).filter(it => it.MaHH && it.SoLuong > 0);
 }
