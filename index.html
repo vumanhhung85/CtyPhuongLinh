@@ -4,7 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Quản lý bán hàng - CÔNG TY TNHH DVCN PHƯƠNG LINH</title>
-<link rel="icon" type="image/png" href="Logo_PhuongLinh_KoVien.png">
+<link rel="icon" type="image/png" href="favicon-32.png">
+
+<!-- ===== PWA - cài đặt lên màn hình chính Android/iOS ===== -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d1b4d">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- iOS Safari -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="QL Phương Linh">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root{
     --ink:#1c1e26;--ink-soft:#5b6472;--paper:#f7f8fc;--card:#ffffff;--line:#e2e6f0;
@@ -623,6 +633,13 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('settingsScriptUrl').value = CONFIG.SCRIPT_URL;
   if (STATE.token && STATE.user && CONFIG.SCRIPT_URL) enterApp(false);
 });
+
+/* ---- Đăng ký Service Worker (bắt buộc để Android cho phép "Cài đặt ứng dụng") ---- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* không chặn app nếu lỗi */ });
+  });
+}
 
 /* ================= TAB SWITCH ================= */
 document.getElementById('tabbar').addEventListener('click', e => {
