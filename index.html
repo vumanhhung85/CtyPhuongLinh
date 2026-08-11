@@ -176,6 +176,12 @@
   .segTabs button.active{background:var(--brand);color:#fff;border-color:var(--brand);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<!-- pdf.js (Mozilla, mã nguồn mở) - đọc chữ trực tiếp từ PDF ký số, không cần OCR, chính xác cao -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- Tesseract.js (mã nguồn mở) - OCR đọc chữ từ ảnh chụp hoá đơn giấy, chạy thẳng trên trình duyệt -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
 </head>
 <body>
 
@@ -373,6 +379,19 @@
         <div class="field"><label>Chọn file XML (có thể chọn nhiều file)</label><input type="file" id="dongboXmlFiles" accept=".xml" multiple></div>
         <button class="btn small" id="btnDocXml" style="margin-top:8px;">Đọc file XML &amp; thêm vào danh sách chờ nhập</button>
         <p class="muted" style="margin-top:8px;">Sau khi đọc xong, kéo xuống mục "📦 Xem trước &amp; nhập dữ liệu" bên dưới để rà lại phân loại hàng hoá rồi bấm nhập — dùng chung 1 quy trình với mục nhập từ bảng kê Excel, có thể đọc XML rồi bổ sung thêm cả Excel vào cùng 1 đợt nhập nếu cần. File nào lỗi hoặc thiếu dữ liệu sẽ được báo rõ, không làm ảnh hưởng các file khác.</p>
+      </div>
+
+      <div class="panel" style="border-color:#b98b2e;background:#fdf6e8;">
+        <h3>📷 Đọc hoá đơn từ file PDF hoặc ảnh chụp <span class="tag warn">Thử nghiệm</span></h3>
+        <p class="muted">Dùng khi <b>không có file XML gốc</b> — chỉ có bản PDF ký số hoặc ảnh chụp hoá đơn giấy. App tự đọc chữ trong file (PDF đọc trực tiếp văn bản — chính xác cao; nếu PDF là ảnh scan hoặc là ảnh chụp thường thì tự chuyển sang nhận dạng chữ OCR — kém chính xác hơn, tuỳ độ nét) rồi tự tìm Số hoá đơn, Ngày lập, MST đối tác, Tổng tiền thanh toán. <b>Bắt buộc rà lại số liệu trước khi xác nhận.</b> Chỉ tạo 1 dòng gộp "hàng hoá/dịch vụ theo hoá đơn" (không tách được từng mặt hàng như XML) — đủ cho doanh thu/công nợ, không dựng được tồn kho chi tiết. Sau khi xác nhận sẽ gộp chung vào danh sách chờ nhập bên dưới (dùng chung ô "đã thanh toán đủ" của mục Excel/XML).</p>
+        <div class="field"><label>Chọn file PDF hoặc ảnh (.pdf, .jpg, .png — có thể chọn nhiều file)</label><input type="file" id="pdfAnhFiles" accept=".pdf,.jpg,.jpeg,.png" multiple></div>
+        <button class="btn" id="btnDocPdfAnh" style="margin-top:10px;">Đọc file &amp; trích xuất thông tin</button>
+        <div id="pdfAnhStatus" class="muted" style="margin-top:8px;"></div>
+      </div>
+      <div class="panel" id="pdfAnhPreviewPanel" style="display:none;">
+        <h3>Kiểm tra lại thông tin trước khi xác nhận (bắt buộc)</h3>
+        <div id="pdfAnhPreviewList"></div>
+        <button class="btn" id="btnXacNhanPdfAnh" style="margin-top:10px;">Xác nhận, thêm vào danh sách chờ nhập</button>
       </div>
 
       <div class="panel" style="border-color:#c7d4f5;background:#f4f7ff;">
@@ -1981,7 +2000,230 @@ document.getElementById('btnDocXml').addEventListener('click', () => {
   });
 });
 
-/* ---- Nhập dữ liệu lịch sử (tạo phiếu hàng loạt) ---- */
+/* ================= ĐỌC HOÁ ĐƠN TỪ PDF / ẢNH CHỤP (thử nghiệm) ================= */
+let PDFANH_ROWS = [];
+
+// Đọc PDF: ưu tiên lấy chữ có sẵn trong file (PDF ký số là văn bản thật, không phải ảnh) — chính xác cao.
+// Nếu trang không có chữ (PDF thực chất là ảnh scan chèn vào) thì mới chuyển sang chụp ảnh trang & chạy OCR.
+async function docChuTuPDF(file) {
+  const buf = await file.arrayBuffer();
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let toanBoChu = '';
+  let coChuThat = false;
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    // Ghép chữ theo ĐÚNG cấu trúc dòng (nhóm theo toạ độ Y) thay vì nối phẳng tất cả bằng dấu cách —
+    // nếu không giữ xuống dòng, các nhãn (Số HĐ, Ký hiệu...) trên các dòng khác nhau sẽ bị dính liền,
+    // khiến việc dò nhãn phía sau đọc sai lẫn lộn giữa các trường.
+    const dong = [];
+    textContent.items.forEach(it => {
+      const y = Math.round(it.transform[5]);
+      let hangHienCo = dong.find(d => Math.abs(d.y - y) < 3);
+      if (!hangHienCo) { hangHienCo = { y, x: it.transform[4], chu: [] }; dong.push(hangHienCo); }
+      hangHienCo.chu.push({ x: it.transform[4], str: it.str });
+    });
+    dong.sort((a, b) => b.y - a.y); // từ trên xuống dưới
+    const chuTrang = dong.map(d => d.chu.sort((a, b) => a.x - b.x).map(c => c.str).join(' ')).join('\n');
+    if (chuTrang.replace(/\s/g, '').length > 20) coChuThat = true;
+    toanBoChu += chuTrang + '\n';
+  }
+  if (coChuThat) return { text: toanBoChu, nguon: 'pdf-text' };
+
+  // PDF không có lớp chữ (khả năng là ảnh scan) -> chụp ảnh từng trang rồi OCR
+  let chuOCR = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const ket = await Tesseract.recognize(canvas, 'vie+eng');
+    chuOCR += ket.data.text + '\n';
+  }
+  return { text: chuOCR, nguon: 'ocr-pdf-scan' };
+}
+
+async function docChuTuAnh(file) {
+  const ket = await Tesseract.recognize(file, 'vie+eng');
+  return { text: ket.data.text, nguon: 'ocr-anh' };
+}
+
+/* ---- Chuẩn hoá bỏ dấu nhưng GIỮ NGUYÊN độ dài chuỗi (1 ký tự -> 1 ký tự) để vị trí khớp regex
+   trên bản không dấu vẫn trỏ đúng vào bản gốc có dấu — dùng để dò nhãn không phân biệt dấu (phòng
+   trường hợp OCR đọc ảnh mờ bị mất dấu tiếng Việt, hay gặp khi chụp hoá đơn giấy). ---- */
+const BANG_BO_DAU = { à:'a',á:'a',ả:'a',ã:'a',ạ:'a',ă:'a',ằ:'a',ắ:'a',ẳ:'a',ẵ:'a',ặ:'a',â:'a',ầ:'a',ấ:'a',ẩ:'a',ẫ:'a',ậ:'a',
+  è:'e',é:'e',ẻ:'e',ẽ:'e',ẹ:'e',ê:'e',ề:'e',ế:'e',ể:'e',ễ:'e',ệ:'e', ì:'i',í:'i',ỉ:'i',ĩ:'i',ị:'i',
+  ò:'o',ó:'o',ỏ:'o',õ:'o',ọ:'o',ô:'o',ồ:'o',ố:'o',ổ:'o',ỗ:'o',ộ:'o',ơ:'o',ờ:'o',ớ:'o',ở:'o',ỡ:'o',ợ:'o',
+  ù:'u',ú:'u',ủ:'u',ũ:'u',ụ:'u',ư:'u',ừ:'u',ứ:'u',ử:'u',ữ:'u',ự:'u', ỳ:'y',ý:'y',ỷ:'y',ỹ:'y',ỵ:'y', đ:'d' };
+function chuanHoaChoDoiSanh(text) {
+  let ra = '';
+  for (const ch of text) {
+    const l = ch.toLowerCase();
+    ra += BANG_BO_DAU[l] !== undefined ? BANG_BO_DAU[l] : l;
+  }
+  return ra;
+}
+
+/* ---- Tách chữ thô thành dữ liệu hoá đơn có cấu trúc (dò theo nhãn thường gặp, không phân biệt dấu) ---- */
+function timTheoNhan(textGoc, nhanKhongDauArr) {
+  const textChuan = chuanHoaChoDoiSanh(textGoc);
+  for (const nhan of nhanKhongDauArr) {
+    const re = new RegExp(nhan + '\\s*[:\\.]?\\s*([^\\n\\r]{1,80})', 'i');
+    const m = textChuan.match(re);
+    if (m && m.index !== undefined) {
+      const batDau = m.index + m[0].length - m[1].length;
+      const goc = textGoc.substring(batDau, batDau + m[1].length).trim();
+      if (goc) return goc.split(/\s{2,}|\t/)[0].trim(); // cắt nếu dính sang cột/nhãn kế bên (cách nhau ≥2 khoảng trắng)
+    }
+  }
+  return '';
+}
+function timMSTGanNhan(textGoc, nhanKhongDauArr) {
+  const textChuan = chuanHoaChoDoiSanh(textGoc);
+  for (const nhan of nhanKhongDauArr) {
+    const re = new RegExp(nhan + '[^0-9]{0,60}(\\d{10}(-\\d{3})?)', 'i');
+    const m = textChuan.match(re);
+    if (m) return m[1];
+  }
+  const m2 = textChuan.match(/\b(\d{10}(-\d{3})?)\b/);
+  return m2 ? m2[1] : '';
+}
+function timNgayTrongText(textGoc) {
+  const t = chuanHoaChoDoiSanh(textGoc);
+  // Dạng chữ "ngày 08 tháng 08 năm 2026" (cho phép có chữ chen giữa "ngay" và số, VD "ngay lap hoa don:")
+  let m = t.match(/(\d{1,2})\s*thang\s*(\d{1,2})\s*nam\s*(\d{4})/i);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  // Dạng số dd/mm/yyyy hoặc dd-mm-yyyy
+  m = t.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return null;
+}
+function timTongTienTrongText(textGoc) {
+  const t = chuanHoaChoDoiSanh(textGoc);
+  const nhan = ['tong cong tien thanh toan', 'tong tien thanh toan', 'tong thanh toan'];
+  for (const n of nhan) {
+    const re = new RegExp(n + '[^0-9]{0,20}([\\d.,]{4,})', 'i');
+    const m = t.match(re);
+    if (m) return Number(m[1].replace(/[^\d]/g, '')) || 0; // tiền VND trên hoá đơn luôn số nguyên -> bỏ hết dấu phân cách
+  }
+  return 0;
+}
+
+function trichXuatTuVanBanHoaDon(rawText, tenFile, nguon) {
+  const text = rawText.replace(/\r/g, ' ').replace(/[ \t]+/g, ' ');
+  const textChuan = chuanHoaChoDoiSanh(text);
+
+  const soHD = timTheoNhan(text, ['so\\s*\\(no', 'so hoa don', 'so hd\\b', '\\bso\\s*:']);
+  const kyHieu = timTheoNhan(text, ['ky hieu\\s*\\(serial', 'ky hieu hoa don', 'ky hieu']);
+  const ngay = timNgayTrongText(text);
+  const tongTien = timTongTienTrongText(text);
+
+  // Tìm khối "người bán" và "người mua" (lấy đoạn văn bản quanh nhãn để dò MST + tên trong đúng phạm vi)
+  // — dò trên bản KHÔNG DẤU để không bị ảnh hưởng nếu OCR đọc mất dấu, nhưng cắt đoạn trên bản GỐC (giữ dấu).
+  const idxBan = textChuan.search(/don vi ban|nguoi ban|ben ban/i);
+  const idxMua = textChuan.search(/don vi mua|nguoi mua|ho ten nguoi mua|ben mua/i);
+  const doanBan = idxBan >= 0 ? text.slice(idxBan, idxMua > idxBan ? idxMua : idxBan + 300) : '';
+  const doanMua = idxMua >= 0 ? text.slice(idxMua, idxMua + 300) : '';
+
+  const mstBan = timMSTGanNhan(doanBan || text, ['ma so thue', 'mst']);
+  const mstMua = timMSTGanNhan(doanMua || text, ['ma so thue', 'mst']);
+  const tenBan = timTheoNhan(doanBan, ['(?:don vi ban|nguoi ban|ben ban)(?: hang)?']);
+  const tenMua = timTheoNhan(doanMua, ['(?:don vi mua|ho ten nguoi mua|nguoi mua|ben mua)(?: hang)?']);
+
+  let loai = '';
+  if (chuanHoaMSTClient(mstBan) === COMPANY_MST) loai = 'xuat';
+  else if (chuanHoaMSTClient(mstMua) === COMPANY_MST) loai = 'nhap';
+
+  return {
+    tenFile, nguon, loai,
+    soHD, kyHieu,
+    ngay: ngay ? ngay.toISOString().substring(0, 10) : '',
+    mst: loai === 'xuat' ? mstMua : (loai === 'nhap' ? mstBan : (mstMua || mstBan)),
+    tenDoiTac: loai === 'xuat' ? tenMua : tenBan,
+    tongTien,
+    // Chưa tách được chi tiết mặt hàng đáng tin cậy từ PDF/OCR -> tạo 1 dòng gộp, anh có thể tách tay nếu cần
+    items: [{ tenHang: `Hàng hoá/dịch vụ theo hoá đơn (đọc từ ${nguon === 'pdf-text' ? 'PDF' : 'OCR'})`, dvt: 'lần', soLuong: 1, donGia: tongTien, thueSuat: '0', loaiHangHoa: 'DichVu' }]
+  };
+}
+function chuanHoaMSTClient(mst) {
+  let s = String(mst || '').replace(/\D/g, '');
+  if (s.length === 9) s = '0' + s;
+  if (s.length === 12) s = '0' + s;
+  return s;
+}
+
+document.getElementById('btnDocPdfAnh').addEventListener('click', async () => {
+  const files = document.getElementById('pdfAnhFiles').files;
+  if (!files.length) { showToast('Chọn ít nhất 1 file PDF hoặc ảnh.'); return; }
+  const statusEl = document.getElementById('pdfAnhStatus');
+  const ketQua = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    statusEl.textContent = `Đang đọc file ${i + 1}/${files.length}: ${file.name} (có thể mất vài giây nếu phải OCR)...`;
+    try {
+      let doc;
+      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) doc = await docChuTuPDF(file);
+      else doc = await docChuTuAnh(file);
+      const trich = trichXuatTuVanBanHoaDon(doc.text, file.name, doc.nguon);
+      ketQua.push(trich);
+    } catch (err) {
+      ketQua.push({ tenFile: file.name, loi: `Lỗi đọc file: ${err.message}` });
+    }
+  }
+  statusEl.textContent = `Đã đọc xong ${files.length} file — kiểm tra kỹ bên dưới trước khi xác nhận (đặc biệt là chi tiết mặt hàng, vì PDF/ảnh chỉ tạo được 1 dòng gộp, không tách được từng mặt hàng như XML).`;
+  PDFANH_ROWS = ketQua;
+  renderPdfAnhPreview();
+});
+
+function renderPdfAnhPreview() {
+  document.getElementById('pdfAnhPreviewPanel').style.display = 'block';
+  const wrap = document.getElementById('pdfAnhPreviewList');
+  wrap.innerHTML = PDFANH_ROWS.map((r, idx) => {
+    if (r.loi) return `<div class="itemRow"><b>${r.tenFile}</b><div class="itemRowInfo" style="color:var(--bad);">${r.loi}</div></div>`;
+    return `<div class="itemRow" data-idx="${idx}">
+      <div style="font-weight:700;font-size:13.5px;margin-bottom:8px;">${r.tenFile} <span class="muted">(nguồn: ${r.nguon === 'pdf-text' ? 'chữ trong PDF' : 'OCR — kiểm tra kỹ hơn'})</span></div>
+      <div class="itemRowGrid" style="grid-template-columns:repeat(2,1fr);">
+        <div class="field"><label>Loại</label><select class="pdfEdit" data-field="loai">
+          <option value="xuat" ${r.loai === 'xuat' ? 'selected' : ''}>Bán ra</option>
+          <option value="nhap" ${r.loai === 'nhap' ? 'selected' : ''}>Mua vào</option>
+          <option value="" ${!r.loai ? 'selected' : ''}>Không rõ — chọn tay</option>
+        </select></div>
+        <div class="field"><label>Ngày lập</label><input class="pdfEdit" data-field="ngay" type="date" value="${r.ngay}"></div>
+        <div class="field"><label>Số hoá đơn</label><input class="pdfEdit" data-field="soHD" value="${r.soHD || ''}"></div>
+        <div class="field"><label>Ký hiệu</label><input class="pdfEdit" data-field="kyHieu" value="${r.kyHieu || ''}"></div>
+        <div class="field"><label>MST đối tác</label><input class="pdfEdit" data-field="mst" value="${r.mst || ''}"></div>
+        <div class="field"><label>Tên đối tác</label><input class="pdfEdit" data-field="tenDoiTac" value="${r.tenDoiTac || ''}"></div>
+        <div class="field" style="grid-column:1/-1;"><label>Tổng tiền thanh toán</label><input class="pdfEdit moneyInput" data-field="tongTien" type="text" inputmode="numeric" value="${(r.tongTien || 0).toLocaleString('vi-VN')}"></div>
+      </div>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('.pdfEdit').forEach(el => {
+    el.addEventListener('input', () => capNhatPdfAnhTuInput(el));
+    el.addEventListener('change', () => capNhatPdfAnhTuInput(el));
+  });
+}
+function capNhatPdfAnhTuInput(el) {
+  const row = el.closest('.itemRow');
+  const idx = Number(row.dataset.idx);
+  const field = el.dataset.field;
+  PDFANH_ROWS[idx][field] = field === 'tongTien' ? parseSoTien(el.value) : el.value;
+  if (field === 'tongTien') PDFANH_ROWS[idx].items[0].donGia = PDFANH_ROWS[idx].tongTien;
+}
+
+document.getElementById('btnXacNhanPdfAnh').addEventListener('click', () => {
+  const hopLe = PDFANH_ROWS.filter(r => !r.loi && r.loai && r.soHD && r.mst && r.ngay);
+  const thieu = PDFANH_ROWS.filter(r => !r.loi && (!r.loai || !r.soHD || !r.mst || !r.ngay));
+  if (thieu.length) { showToast(`${thieu.length} file còn thiếu Loại/Số HĐ/MST/Ngày — vui lòng điền đủ trước khi xác nhận.`); return; }
+  if (!hopLe.length) { showToast('Không có hoá đơn hợp lệ để thêm.'); return; }
+  BK_INVOICES = BK_INVOICES.concat(hopLe);
+  BK_INVOICES.sort((a, b) => new Date(a.ngay) - new Date(b.ngay));
+  xayDungDanhSachTenHang();
+  renderBkClassifyTable();
+  document.getElementById('bkClassifyPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  showToast(`Đã thêm ${hopLe.length} hoá đơn vào danh sách chờ nhập.`);
+});
 let LICHSU_HEADERS = [];
 let LICHSU_ROWS = [];
 
