@@ -41,14 +41,18 @@
   .loginErr{color:var(--bad);font-size:13px;margin:-6px 0 14px;min-height:16px;}
 
   #appShell{display:none;min-height:100vh;flex-direction:column;}
-  header.topbar{background:#0d1b4d;color:#e9eefc;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;gap:10px;}
-  header.topbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;min-width:0;}
+  header.topbar{background:#0d1b4d;color:#e9eefc;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;gap:8px;}
+  header.topbar .brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;min-width:0;flex:1 1 auto;overflow:hidden;}
   header.topbar .brand span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  header.topbar .brand .brandLogo{height:26px;width:26px;display:block;object-fit:contain;background:#fff;border-radius:50%;padding:3px;box-sizing:border-box;}
+  header.topbar .brand .brandLogo{height:24px;width:24px;flex:0 0 auto;display:block;object-fit:contain;background:#fff;border-radius:50%;padding:3px;box-sizing:border-box;}
   header.topbar .brand .brandLogo:not([src]),header.topbar .brand .brandLogo[src=""]{display:none;}
-  header.topbar .userInfo{display:flex;align-items:center;gap:10px;}
-  header.topbar .userInfo .who{font-size:12px;color:#a9bdf0;text-align:right;line-height:1.3;}
-  header.topbar .logout{background:none;border:1px solid #33509e;color:#e9eefc;border-radius:7px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
+  header.topbar .userInfo{display:flex;align-items:center;gap:8px;flex:0 0 auto;}
+  header.topbar .userInfo .who{font-size:11.5px;color:#a9bdf0;text-align:right;line-height:1.35;max-width:100px;}
+  header.topbar .userInfo .who span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  header.topbar .logout{background:none;border:1px solid #33509e;color:#e9eefc;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer;flex:0 0 auto;white-space:nowrap;}
+  @media (max-width:420px){
+    header.topbar .userInfo .who{display:none;} /* màn quá nhỏ: ẩn hẳn tên/vai trò, chỉ giữ logo + tên rút gọn + nút đăng xuất */
+  }
 
   nav.tabbar{display:flex;overflow-x:auto;background:var(--brand-soft);border-bottom:1px solid #c7d4f5;position:sticky;top:53px;z-index:40;}
   nav.tabbar button{flex:0 0 auto;padding:12px 14px;background:none;border:none;font-size:13px;font-weight:600;color:var(--brand-deep);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;}
@@ -89,6 +93,18 @@
   .rowActions button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;}
   .rowActions button.danger{color:var(--bad);border-color:#f3c9c9;}
   .rowActions button.primary{color:var(--brand-deep);border-color:#c7d4f5;background:var(--brand-soft);}
+  .iconBtn{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:33px;height:33px;border-radius:9px;border:1.5px solid var(--line);
+    background:#fff;cursor:pointer;padding:0;color:var(--ink-soft);flex:0 0 auto;
+    transition:background .15s,border-color .15s,color .15s,transform .1s;
+  }
+  .iconBtn svg{width:16px;height:16px;}
+  .iconBtn:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-deep);}
+  .iconBtn:active{transform:scale(.92);}
+  .iconBtn.iconDanger{color:var(--bad);border-color:#f3c9c9;}
+  .iconBtn.iconDanger:hover{background:var(--bad-soft);border-color:var(--bad);}
+  .iconBtn.iconPrimary{color:var(--brand-deep);border-color:#c7d4f5;background:var(--brand-soft);}
 
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
   .toolbar input[type=text],.toolbar input[type=date]{padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;flex:1;min-width:140px;}
@@ -233,6 +249,10 @@
         <input type="checkbox" id="filterAnDichVu" style="width:auto;">
         Ẩn Dịch vụ (chỉ hiện Hàng hoá)
       </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 12px;">
+        <input type="checkbox" id="filterAnCotMa" style="width:auto;" checked>
+        Ẩn cột Mã hệ thống (chỉ để tra cứu nội bộ khi cần)
+      </label>
       <div class="tableWrap" id="hhTableWrap"></div>
     </section>
 
@@ -347,24 +367,12 @@
         <div class="tableWrap" id="dongboTableWrap"></div>
       </div>
 
-      <div class="panel">
-        <h3>Hoặc nhập từ file XML hoá đơn gốc (chính xác hơn, tự nhận diện mua vào/bán ra)</h3>
-        <p class="muted">File XML là bản gốc có giá trị pháp lý của hoá đơn điện tử. Khi khách hàng hoặc nhà cung cấp gửi email kèm file <b>.xml</b> (thường đi kèm PDF), anh chọn thẳng file đó vào đây — có thể chọn <b>nhiều file cùng lúc</b>. App tự đọc, tự nhận diện đây là hoá đơn công ty xuất ra hay nhận vào (dựa theo MST 0317838601 nằm ở vai người bán hay người mua trong file), rồi tự khớp với phiếu tương ứng.</p>
+      <div class="panel" style="border-color:var(--accent);background:var(--accent-soft);">
+        <h3>📎 Tự động tạo phiếu từ file XML hoá đơn gốc (khuyên dùng — chính xác nhất)</h3>
+        <p class="muted">File XML là bản gốc có giá trị pháp lý của hoá đơn điện tử, chứa sẵn <b>đầy đủ chi tiết từng mặt hàng</b> (tên, đơn vị, số lượng, đơn giá, thuế suất) — không phải chỉ tổng tiền như bảng kê Excel. Khi khách hàng/nhà cung cấp gửi email kèm file <b>.xml</b>, chọn thẳng vào đây — có thể chọn <b>nhiều file cùng lúc</b>. App tự đọc, tự nhận diện mua vào/bán ra (theo MST 0317838601), <b>tự tạo mới hàng hoá + đối tác nếu chưa có, tự tạo phiếu Nhập kho/Xuất bán đầy đủ chi tiết</b> — không cần phiếu có sẵn, không cần nhập tay lại.</p>
         <div class="field"><label>Chọn file XML (có thể chọn nhiều file)</label><input type="file" id="dongboXmlFiles" accept=".xml" multiple></div>
-        <button class="btn small" id="btnDocXml" style="margin-top:8px;">Đọc file XML &amp; trích xuất</button>
-        <p class="muted" style="margin-top:8px;">Nếu file XML từ một số nhà cung cấp phần mềm hoá đơn dùng tên thẻ dữ liệu khác chuẩn thông thường, một vài trường có thể đọc thiếu — anh sửa trực tiếp trong bảng xem trước trước khi khớp, hoặc gửi 1 file mẫu để em tinh chỉnh lại cho đúng 100%.</p>
-      </div>
-      <div class="panel" id="xmlPreviewPanel" style="display:none;">
-        <h3>Dữ liệu trích xuất từ XML — kiểm tra / sửa nếu cần</h3>
-        <div class="tableWrap" id="xmlPreviewWrap"></div>
-        <button class="btn small" id="btnKhopXml" style="margin-top:10px;">Khớp dữ liệu với phiếu trong hệ thống</button>
-      </div>
-      <div class="panel" id="xmlResultPanel" style="display:none;">
-        <div class="subhead">
-          <h3 style="margin:0;">Kết quả khớp (từ XML) — kiểm tra lại trước khi ghi</h3>
-          <button class="btn small" id="btnApDungXml">Ghi vào hệ thống các dòng đã khớp</button>
-        </div>
-        <div class="tableWrap" id="xmlMatchWrap"></div>
+        <button class="btn small" id="btnDocXml" style="margin-top:8px;">Đọc file XML &amp; thêm vào danh sách chờ nhập</button>
+        <p class="muted" style="margin-top:8px;">Sau khi đọc xong, kéo xuống mục "📦 Xem trước &amp; nhập dữ liệu" bên dưới để rà lại phân loại hàng hoá rồi bấm nhập — dùng chung 1 quy trình với mục nhập từ bảng kê Excel, có thể đọc XML rồi bổ sung thêm cả Excel vào cùng 1 đợt nhập nếu cần. File nào lỗi hoặc thiếu dữ liệu sẽ được báo rõ, không làm ảnh hưởng các file khác.</p>
       </div>
 
       <div class="panel" style="border-color:#c7d4f5;background:#f4f7ff;">
@@ -399,8 +407,8 @@
       </div>
 
       <div class="panel" style="border-color:var(--accent);background:var(--accent-soft);">
-        <h3>📊 Nhập chi tiết đầy đủ từ bảng kê BKMV/BKBR (nhiều quý)</h3>
-        <p class="muted">Dùng khi anh có sẵn file bảng kê mua vào/bán ra dạng đầy đủ (sheet BKBR/BKMV, do kế toán xuất theo quý) — đã có sẵn chi tiết từng mặt hàng, số lượng, đơn giá, thuế suất. Khác với mục "Nhập dữ liệu lịch sử" ở trên (chỉ tạo 1 dòng gộp/hoá đơn), mục này tạo <b>đúng từng mặt hàng, đúng thuế suất</b>, đủ để dựng lại tồn kho chính xác. Chọn <b>tất cả các file quý cùng lúc</b> — app sẽ tự gộp và xử lý theo đúng trình tự thời gian.</p>
+        <h3>📊 Bổ sung thêm từ bảng kê Excel BKMV/BKBR (nhiều quý) — không bắt buộc nếu đã dùng XML</h3>
+        <p class="muted">Dùng khi anh có sẵn file bảng kê mua vào/bán ra dạng đầy đủ (sheet BKBR/BKMV, do kế toán xuất theo quý) — đã có sẵn chi tiết từng mặt hàng, số lượng, đơn giá, thuế suất. Có thể dùng <b>thay thế</b> cho XML (nếu không có sẵn file XML gốc) hoặc <b>bổ sung thêm</b> vào danh sách đã đọc từ XML ở trên — cả 2 nguồn đều gộp chung vào 1 danh sách chờ nhập bên dưới. Chọn <b>tất cả các file quý cùng lúc</b> — app sẽ tự gộp và xử lý theo đúng trình tự thời gian.</p>
         <div class="field"><label>Chọn các file bảng kê theo quý (.xlsb, .xlsx — chọn nhiều file cùng lúc)</label><input type="file" id="bkFiles" accept=".xlsb,.xlsx,.xls" multiple></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:6px;">
           <input type="checkbox" id="bkDaThanhToan" checked style="width:auto;">
@@ -410,7 +418,7 @@
         <div id="bkParseStatus" class="muted" style="margin-top:8px;"></div>
       </div>
       <div class="panel" id="bkClassifyPanel" style="display:none;">
-        <h3>Phân loại hàng hoá / dịch vụ — kiểm tra lại trước khi tạo phiếu</h3>
+        <h3>📦 Xem trước &amp; phân loại — danh sách chờ nhập (gộp từ XML + Excel đã đọc ở trên)</h3>
         <p class="muted">App đã tự đoán loại cho từng tên hàng xuất hiện trong các hoá đơn (dựa theo đơn vị tính và từ khoá). Sửa lại nếu cần — ảnh hưởng trực tiếp đến việc mặt hàng đó có được tính vào tồn kho hay không.</p>
         <div class="toolbar"><input type="text" id="bkClassifySearch" placeholder="Tìm theo tên hàng..."></div>
         <div class="tableWrap" id="bkClassifyWrap" style="max-height:420px;overflow-y:auto;"></div>
@@ -500,6 +508,15 @@ function apiLogin(tenDangNhap, password) {
 }
 
 /* ================= UTIL ================= */
+/* ================= BỘ ICON DÙNG CHUNG (SVG nhẹ, không cần thư viện ngoài) ================= */
+const ICON_XEM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_SUA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
+const ICON_XOA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+const ICON_HD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>';
+const ICON_TRANGTHAI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+const ICON_KHOA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+const ICON_MOKHOA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
+
 function fmtMoney(n) { n = Number(n) || 0; return n.toLocaleString('vi-VN') + ' đ'; }
 function parseSoTien(val) { return Number(String(val || '').replace(/\D/g, '')) || 0; }
 function formatMoneyInputLive(el) {
@@ -701,6 +718,7 @@ function drawHangHoaTable() {
   const filterLoai = document.getElementById('filterLoaiHH').value;
   const anHetTon = document.getElementById('filterAnHetTon').checked;
   const anDichVu = document.getElementById('filterAnDichVu').checked;
+  const anCotMa = document.getElementById('filterAnCotMa').checked;
   let list = STATE.hangHoaList.filter(h =>
     (!search || (h.TenHH || '').toLowerCase().includes(search) || (h.MaHH || '').toLowerCase().includes(search)) &&
     (!filterLoai || h.Loai === filterLoai) &&
@@ -709,16 +727,17 @@ function drawHangHoaTable() {
   );
   const wrap = document.getElementById('hhTableWrap');
   if (list.length === 0) { wrap.innerHTML = '<div class="empty">Không có hàng hoá / dịch vụ nào phù hợp.</div>'; return; }
-  wrap.innerHTML = `<table><thead><tr><th>Mã</th><th>Tên</th><th>Loại</th><th>ĐVT</th><th>Giá vốn TB</th><th>Giá bán</th><th>Tồn kho</th><th></th></tr></thead><tbody>
+  wrap.innerHTML = `<table><thead><tr>${anCotMa ? '' : '<th style="width:1%;">Mã</th>'}<th>Tên</th><th>Loại</th><th>ĐVT</th><th>Giá vốn TB</th><th>Giá bán</th><th>Tồn kho</th><th></th></tr></thead><tbody>
     ${list.map(h => {
       const ton = Number(h.TonKho);
       const tonHtml = h.Loai === 'HangHoa' ? (ton <= 0 ? `<span class="tag bad">${ton}</span>` : ton) : '—';
       return `<tr>
-      <td>${h.MaHH}</td><td>${h.TenHH}${h.DVTNhap && Number(h.HeSoQuyDoi) > 1 ? `<div class="muted" style="font-size:11.5px;">1 ${h.DVTNhap} = ${h.HeSoQuyDoi} ${h.DVT}</div>` : ''}</td>
+      ${anCotMa ? '' : `<td class="muted" style="font-size:11px;white-space:nowrap;">${h.MaHH}</td>`}
+      <td>${h.TenHH}${h.DVTNhap && Number(h.HeSoQuyDoi) > 1 ? `<div class="muted" style="font-size:11.5px;">1 ${h.DVTNhap} = ${h.HeSoQuyDoi} ${h.DVT}</div>` : ''}</td>
       <td>${h.Loai === 'HangHoa' ? '<span class="tag hh">Hàng hoá</span>' : '<span class="tag dv">Dịch vụ</span>'}</td>
       <td>${h.DVT || ''}</td><td>${fmtMoney(h.GiaVonTB)}</td><td>${fmtMoney(h.GiaBan)}</td>
       <td>${tonHtml}</td>
-      <td class="rowActions"><button onclick="openEditHH('${h.MaHH}')">Sửa</button><button class="danger" onclick="deleteHH('${h.MaHH}')">Xoá</button></td>
+      <td class="rowActions"><button class="iconBtn" title="Sửa" onclick="openEditHH('${h.MaHH}')">${ICON_SUA}</button><button class="iconBtn iconDanger" title="Xoá" onclick="deleteHH('${h.MaHH}')">${ICON_XOA}</button></td>
     </tr>`;
     }).join('')}
   </tbody></table>`;
@@ -727,6 +746,7 @@ document.getElementById('searchHH').addEventListener('input', drawHangHoaTable);
 document.getElementById('filterLoaiHH').addEventListener('change', drawHangHoaTable);
 document.getElementById('filterAnHetTon').addEventListener('change', drawHangHoaTable);
 document.getElementById('filterAnDichVu').addEventListener('change', drawHangHoaTable);
+document.getElementById('filterAnCotMa').addEventListener('change', drawHangHoaTable);
 document.getElementById('btnAddHH').addEventListener('click', () => openEditHH(null));
 
 function openEditHH(maHH) {
@@ -1035,7 +1055,7 @@ function renderNhapKhoTable() {
         <td>${fmtMoney(n.TongTien)}</td><td>${fmtMoney(n.DaTra)}</td>
         <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã trả đủ</span>'}</td>
         <td class="muted">${n.NguoiTao || ''}</td>
-        <td class="rowActions"><button onclick="viewPhieuNhapXuat('nhap','${n.IDPhieu}')">Xem</button><button class="danger" onclick="xoaPhieuUI('nhap','${n.IDPhieu}')">Xoá</button></td>
+        <td class="rowActions"><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('nhap','${n.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('nhap','${n.IDPhieu}')">${ICON_XOA}</button></td>
       </tr>`; }).join('')}
     </tbody></table>`;
   }).catch(err => showToast('Lỗi: ' + err.message));
@@ -1084,7 +1104,7 @@ function renderXuatBanTable() {
         <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã thu đủ</span>'}</td>
         <td>${x.TrangThaiHD === 'DaXuat' ? '<span class="tag good">Đã xuất HĐ</span>' : '<span class="tag bad">Chưa xuất HĐ</span>'}</td>
         <td class="muted">${x.NguoiTao || ''}</td>
-        <td class="rowActions"><button onclick="openCapNhatHD('xuat','${x.IDPhieu}')">HĐ</button><button onclick="viewPhieuNhapXuat('xuat','${x.IDPhieu}')">Xem</button><button class="danger" onclick="xoaPhieuUI('xuat','${x.IDPhieu}')">Xoá</button></td>
+        <td class="rowActions"><button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('xuat','${x.IDPhieu}')">${ICON_HD}</button><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('xuat','${x.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('xuat','${x.IDPhieu}')">${ICON_XOA}</button></td>
       </tr>`; }).join('')}
     </tbody></table>`;
   }).catch(err => showToast('Lỗi: ' + err.message));
@@ -1136,10 +1156,10 @@ function renderSuaChuaTable() {
         <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã thu đủ</span>'}</td>
         <td>${s.NguoiPhuTrach || ''}</td>
         <td class="rowActions">
-          <button onclick="viewPhieuSuaChua('${s.IDPhieu}')">Xem</button>
-          <button onclick="openCapNhatTrangThaiSC('${s.IDPhieu}')">Trạng thái</button>
-          <button onclick="openCapNhatHD('suachua','${s.IDPhieu}')">HĐ</button>
-          <button class="danger" onclick="xoaPhieuGeneric('xoaPhieuSuaChua','${s.IDPhieu}',renderSuaChuaTable)">Xoá</button>
+          <button class="iconBtn" title="Xem" onclick="viewPhieuSuaChua('${s.IDPhieu}')">${ICON_XEM}</button>
+          <button class="iconBtn" title="Cập nhật trạng thái" onclick="openCapNhatTrangThaiSC('${s.IDPhieu}')">${ICON_TRANGTHAI}</button>
+          <button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('suachua','${s.IDPhieu}')">${ICON_HD}</button>
+          <button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuGeneric('xoaPhieuSuaChua','${s.IDPhieu}',renderSuaChuaTable)">${ICON_XOA}</button>
         </td>
       </tr>`; }).join('')}
     </tbody></table>`;
@@ -1224,7 +1244,7 @@ function viewPhieuSuaChua(idPhieu) {
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>Ghi nhận thu tiền từ khách</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="formGrid"><div class="field span2"><label>Ghi nhận thu tiền từ khách</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div></div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThuSuaChua('${idPhieu}')">Ghi nhận thanh toán</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
@@ -1279,10 +1299,10 @@ function renderGiaCongTable() {
           <td>${trangThaiGCTag(g.TrangThai)}</td><td>${fmtMoney(g.ChiPhiGiaCong)}</td>
           <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã xong</span>'}</td>
           <td class="rowActions">
-            <button onclick="viewPhieuGiaCong('${g.IDPhieu}')">Xem</button>
-            <button onclick="openCapNhatTrangThaiGC('${g.IDPhieu}')">Trạng thái</button>
-            <button onclick="openCapNhatHD('giacong','${g.IDPhieu}')">HĐ</button>
-            <button class="danger" onclick="xoaPhieuGeneric('xoaPhieuGiaCong','${g.IDPhieu}',renderGiaCongTable)">Xoá</button>
+            <button class="iconBtn" title="Xem" onclick="viewPhieuGiaCong('${g.IDPhieu}')">${ICON_XEM}</button>
+            <button class="iconBtn" title="Cập nhật trạng thái" onclick="openCapNhatTrangThaiGC('${g.IDPhieu}')">${ICON_TRANGTHAI}</button>
+            <button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('giacong','${g.IDPhieu}')">${ICON_HD}</button>
+            <button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuGeneric('xoaPhieuGiaCong','${g.IDPhieu}',renderGiaCongTable)">${ICON_XOA}</button>
           </td>
         </tr>`;
       }).join('')}
@@ -1372,7 +1392,7 @@ function viewPhieuGiaCong(idPhieu) {
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>${isThu ? 'Ghi nhận thu tiền từ khách' : 'Ghi nhận trả tiền cho bên gia công'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="formGrid"><div class="field span2"><label>${isThu ? 'Ghi nhận thu tiền từ khách' : 'Ghi nhận trả tiền cho bên gia công'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div></div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanGC('${idPhieu}','${isThu ? 'DaThu' : 'DaTra'}')">Ghi nhận</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
@@ -1446,7 +1466,7 @@ function viewPhieuNhapXuat(loai, idPhieu) {
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>${loai === 'nhap' ? 'Ghi nhận thanh toán cho NCC' : 'Ghi nhận thu tiền từ khách'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền"></div></div>
+        <div class="formGrid"><div class="field span2"><label>${loai === 'nhap' ? 'Ghi nhận thanh toán cho NCC' : 'Ghi nhận thu tiền từ khách'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div></div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanNX('${loai}','${idPhieu}')">Ghi nhận thanh toán</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
@@ -1463,12 +1483,12 @@ function ghiNhanThanhToanNX(loai, idPhieu) {
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function xoaPhieuUI(loai, idPhieu) {
-  if (!confirm('Xoá phiếu này? Lưu ý: xoá phiếu KHÔNG tự hoàn lại tồn kho.')) return;
+  if (!confirm('Xoá phiếu này? Tồn kho các mặt hàng liên quan sẽ tự động được hoàn lại đúng chiều.')) return;
   const action = loai === 'nhap' ? 'xoaPhieuNhap' : 'xoaPhieuXuat';
   apiCall(action, { idPhieu }).then(() => { showToast('Đã xoá phiếu.'); if (loai === 'nhap') renderNhapKhoTable(); else renderXuatBanTable(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function xoaPhieuGeneric(action, idPhieu, rerender) {
-  if (!confirm('Xoá phiếu này? Lưu ý: xoá phiếu KHÔNG tự hoàn lại tồn kho.')) return;
+  if (!confirm('Xoá phiếu này? Tồn kho các mặt hàng liên quan sẽ tự động được hoàn lại đúng chiều.')) return;
   apiCall(action, { idPhieu }).then(() => { showToast('Đã xoá phiếu.'); rerender(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
 
@@ -1530,7 +1550,7 @@ function renderKhachHangTable() {
     const wrap = document.getElementById('khTableWrap');
     if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có khách hàng nào.</div>'; return; }
     wrap.innerHTML = `<table><thead><tr><th>Tên</th><th>MST</th><th>SĐT</th><th>Địa chỉ</th><th></th></tr></thead><tbody>
-      ${list.map(k => `<tr><td>${k.TenKH}</td><td>${k.MST || ''}</td><td>${k.SDT || ''}</td><td>${k.DiaChi || ''}</td><td class="rowActions"><button class="danger" onclick="deleteDoiTac('kh','${k.MaKH}')">Xoá</button></td></tr>`).join('')}
+      ${list.map(k => `<tr><td>${k.TenKH}</td><td>${k.MST || ''}</td><td>${k.SDT || ''}</td><td>${k.DiaChi || ''}</td><td class="rowActions"><button class="iconBtn iconDanger" title="Xoá" onclick="deleteDoiTac('kh','${k.MaKH}')">${ICON_XOA}</button></td></tr>`).join('')}
     </tbody></table>`;
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
@@ -1540,7 +1560,7 @@ function renderNhaCungCapTable() {
     const wrap = document.getElementById('nccTableWrap');
     if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có nhà cung cấp nào.</div>'; return; }
     wrap.innerHTML = `<table><thead><tr><th>Tên</th><th>MST</th><th>SĐT</th><th>Địa chỉ</th><th></th></tr></thead><tbody>
-      ${list.map(n => `<tr><td>${n.TenNCC}</td><td>${n.MST || ''}</td><td>${n.SDT || ''}</td><td>${n.DiaChi || ''}</td><td class="rowActions"><button class="danger" onclick="deleteDoiTac('ncc','${n.MaNCC}')">Xoá</button></td></tr>`).join('')}
+      ${list.map(n => `<tr><td>${n.TenNCC}</td><td>${n.MST || ''}</td><td>${n.SDT || ''}</td><td>${n.DiaChi || ''}</td><td class="rowActions"><button class="iconBtn iconDanger" title="Xoá" onclick="deleteDoiTac('ncc','${n.MaNCC}')">${ICON_XOA}</button></td></tr>`).join('')}
     </tbody></table>`;
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
@@ -1602,8 +1622,8 @@ function renderNguoiDungTable() {
       ${list.map(u => `<tr><td>${u.HoTen}</td><td>${u.TenDangNhap}</td><td>${vaiTroLabel(u.VaiTro)}</td>
         <td>${u.TrangThai === 'Active' ? '<span class="tag good">Hoạt động</span>' : '<span class="tag bad">Đã khoá</span>'}</td>
         <td class="rowActions">
-          <button onclick="openEditNguoiDung('${u.MaNV}')">Sửa</button>
-          ${u.TenDangNhap !== 'admin' ? `<button onclick="toggleKhoaNguoiDung('${u.MaNV}','${u.TrangThai === 'Active' ? 'Locked' : 'Active'}')">${u.TrangThai === 'Active' ? 'Khoá' : 'Mở khoá'}</button>` : ''}
+          <button class="iconBtn" title="Sửa" onclick="openEditNguoiDung('${u.MaNV}')">${ICON_SUA}</button>
+          ${u.TenDangNhap !== 'admin' ? `<button class="iconBtn${u.TrangThai === 'Active' ? ' iconDanger' : ''}" title="${u.TrangThai === 'Active' ? 'Khoá tài khoản' : 'Mở khoá tài khoản'}" onclick="toggleKhoaNguoiDung('${u.MaNV}','${u.TrangThai === 'Active' ? 'Locked' : 'Active'}')">${u.TrangThai === 'Active' ? ICON_KHOA : ICON_MOKHOA}</button>` : ''}
         </td>
       </tr>`).join('')}
     </tbody></table>`;
@@ -1846,9 +1866,14 @@ document.getElementById('btnApDungDongBo').addEventListener('click', () => {
 });
 
 /* ---- Nhập từ XML ---- */
-let DONGBO_XML_ROWS = [];
-let DONGBO_XML_MATCHES = [];
 const COMPANY_MST = '0317838601';
+// Chuẩn hoá MST để so sánh chắc chắn (bỏ khoảng trắng/ký tự lạ, bù số 0 đầu nếu bị mất) —
+// tránh trường hợp hoá đơn không liên quan tới công ty vẫn bị lọt qua do định dạng MST khác nhau.
+function chuanHoaMSTClient(mst) {
+  let s = String(mst || '').replace(/\D/g, '');
+  if (s.length === 9) s = '0' + s;
+  return s;
+}
 
 function findByTagNames(root, names) {
   const all = root.getElementsByTagName('*');
@@ -1861,24 +1886,62 @@ function findByTagNames(root, names) {
 }
 function textOfTag(root, names) { const el = findByTagNames(root, names); return el ? el.textContent.trim() : ''; }
 
-function trichXuatXML(xmlDoc, fileName) {
+// Trích xuất TOÀN BỘ hoá đơn từ XML gốc — bao gồm cả chi tiết từng mặt hàng (DSHHDVu/HHDVu),
+// đủ để tự tạo phiếu hoàn chỉnh (không chỉ gắn số HĐ vào phiếu có sẵn như trước).
+function trichXuatHoaDonXML(xmlDoc, fileName) {
   const nBanEl = findByTagNames(xmlDoc, ['nban', 'sellerinfo']);
   const nMuaEl = findByTagNames(xmlDoc, ['nmua', 'buyerinfo']);
   const mstBan = nBanEl ? textOfTag(nBanEl, ['mst']) : '';
   const mstMua = nMuaEl ? textOfTag(nMuaEl, ['mst']) : '';
+  const tenBan = nBanEl ? textOfTag(nBanEl, ['ten']) : '';
+  const tenMua = nMuaEl ? textOfTag(nMuaEl, ['ten']) : '';
+  const diaChiBan = nBanEl ? textOfTag(nBanEl, ['dchi']) : '';
+  const diaChiMua = nMuaEl ? textOfTag(nMuaEl, ['dchi']) : '';
+  const sdtBan = nBanEl ? textOfTag(nBanEl, ['sdthoai']) : '';
+  const sdtMua = nMuaEl ? textOfTag(nMuaEl, ['sdthoai']) : '';
+  const emailBan = nBanEl ? textOfTag(nBanEl, ['dctdtu']) : '';
+  const emailMua = nMuaEl ? textOfTag(nMuaEl, ['dctdtu']) : '';
   const soHD = textOfTag(xmlDoc, ['shdon', 'sohoadon']);
   const kyHieu = textOfTag(xmlDoc, ['khhdon', 'kyhieuhoadon']);
-  const ngay = textOfTag(xmlDoc, ['nlap', 'ngaylap']);
-  const tongTienRaw = textOfTag(xmlDoc, ['tgtttbso', 'tongtienthanhtoan']);
+  const ngayRaw = textOfTag(xmlDoc, ['nlap', 'ngaylap']);
 
   let loai = '';
-  if (mstBan.trim() === COMPANY_MST) loai = 'xuat';
-  else if (mstMua.trim() === COMPANY_MST) loai = 'nhap';
+  const mstBanChuan = chuanHoaMSTClient(mstBan);
+  const mstMuaChuan = chuanHoaMSTClient(mstMua);
+  const mstCongTyChuan = chuanHoaMSTClient(COMPANY_MST);
+  if (mstBanChuan === mstCongTyChuan) loai = 'xuat';
+  else if (mstMuaChuan === mstCongTyChuan) loai = 'nhap';
+  if (!loai) return { loi: `${fileName}: KHÔNG PHẢI hoá đơn của công ty (MST ${COMPANY_MST}) — người bán là MST ${mstBan || '(trống)'}, người mua là MST ${mstMua || '(trống)'}, không khớp bên nào. Đã bỏ qua, không import.` };
+
+  const mst = (loai === 'xuat' ? mstMua : mstBan).trim();
+  const tenDoiTac = loai === 'xuat' ? tenMua : tenBan;
+  const diaChiDoiTac = loai === 'xuat' ? diaChiMua : diaChiBan;
+  const sdtDoiTac = loai === 'xuat' ? sdtMua : sdtBan;
+  const emailDoiTac = loai === 'xuat' ? emailMua : emailBan;
+  const ngay = parseVNDate(ngayRaw);
+  if (!soHD || !mst || !ngay) return { loi: `${fileName}: thiếu thông tin bắt buộc (số hoá đơn / MST / ngày lập)` };
+
+  const hhdvuList = xmlDoc.getElementsByTagName('HHDVu');
+  const items = [];
+  for (let i = 0; i < hhdvuList.length; i++) {
+    const hh = hhdvuList[i];
+    const tenHang = textOfTag(hh, ['thhdvu']);
+    if (!tenHang) continue;
+    const dvt = textOfTag(hh, ['dvtinh']);
+    const soLuong = parseVNNumber(textOfTag(hh, ['sluong'])) || 1;
+    const donGia = parseVNNumber(textOfTag(hh, ['dgia'])) || 0;
+    const thueSuatRaw = textOfTag(hh, ['tsuat']);
+    let thueSuat = '0';
+    const tsNorm = normalizeVN(thueSuatRaw);
+    if (tsNorm.includes('kct') || tsNorm.includes('khong chiu')) thueSuat = 'KCT';
+    else { const num = parseFloat(String(thueSuatRaw).replace('%', '')); if (!isNaN(num)) thueSuat = String(Math.round(num)); }
+    items.push({ tenHang, dvt, soLuong, donGia, thueSuat, loaiHangHoa: timHangHoaLoai(tenHang, dvt) });
+  }
+  if (!items.length) return { loi: `${fileName}: không tìm thấy danh sách mặt hàng (DSHHDVu/HHDVu) trong file — có thể định dạng XML khác chuẩn thông thường` };
 
   return {
-    fileName, soHD, kyHieu, ngay, mstBan: mstBan.trim(), mstMua: mstMua.trim(),
-    mst: loai === 'xuat' ? mstMua.trim() : (loai === 'nhap' ? mstBan.trim() : ''),
-    tongTien: parseVNNumber(tongTienRaw), loai
+    loai, soHD, kyHieu, ngay: ngay.toISOString().substring(0, 10),
+    mst, tenDoiTac, diaChiDoiTac, sdtDoiTac, emailDoiTac, tenFile: fileName, items
   };
 }
 
@@ -1891,51 +1954,31 @@ document.getElementById('btnDocXml').addEventListener('click', () => {
       try {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(e.target.result, 'application/xml');
-        if (xmlDoc.querySelector('parsererror')) { resolve({ fileName: file.name, error: 'Không đọc được XML (file lỗi hoặc không đúng định dạng)' }); return; }
-        resolve(trichXuatXML(xmlDoc, file.name));
-      } catch (err) { resolve({ fileName: file.name, error: err.message }); }
+        if (xmlDoc.querySelector('parsererror')) { resolve({ loi: `${file.name}: không đọc được XML (file lỗi hoặc không đúng định dạng)` }); return; }
+        resolve(trichXuatHoaDonXML(xmlDoc, file.name));
+      } catch (err) { resolve({ loi: `${file.name}: ${err.message}` }); }
     };
     reader.readAsText(file);
   }));
-  Promise.all(readers).then(rows => { DONGBO_XML_ROWS = rows; renderXmlPreview(); });
-});
-
-function renderXmlPreview() {
-  document.getElementById('xmlPreviewPanel').style.display = 'block';
-  const wrap = document.getElementById('xmlPreviewWrap');
-  wrap.innerHTML = `<table><thead><tr><th>File</th><th>Loại</th><th>Số HĐ</th><th>Ký hiệu</th><th>Ngày lập</th><th>MST đối tác</th><th>Tổng tiền</th></tr></thead><tbody>
-    ${DONGBO_XML_ROWS.map((r, idx) => {
-      if (r.error) return `<tr><td>${r.fileName}</td><td colspan="6"><span class="tag bad">${r.error}</span></td></tr>`;
-      return `<tr>
-        <td>${r.fileName}</td>
-        <td><select data-idx="${idx}" class="xmlEditLoai" onchange="xmlEditField(${idx},'loai',this.value)">
-          <option value="xuat" ${r.loai === 'xuat' ? 'selected' : ''}>Bán ra</option>
-          <option value="nhap" ${r.loai === 'nhap' ? 'selected' : ''}>Mua vào</option>
-          <option value="" ${!r.loai ? 'selected' : ''}>Không rõ — chọn tay</option>
-        </select></td>
-        <td><input value="${r.soHD}" data-idx="${idx}" oninput="xmlEditField(${idx},'soHD',this.value)"></td>
-        <td><input value="${r.kyHieu}" data-idx="${idx}" oninput="xmlEditField(${idx},'kyHieu',this.value)"></td>
-        <td><input value="${r.ngay}" data-idx="${idx}" oninput="xmlEditField(${idx},'ngay',this.value)" placeholder="dd/mm/yyyy"></td>
-        <td><input value="${r.mst}" data-idx="${idx}" oninput="xmlEditField(${idx},'mst',this.value)"></td>
-        <td><input value="${r.tongTien || ''}" type="number" data-idx="${idx}" oninput="xmlEditField(${idx},'tongTien',this.value)"></td>
-      </tr>`;
-    }).join('')}
-  </tbody></table>`;
-}
-function xmlEditField(idx, field, value) {
-  DONGBO_XML_ROWS[idx][field] = field === 'tongTien' ? Number(value) : value;
-}
-
-document.getElementById('btnKhopXml').addEventListener('click', () => {
-  const validRows = DONGBO_XML_ROWS.filter(r => !r.error && r.soHD && r.loai);
-  if (!validRows.length) { showToast('Không có dòng hợp lệ để khớp (thiếu Số HĐ hoặc chưa xác định Loại).'); return; }
-  DONGBO_XML_MATCHES = validRows.map(khopMotDong);
-  document.getElementById('xmlResultPanel').style.display = 'block';
-  renderMatchTable(document.getElementById('xmlMatchWrap'), DONGBO_XML_MATCHES, false);
-  document.querySelectorAll('#xmlMatchWrap .matchSelectGeneric').forEach(el => el.classList.replace('matchSelectGeneric', 'matchSelectXml'));
-});
-document.getElementById('btnApDungXml').addEventListener('click', () => {
-  apDungKhop(DONGBO_XML_MATCHES, 'matchSelectXml', [renderXuatBanTable, renderNhapKhoTable]);
+  Promise.all(readers).then(results => {
+    const loi = results.filter(r => r.loi).map(r => r.loi);
+    const hopLe = results.filter(r => !r.loi);
+    const soBiTuChoiDoMST = loi.filter(l => l.includes('KHÔNG PHẢI hoá đơn của công ty')).length;
+    BK_INVOICES = BK_INVOICES.concat(hopLe);
+    BK_INVOICES.sort((a, b) => new Date(a.ngay) - new Date(b.ngay));
+    BK_PARSE_ERRORS = BK_PARSE_ERRORS.concat(loi);
+    document.getElementById('bkParseStatus').textContent =
+      `[Từ XML] Đọc ${files.length} file — thêm ${hopLe.length} hoá đơn hợp lệ vào danh sách chờ nhập (tổng hiện có: ${BK_INVOICES.length}).` +
+      (soBiTuChoiDoMST > 0 ? ` ⚠️ ${soBiTuChoiDoMST} file bị TỪ CHỐI vì không liên quan đến MST công ty 0317838601 (không phải người mua hoặc người bán).` : '') +
+      (loi.length > soBiTuChoiDoMST ? ` ${loi.length - soBiTuChoiDoMST} file lỗi khác (xem chi tiết ở bước Tổng kết).` : '');
+    if (hopLe.length) {
+      xayDungDanhSachTenHang();
+      renderBkClassifyTable();
+      document.getElementById('bkClassifyPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (loi.length) {
+      showToast(loi[0]);
+    }
+  });
 });
 
 /* ---- Nhập dữ liệu lịch sử (tạo phiếu hàng loạt) ---- */
