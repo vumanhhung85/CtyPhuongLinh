@@ -6,6 +6,12 @@
 <title>Quản lý bán hàng - CÔNG TY TNHH DVCN PHƯƠNG LINH</title>
 <link rel="icon" type="image/png" href="favicon-32.png">
 
+<!-- Font chữ: Baloo 2 (tròn, thân thiện) cho tiêu đề/nhãn + JetBrains Mono (đều nét, thẳng hàng) cho số
+     tiền — cùng phong cách với app quản lý nhà trọ. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
 <!-- ===== PWA - cài đặt lên màn hình chính Android/iOS ===== -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d1b4d">
@@ -23,9 +29,18 @@
     --good:#15803d;--good-soft:#e7f6ec;--bad:#b91c1c;--bad-soft:#fdeaea;
     --warn:#b3690a;--warn-soft:#fdf1de;--info:#2456d6;--info-soft:#e9eefc;
     --radius:14px;font-size:15px;
+    --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --font-display:'Baloo 2',var(--font-body);
+    --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--paper);color:var(--ink);}
+  body{margin:0;font-family:var(--font-body);background:var(--paper);color:var(--ink);}
+  /* Số tiền/số liệu: font monospace đều nét, các chữ số thẳng hàng theo cột — dễ đối chiếu số hơn font
+     thường. Áp dụng qua thẻ <span class="num"> mà fmtMoney() tự bọc sẵn, nên KHÔNG cần sửa từng chỗ
+     gọi fmtMoney() trong toàn bộ file — chỉ cần đổi 1 chỗ này là áp dụng toàn app. */
+  .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-0.2px;}
+  h1,h2,h3,.viewTitle,.statCard .label,.statCard .val,nav.tabbar button,.btn,.segTabs button,header.topbar .brand{font-family:var(--font-display);}
+  .statCard .val{font-family:var(--font-mono);letter-spacing:-0.3px;}
   input,select,button,textarea{font-family:inherit;font-size:16px;}
 
   #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0d1b4d 0%,#173a94 55%,#2456d6 100%);padding:20px;}
@@ -55,7 +70,7 @@
     header.topbar .userInfo .who{display:none;} /* màn quá nhỏ: ẩn hẳn tên/vai trò, chỉ giữ logo + tên rút gọn + nút đăng xuất */
   }
 
-  nav.tabbar{display:flex;overflow-x:auto;background:var(--brand-soft);border-bottom:1px solid #c7d4f5;position:sticky;top:53px;z-index:40;}
+  nav.tabbar{display:flex;overflow-x:auto;background:var(--brand-soft);border-bottom:1px solid #c7d4f5;position:sticky;top:var(--header-h,53px);z-index:40;}
   nav.tabbar button{flex:0 0 auto;padding:12px 14px;background:none;border:none;font-size:13px;font-weight:600;color:var(--brand-deep);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;transition:background .15s,color .15s;}
   nav.tabbar button:hover{background:rgba(255,255,255,.5);}
   nav.tabbar button.active{border-bottom-color:var(--accent);background:#fff;color:var(--accent);}
@@ -85,7 +100,7 @@
   table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px;}
   /* Hàng tiêu đề: cam nhạt đậm hơn 1 chút (theo màu logo) thay vì xanh nhạt như trước, dễ phân biệt với dữ liệu bên dưới.
      Vẫn dính (sticky) khi cuộn trang, neo ngay dưới thanh tab. */
-  thead th{position:sticky;top:97px;background:var(--accent-mid);color:var(--accent-deep);text-align:left;padding:10px 10px;font-weight:800;border-bottom:1.5px solid #f0c37e;white-space:nowrap;z-index:30;}
+  thead th{position:sticky;top:var(--sticky-offset,97px);background:var(--accent-mid);color:var(--accent-deep);text-align:left;padding:10px 10px;font-weight:800;border-bottom:1.5px solid #f0c37e;white-space:nowrap;z-index:30;}
   tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:#fef8ee;}
@@ -135,6 +150,7 @@
   .field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1.5px solid var(--line);border-radius:10px;background:#fff;transition:border-color .15s;}
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--brand);}
   .field textarea{min-height:60px;resize:vertical;}
+  .moneyInput{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right;letter-spacing:-0.2px;}
 
   .itemsWrap{margin:10px 0;}
   .itemsTable{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px;}
@@ -633,7 +649,7 @@ const ICON_TRANGTHAI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 const ICON_KHOA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
 const ICON_MOKHOA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
 
-function fmtMoney(n) { n = Number(n) || 0; return n.toLocaleString('vi-VN') + ' đ'; }
+function fmtMoney(n) { n = Number(n) || 0; return '<span class="num">' + n.toLocaleString('vi-VN') + ' đ</span>'; }
 function parseSoTien(val) { return Number(String(val || '').replace(/\D/g, '')) || 0; }
 function formatMoneyInputLive(el) {
   const soChuSoTruocConTro = el.value.slice(0, el.selectionStart || 0).replace(/\D/g, '').length;
@@ -748,6 +764,7 @@ function enterApp(isSetupOnly) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appShell').style.display = 'flex';
   document.getElementById('settingsScriptUrl').value = CONFIG.SCRIPT_URL;
+  setTimeout(capNhatViTriNeo, 0); // đo lại ngay sau khi appShell hiện ra (trước đó header ẩn nên đo ra 0)
   if (STATE.user) {
     document.getElementById('userHoTenLabel').textContent = STATE.user.hoTen;
     document.getElementById('userVaiTroLabel').textContent = vaiTroLabel(STATE.user.vaiTro);
@@ -770,6 +787,20 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('settingsScriptUrl').value = CONFIG.SCRIPT_URL;
   if (STATE.token && STATE.user && CONFIG.SCRIPT_URL) enterApp(false);
 });
+
+/* ---- Đo chiều cao THẬT của header + thanh tab (thay vì đoán số cứng) để neo đúng vị trí tiêu đề bảng
+   khi cuộn trang. Đo lại mỗi khi vào app / đổi cỡ màn hình / xoay ngang-dọc, vì chiều cao có thể đổi
+   (VD tên công ty dài xuống dòng, bàn phím ảo mở trên điện thoại...). ---- */
+function capNhatViTriNeo() {
+  const header = document.querySelector('header.topbar');
+  const tabbar = document.getElementById('tabbar');
+  const headerH = header ? header.offsetHeight : 53;
+  const tabbarH = tabbar ? tabbar.offsetHeight : 44;
+  document.documentElement.style.setProperty('--header-h', headerH + 'px');
+  document.documentElement.style.setProperty('--sticky-offset', (headerH + tabbarH) + 'px');
+}
+window.addEventListener('load', capNhatViTriNeo);
+window.addEventListener('resize', capNhatViTriNeo);
 
 /* ---- Đăng ký Service Worker (bắt buộc để Android cho phép "Cài đặt ứng dụng") ---- */
 if ('serviceWorker' in navigator) {
