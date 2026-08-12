@@ -19,10 +19,10 @@
   :root{
     --ink:#1c1e26;--ink-soft:#5b6472;--paper:#f7f8fc;--card:#ffffff;--line:#e2e6f0;
     --brand:#2456d6;--brand-soft:#e9eefc;--brand-deep:#12296e;
-    --accent:#f7941d;--accent-soft:#fff1de;
+    --accent:#f7941d;--accent-soft:#fff1de;--accent-mid:#fbdfb0;--accent-deep:#8a4a06;
     --good:#15803d;--good-soft:#e7f6ec;--bad:#b91c1c;--bad-soft:#fdeaea;
     --warn:#b3690a;--warn-soft:#fdf1de;--info:#2456d6;--info-soft:#e9eefc;
-    --radius:10px;font-size:15px;
+    --radius:14px;font-size:15px;
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--paper);color:var(--ink);}
@@ -49,13 +49,15 @@
   header.topbar .userInfo{display:flex;align-items:center;gap:8px;flex:0 0 auto;}
   header.topbar .userInfo .who{font-size:11.5px;color:#a9bdf0;text-align:right;line-height:1.35;max-width:100px;}
   header.topbar .userInfo .who span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  header.topbar .logout{background:none;border:1px solid #33509e;color:#e9eefc;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer;flex:0 0 auto;white-space:nowrap;}
+  header.topbar .logout{background:none;border:1px solid #33509e;color:#e9eefc;border-radius:9px;padding:6px 10px;font-size:12px;cursor:pointer;flex:0 0 auto;white-space:nowrap;transition:background .15s;}
+  header.topbar .logout:hover{background:#33509e;}
   @media (max-width:420px){
     header.topbar .userInfo .who{display:none;} /* màn quá nhỏ: ẩn hẳn tên/vai trò, chỉ giữ logo + tên rút gọn + nút đăng xuất */
   }
 
   nav.tabbar{display:flex;overflow-x:auto;background:var(--brand-soft);border-bottom:1px solid #c7d4f5;position:sticky;top:53px;z-index:40;}
-  nav.tabbar button{flex:0 0 auto;padding:12px 14px;background:none;border:none;font-size:13px;font-weight:600;color:var(--brand-deep);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;}
+  nav.tabbar button{flex:0 0 auto;padding:12px 14px;background:none;border:none;font-size:13px;font-weight:600;color:var(--brand-deep);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;transition:background .15s,color .15s;}
+  nav.tabbar button:hover{background:rgba(255,255,255,.5);}
   nav.tabbar button.active{border-bottom-color:var(--accent);background:#fff;color:var(--accent);}
 
   main{flex:1;padding:16px;max-width:1150px;margin:0 auto;width:100%;}
@@ -65,7 +67,8 @@
   h2.viewTitle{font-size:17px;margin:2px 0 14px;}
 
   .cardGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px;}
-  .statCard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;}
+  .statCard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;transition:box-shadow .15s,transform .15s;}
+  .statCard:hover{box-shadow:0 6px 18px rgba(20,40,100,.1);transform:translateY(-2px);}
   .statCard .label{font-size:12px;color:var(--ink-soft);margin-bottom:6px;}
   .statCard .val{font-size:19px;font-weight:700;}
   .statCard.warn .val{color:var(--warn);}
@@ -75,12 +78,17 @@
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
   .panel h3{font-size:14px;margin:0 0 10px;}
 
-  .tableWrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);}
+  /* Bỏ khung cuộn riêng bên trong bảng (trước đây max-height:65vh khiến bảng bị nhốt trong 1 khung nhỏ,
+     nhìn chật) — giờ để CẢ TRANG cuộn chung như app nhà trọ, nhìn rộng rãi hơn. Chỉ giữ cuộn NGANG khi
+     bảng rộng hơn màn hình (điện thoại), còn theo chiều dọc thì trang tự cao lên bình thường. */
+  .tableWrap{overflow-x:auto;overflow-y:visible;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);}
   table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px;}
-  thead th{position:sticky;top:0;background:var(--brand-soft);color:var(--brand-deep);text-align:left;padding:9px 10px;font-weight:700;border-bottom:1px solid #c7d4f5;white-space:nowrap;z-index:30;}
+  /* Hàng tiêu đề: cam nhạt đậm hơn 1 chút (theo màu logo) thay vì xanh nhạt như trước, dễ phân biệt với dữ liệu bên dưới.
+     Vẫn dính (sticky) khi cuộn trang, neo ngay dưới thanh tab. */
+  thead th{position:sticky;top:97px;background:var(--accent-mid);color:var(--accent-deep);text-align:left;padding:10px 10px;font-weight:800;border-bottom:1.5px solid #f0c37e;white-space:nowrap;z-index:30;}
   tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
   tbody tr:last-child td{border-bottom:none;}
-  tbody tr:hover{background:#f4f7ff;}
+  tbody tr:hover{background:#fef8ee;}
   .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap;}
   .tag.good{background:var(--good-soft);color:var(--good);}
   .tag.warn{background:var(--warn-soft);color:var(--warn);}
@@ -89,35 +97,42 @@
   .tag.hh{background:#e6ecfb;color:#1e3a8a;}
   .tag.dv{background:var(--accent-soft);color:#9a5b0a;}
 
-  .rowActions{display:flex;gap:4px;flex-wrap:wrap;}
-  .rowActions button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;}
+  /* Nhóm nút thao tác trong bảng: LUÔN xếp tối đa 3 nút/hàng (grid cố định) thay vì để flex-wrap tự do
+     tràn ra nhiều kiểu khác nhau tuỳ độ rộng cột — nhìn gọn gàng, đều nhau, hàng không bị kéo cao lộn xộn. */
+  .rowActions{display:grid;grid-template-columns:repeat(3,34px);gap:6px;}
+  .rowActions button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:5px 9px;font-size:12px;cursor:pointer;transition:background .15s,border-color .15s,transform .1s;}
+  .rowActions button:hover{background:var(--brand-soft);border-color:var(--brand);}
   .rowActions button.danger{color:var(--bad);border-color:#f3c9c9;}
+  .rowActions button.danger:hover{background:var(--bad-soft);border-color:var(--bad);}
   .rowActions button.primary{color:var(--brand-deep);border-color:#c7d4f5;background:var(--brand-soft);}
   .iconBtn{
     display:inline-flex;align-items:center;justify-content:center;
-    width:33px;height:33px;border-radius:9px;border:1.5px solid var(--line);
-    background:#fff;cursor:pointer;padding:0;color:var(--ink-soft);flex:0 0 auto;
+    width:34px;height:34px;border-radius:11px;border:1.5px solid var(--line);
+    background:#fff;cursor:pointer;padding:0;color:var(--ink-soft);
     transition:background .15s,border-color .15s,color .15s,transform .1s;
   }
   .iconBtn svg{width:16px;height:16px;}
-  .iconBtn:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-deep);}
+  .iconBtn:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-deep);transform:translateY(-1px);}
   .iconBtn:active{transform:scale(.92);}
   .iconBtn.iconDanger{color:var(--bad);border-color:#f3c9c9;}
   .iconBtn.iconDanger:hover{background:var(--bad-soft);border-color:var(--bad);}
   .iconBtn.iconPrimary{color:var(--brand-deep);border-color:#c7d4f5;background:var(--brand-soft);}
 
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
-  .toolbar input[type=text],.toolbar input[type=date]{padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;flex:1;min-width:140px;}
-  .toolbar select{padding:9px;border-radius:8px;border:1.5px solid var(--line);}
-  .btn{padding:9px 15px;border-radius:8px;border:none;background:var(--brand);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;}
+  .toolbar input[type=text],.toolbar input[type=date]{padding:9px 11px;border:1.5px solid var(--line);border-radius:10px;flex:1;min-width:140px;}
+  .toolbar select{padding:9px;border-radius:10px;border:1.5px solid var(--line);}
+  .btn{padding:9px 16px;border-radius:10px;border:none;background:var(--brand);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;transition:background .15s,transform .1s,box-shadow .15s;}
+  .btn:hover{background:var(--brand-deep);box-shadow:0 4px 12px rgba(36,86,214,.25);}
+  .btn:active{transform:scale(.97);}
   .btn.secondary{background:#fff;color:var(--ink);border:1.5px solid var(--line);}
-  .btn.small{padding:6px 11px;font-size:12.5px;}
+  .btn.secondary:hover{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-deep);box-shadow:none;}
+  .btn.small{padding:6px 12px;font-size:12.5px;}
 
   .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .formGrid.full,.formGrid > .span2{grid-column:1/-1;}
   @media (max-width:560px){.formGrid{grid-template-columns:1fr;}}
   .field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
-  .field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1.5px solid var(--line);border-radius:8px;background:#fff;}
+  .field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1.5px solid var(--line);border-radius:10px;background:#fff;transition:border-color .15s;}
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--brand);}
   .field textarea{min-height:60px;resize:vertical;}
 
@@ -125,7 +140,7 @@
   .itemsTable{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px;}
   .itemsTable th{font-size:11.5px;text-align:left;color:var(--ink-soft);padding:6px 6px;}
   .itemsTable td{padding:6px 6px;border-bottom:1px solid var(--line);}
-  .itemRow{border:1.5px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:#fff;}
+  .itemRow{border:1.5px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;background:#fff;transition:border-color .15s;}
   .itemRowSearch{position:relative;margin-bottom:9px;}
   .itemHHSearch{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:9px;font-size:16px;}
   .itemHHSearch:focus{outline:none;border-color:var(--brand);}
@@ -162,7 +177,7 @@
 
   .modalBg{display:none;position:fixed;inset:0;background:rgba(28,17,8,.5);z-index:100;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;}
   .modalBg.active{display:flex;}
-  .modalCard{background:var(--card);border-radius:14px;max-width:680px;width:100%;padding:22px;margin:20px 0;}
+  .modalCard{background:var(--card);border-radius:18px;max-width:680px;width:100%;padding:22px;margin:20px 0;}
   .modalCard h3{margin:0 0 16px;font-size:16px;}
   .modalClose{float:right;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-soft);}
   .modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap;}
@@ -172,16 +187,17 @@
   .muted{color:var(--ink-soft);font-size:12.5px;}
   .subhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
   .segTabs{display:flex;gap:6px;margin-bottom:14px;}
-  .segTabs button{flex:1;padding:9px;border:1.5px solid var(--line);background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+  .segTabs button{flex:1;padding:9px;border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,color .15s,border-color .15s;}
+  .segTabs button:hover{border-color:var(--brand);}
   .segTabs button.active{background:var(--brand);color:#fff;border-color:var(--brand);}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<!-- pdf.js (Mozilla, mã nguồn mở) - đọc chữ trực tiếp từ PDF ký số, không cần OCR, chính xác cao -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<!-- Tesseract.js (mã nguồn mở) - OCR đọc chữ từ ảnh chụp hoá đơn giấy, chạy thẳng trên trình duyệt -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+<!--
+  Đã BỎ tải sẵn xlsx / pdf.js / tesseract.js ở đây (trước đây còn bị tải TRÙNG pdf.js và tesseract.js
+  2 lần mỗi thứ). 3 thư viện này khá nặng — riêng tesseract.js kèm model OCR nặng vài chục MB — nên
+  nếu nhét ở <head> thì trình duyệt phải tải xong hết mới chịu hiện trang, khiến app mở chậm kể cả khi
+  người dùng chỉ cần đăng nhập xem doanh thu. Nay chuyển sang "tải khi cần" (lazy load) bằng hàm
+  caiThuVien() ở cuối trang — chỉ tải đúng lúc người dùng bấm vào chức năng cần thư viện đó.
+-->
 </head>
 <body>
 
@@ -218,6 +234,7 @@
     <button data-tab="suachua">Sửa chữa</button>
     <button data-tab="giacong">Gia công</button>
     <button data-tab="congno">Công nợ</button>
+    <button data-tab="soquy">Sổ quỹ</button>
     <button data-tab="baocao">Báo cáo</button>
     <button data-tab="doitac">Đối tác</button>
     <button data-tab="dongbohd">Đồng bộ HĐ</button>
@@ -231,6 +248,7 @@
     <section class="view active" id="view-dashboard">
       <h2 class="viewTitle">Tổng quan</h2>
       <div class="cardGrid" id="dashCards"></div>
+      <div class="cardGrid" id="dashSoDuQuy" style="margin-top:-8px;"></div>
       <div class="panel">
         <h3>⚠️ Hàng sắp hết (dưới mức tồn tối thiểu)</h3>
         <div id="dashLowStock" class="tableWrap"></div>
@@ -321,6 +339,27 @@
       <h2 class="viewTitle">Công nợ</h2>
       <div class="panel"><h3>Phải thu (khách hàng còn nợ — bán hàng / sửa chữa / gia công)</h3><div class="tableWrap" id="phaiThuWrap"></div></div>
       <div class="panel"><h3>Phải trả (nhà cung cấp / thuê ngoài gia công)</h3><div class="tableWrap" id="phaiTraWrap"></div></div>
+    </section>
+
+    <!-- ---------- SỔ QUỸ ---------- -->
+    <section class="view" id="view-soquy">
+      <h2 class="viewTitle">Sổ quỹ thu chi</h2>
+      <div class="cardGrid" id="soQuyCards"></div>
+      <div class="subhead">
+        <h3 style="margin:0;">Lịch sử thu chi</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn secondary small" id="btnThuTien">+ Thu tiền</button>
+          <button class="btn secondary small" id="btnChiTien">+ Chi tiền</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="field" style="flex:1;min-width:130px;"><label>Từ ngày</label><input type="date" id="quyTuNgay"></div>
+        <div class="field" style="flex:1;min-width:130px;"><label>Đến ngày</label><input type="date" id="quyDenNgay"></div>
+        <div class="field" style="min-width:120px;"><label>Loại</label><select id="quyLocLoai"><option value="">Tất cả</option><option value="Thu">Chỉ Thu</option><option value="Chi">Chỉ Chi</option></select></div>
+        <div class="field" style="min-width:140px;"><label>Phương thức</label><select id="quyLocPT"><option value="">Tất cả</option><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
+        <button class="btn small" id="btnLocQuy" style="align-self:flex-end;">Lọc</button>
+      </div>
+      <div class="tableWrap" id="soQuyTableWrap"></div>
     </section>
 
     <!-- ---------- BÁO CÁO ---------- -->
@@ -493,6 +532,35 @@
         <h3>Kết nối hoá đơn điện tử EasyInvoice</h3>
         <p class="muted">Công ty đang dùng EasyInvoice (SoftDreams). Đồng bộ tự động số hoá đơn cần API key riêng cấp bởi SoftDreams (1900565653 / contact@softdreams.vn). Hiện số hoá đơn được nhập tay tại nút "HĐ" trên từng phiếu (Xuất bán / Sửa chữa / Gia công).</p>
       </div>
+      <div class="panel" id="panelSoDuDauKy">
+        <h3>Số dư đầu kỳ Sổ quỹ</h3>
+        <p class="muted">Chỉ nhập 1 lần khi bắt đầu dùng Sổ quỹ (số tiền mặt/tài khoản đang có trước đó). Các khoản Thu/Chi về sau tự cộng trừ tiếp từ đây — sửa lại số này bất cứ lúc nào nếu cần đối chiếu lại thực tế.</p>
+        <div class="formGrid">
+          <div class="field"><label>Tiền mặt</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoDuTienMat" value="0"></div>
+          <div class="field"><label>Chuyển khoản/Ngân hàng</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoDuChuyenKhoan" value="0"></div>
+          <div class="field"><label>Thẻ</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoDuThe" value="0"></div>
+        </div>
+        <button class="btn" style="margin-top:10px;" id="btnLuuSoDuDauKy">Lưu số dư đầu kỳ</button>
+      </div>
+      <div class="panel" id="panelQRThanhToan">
+        <h3>QR chuyển khoản tự động khớp thanh toán (SePay)</h3>
+        <p class="muted">Điền tài khoản ngân hàng để tạo mã QR nhận tiền trên từng phiếu. Khi khách chuyển khoản có ghi đúng mã phiếu trong nội dung, SePay sẽ gọi về hệ thống và tự động đánh dấu đã thanh toán — không cần nhập tay.</p>
+        <div class="formGrid">
+          <div class="field"><label>Mã Ngân hàng (BIN Napas)</label><input id="fBankBin" placeholder="VD: 970426 (MSB)"></div>
+          <div class="field"><label>Số tài khoản</label><input id="fBankAccountNumber"></div>
+          <div class="field span2"><label>Tên chủ tài khoản (không dấu, in hoa)</label><input id="fBankAccountName" placeholder="VD: CONG TY TNHH DVCN PHUONG LINH"></div>
+        </div>
+        <button class="btn" style="margin-top:10px;" id="btnLuuCauHinhNganHang">Lưu thông tin ngân hàng</button>
+        <div style="margin-top:14px;padding:12px;background:var(--accent-soft);border-radius:10px;">
+          <p style="margin:0 0 6px;font-weight:700;">Bước tiếp theo (làm 1 lần):</p>
+          <ol style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;">
+            <li>Đăng ký tài khoản <a href="https://sepay.vn" target="_blank" rel="noopener">SePay.vn</a>, kết nối với tài khoản ngân hàng công ty.</li>
+            <li>Vào SePay &gt; Cấu hình &gt; Webhooks &gt; Thêm webhook mới, dán đúng URL bên dưới vào ô "URL", chọn sự kiện "Có tiền vào".</li>
+            <li>Từ nay khách chuyển khoản đúng nội dung mã phiếu (hiện sẵn ở khung QR trên phiếu) sẽ được tự động ghi nhận.</li>
+          </ol>
+          <div class="field" style="margin-top:10px;"><label>Webhook URL (dán vào SePay)</label><input readonly id="fWebhookUrl" onclick="this.select()"></div>
+        </div>
+      </div>
       <div class="panel">
         <h3>Nhật ký hoạt động gần đây</h3>
         <button class="btn secondary small" id="btnXemNhatKy">Xem nhật ký</button>
@@ -507,6 +575,28 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ================= TẢI THƯ VIỆN NẶNG THEO NHU CẦU (LAZY LOAD) =================
+   xlsx.js / pdf.js / tesseract.js không còn nhét sẵn ở <head> nữa. Gọi await caiThuVien('xlsx') (hoặc
+   'pdfjs' / 'tesseract') NGAY TRƯỚC đoạn code cần dùng thư viện đó — lần đầu sẽ tải qua mạng (có hiện
+   toast báo đang tải), các lần gọi sau dùng lại luôn vì đã có sẵn trong trang, không tải lại. */
+const _thuVienDaTai = {};
+function caiThuVien(ten) {
+  const nguon = {
+    xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    pdfjs: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    tesseract: 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js'
+  };
+  if (_thuVienDaTai[ten]) return _thuVienDaTai[ten];
+  _thuVienDaTai[ten] = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = nguon[ten];
+    s.onload = () => resolve();
+    s.onerror = () => { delete _thuVienDaTai[ten]; reject(new Error('Không tải được thư viện ' + ten + ' — kiểm tra kết nối mạng.')); };
+    document.body.appendChild(s);
+  });
+  return _thuVienDaTai[ten];
+}
+
 /* ================= CONFIG ================= */
 // ⚠️ URL Apps Script mặc định — khi cần đổi (deploy lại phiên bản mới), sửa trực tiếp giá trị bên dưới,
 // hoặc vào tab Cài đặt trong app để đổi mà không cần sửa code (ưu tiên giá trị đã lưu trong trình duyệt).
@@ -670,6 +760,10 @@ function applyRoleVisibility() {
   const role = STATE.user ? STATE.user.vaiTro : null;
   const isAdmin = role === 'Admin';
   document.querySelectorAll('#tabbar button[data-tab="nguoidung"]').forEach(b => b.style.display = isAdmin ? '' : 'none');
+  const panelQuy = document.getElementById('panelSoDuDauKy');
+  if (panelQuy) panelQuy.style.display = isAdmin ? '' : 'none';
+  const panelQR = document.getElementById('panelQRThanhToan');
+  if (panelQR) panelQR.style.display = isAdmin ? '' : 'none';
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -696,18 +790,59 @@ function switchTab(tab) {
     dashboard: renderDashboard, danhmuc: renderHangHoaTable, nhapkho: renderNhapKhoTable,
     xuatban: renderXuatBanTable, suachua: renderSuaChuaTable, giacong: renderGiaCongTable,
     congno: renderCongNo, doitac: () => { renderKhachHangTable(); renderNhaCungCapTable(); },
-    nguoidung: renderNguoiDungTable,
+    nguoidung: renderNguoiDungTable, soquy: renderSoQuy,
     baocao: () => { renderSoSanhThang(); renderCongNoTheoDoiTac(); }
   };
   if (renderers[tab]) renderers[tab]();
 }
 
 /* ================= LOAD DATA ================= */
+// Gộp tồn kho/giá vốn mới nhất (trả về ngay từ server sau khi lưu phiếu) vào STATE.hangHoaList tại chỗ —
+// khỏi phải gọi getHangHoaList lần nữa chỉ để lấy đúng vài con số vừa đổi.
+function mergeTonKhoVaoState(tonKhoCapNhat) {
+  if (!tonKhoCapNhat) return;
+  Object.keys(tonKhoCapNhat).forEach(maHH => {
+    const hh = STATE.hangHoaList.find(h => h.MaHH === maHH);
+    if (hh) Object.assign(hh, tonKhoCapNhat[maHH]);
+  });
+}
+
+// Danh mục Hàng hoá/Khách hàng/NCC ít thay đổi -> lưu tạm vào localStorage của trình duyệt để lần mở
+// app SAU hiện ra NGAY LẬP TỨC (0.01s, không cần chờ mạng), trong lúc dữ liệu mới nhất được âm thầm tải
+// về phía sau rồi ghi đè lại khi xong. Không cache các danh sách giao dịch (Nhập/Xuất/Sửa chữa/Gia công)
+// vì chúng đổi liên tục, cache dễ gây nhầm lẫn.
+const LS_KEY_DANHMUC = 'qlbh_danhmuc_cache_v1';
+function taiDanhMucTuLocalStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY_DANHMUC);
+    if (!raw) return false;
+    const cache = JSON.parse(raw);
+    STATE.hangHoaList = cache.hangHoaList || [];
+    STATE.khachHangList = cache.khachHangList || [];
+    STATE.nhaCungCapList = cache.nhaCungCapList || [];
+    return true;
+  } catch (e) { return false; }
+}
+function luuDanhMucVaoLocalStorage() {
+  try {
+    localStorage.setItem(LS_KEY_DANHMUC, JSON.stringify({
+      hangHoaList: STATE.hangHoaList, khachHangList: STATE.khachHangList, nhaCungCapList: STATE.nhaCungCapList
+    }));
+  } catch (e) { /* localStorage đầy hoặc bị trình duyệt chặn -> bỏ qua, không chặn luồng chính */ }
+}
+
 function loadAllData() {
+  // 1) Hiện ngay danh mục đã lưu trong máy từ lần trước (nếu có) trong lúc chờ mạng phản hồi.
+  if (taiDanhMucTuLocalStorage()) { drawHangHoaTable(); }
+
+  // 2) Gọi ngầm lấy dữ liệu mới nhất từ server (nguồn đúng/đầy đủ), ghi đè lại khi có kết quả.
   apiCall('getInitData').then(data => {
     STATE.hangHoaList = data.hangHoaList; STATE.khachHangList = data.khachHangList; STATE.nhaCungCapList = data.nhaCungCapList;
     STATE.nhapKhoList = data.nhapKhoList; STATE.xuatBanList = data.xuatBanList; STATE.suaChuaList = data.suaChuaList; STATE.giaCongList = data.giaCongList;
+    luuDanhMucVaoLocalStorage();
     renderDashboard();
+    const viewDanhMuc = document.getElementById('view-danhmuc');
+    if (viewDanhMuc && viewDanhMuc.classList.contains('active')) drawHangHoaTable();
   }).catch(err => showToast('Lỗi tải dữ liệu: ' + err.message));
 }
 
@@ -734,6 +869,15 @@ function renderDashboard() {
       </tbody></table>`;
     }
   }).catch(err => showToast('Lỗi: ' + err.message));
+  // Số dư quỹ hiện tại — gọi riêng (không nằm trong getDashboard) để không phải sửa cache dashboard.
+  apiCall('getSoDuQuy').then(soDu => {
+    const wrap = document.getElementById('dashSoDuQuy');
+    if (!wrap) return;
+    wrap.innerHTML = [
+      { label: 'Số dư tiền mặt', val: fmtMoney(soDu.tienMat.soDu), cls: soDu.tienMat.soDu < 0 ? 'bad' : 'good' },
+      { label: 'Số dư chuyển khoản', val: fmtMoney(soDu.chuyenKhoan.soDu), cls: soDu.chuyenKhoan.soDu < 0 ? 'bad' : 'good' }
+    ].map(c => `<div class="statCard ${c.cls}"><div class="label">${c.label}</div><div class="val">${c.val}</div></div>`).join('');
+  }).catch(() => {});
 }
 
 /* ================= DANH MỤC HÀNG HOÁ ================= */
@@ -814,7 +958,17 @@ function saveHH(maHH) {
     HeSoQuyDoi: Number(document.getElementById('fHeSoQuyDoi').value) || 0
   };
   if (!data.TenHH) { showToast('Vui lòng nhập tên.'); return; }
-  apiCall('saveHangHoa', { data }).then(() => { closeModal(); showToast('Đã lưu.'); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+  apiCall('saveHangHoa', { data }).then(res => {
+    closeModal(); showToast('Đã lưu.');
+    // Gộp trực tiếp bản ghi vừa lưu vào STATE và vẽ lại bảng ngay — khỏi gọi mạng lại getHangHoaList.
+    if (res && res.hangHoa) {
+      const idx = STATE.hangHoaList.findIndex(h => h.MaHH === res.hangHoa.MaHH);
+      if (idx >= 0) STATE.hangHoaList[idx] = res.hangHoa; else STATE.hangHoaList.unshift(res.hangHoa);
+      drawHangHoaTable();
+    } else {
+      renderHangHoaTable();
+    }
+  }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function deleteHH(maHH) {
   if (!confirm('Xoá mục này khỏi danh mục?')) return;
@@ -1071,12 +1225,25 @@ function readItemsFrom(containerId) {
 }
 
 /* ================= NHẬP KHO ================= */
+const STATE_DA_TAI_HET = {}; // đánh dấu tab nào đã bấm "Xem toàn bộ lịch sử" rồi (khỏi giới hạn lại)
+const GIOI_HAN_MAC_DINH = 200; // tải 200 giao dịch gần đây nhất theo mặc định, đủ dùng đa số ngày làm việc
+
 function renderNhapKhoTable() {
-  apiCall('getNhapKhoList').then(list => {
+  apiCall('getNhapKhoList', { gioiHan: STATE_DA_TAI_HET.nhap ? null : GIOI_HAN_MAC_DINH }).then(list => {
     STATE.nhapKhoList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
+    drawNhapKhoTable();
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function xemToanBoLichSu(loai) {
+  STATE_DA_TAI_HET[loai] = true;
+  showToast('Đang tải toàn bộ lịch sử...');
+  ({ nhap: renderNhapKhoTable, xuat: renderXuatBanTable, suachua: renderSuaChuaTable, giacong: renderGiaCongTable })[loai]();
+}
+function drawNhapKhoTable() {
     const wrap = document.getElementById('nhapTableWrap');
-    if (list.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu nhập kho nào.</div>'; return; }
-    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Nhà cung cấp</th><th>Số HĐ mua vào</th><th>Tổng thanh toán</th><th>Đã trả</th><th>Còn nợ</th><th>Người tạo</th><th></th></tr></thead><tbody>
+    if (STATE.nhapKhoList.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu nhập kho nào.</div>'; return; }
+    const goiYXemThem = !STATE_DA_TAI_HET.nhap ? `<p class="muted" style="margin:8px 0;">Đang hiện ${STATE.nhapKhoList.length} phiếu gần đây (+ các phiếu còn nợ dù cũ). <a href="#" onclick="xemToanBoLichSu('nhap');return false;">Xem toàn bộ lịch sử</a></p>` : '';
+    wrap.innerHTML = `${goiYXemThem}<table><thead><tr><th>Ngày</th><th>Nhà cung cấp</th><th>Số HĐ mua vào</th><th>Tổng thanh toán</th><th>Đã trả</th><th>Còn nợ</th><th>Người tạo</th><th></th></tr></thead><tbody>
       ${STATE.nhapKhoList.map(n => { const conNo = (Number(n.TongTien) || 0) - (Number(n.DaTra) || 0); return `<tr>
         <td>${fmtDate(n.Ngay)}</td><td>${n.TenNCC || '—'}</td><td>${n.SoHDMuaVao || '—'}</td>
         <td>${fmtMoney(n.TongTien)}</td><td>${fmtMoney(n.DaTra)}</td>
@@ -1085,7 +1252,6 @@ function renderNhapKhoTable() {
         <td class="rowActions"><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('nhap','${n.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('nhap','${n.IDPhieu}')">${ICON_XOA}</button></td>
       </tr>`; }).join('')}
     </tbody></table>`;
-  }).catch(err => showToast('Lỗi: ' + err.message));
 }
 document.getElementById('btnAddNhap').addEventListener('click', openPhieuNhapForm);
 
@@ -1115,16 +1281,32 @@ function submitPhieuNhap() {
     MaNCC: doiTacSel.value, TenNCC: doiTacOpt ? doiTacOpt.dataset.ten : '',
     SoHDMuaVao: document.getElementById('fSoHD').value, items
   };
-  apiCall('saveNhapKho', { data }).then(() => { closeModal(); showToast('Đã lưu phiếu nhập kho.'); renderNhapKhoTable(); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+  apiCall('saveNhapKho', { data }).then(res => {
+    closeModal(); showToast('Đã lưu phiếu nhập kho.');
+    // Gộp thẳng phiếu + tồn kho mới vào STATE và vẽ lại — khỏi phải gọi mạng lại 2 lần (getNhapKhoList + getHangHoaList).
+    if (res && res.phieu) {
+      STATE.nhapKhoList.unshift(res.phieu);
+      mergeTonKhoVaoState(res.tonKhoCapNhat);
+      drawNhapKhoTable();
+      drawHangHoaTable();
+    } else {
+      renderNhapKhoTable(); renderHangHoaTable();
+    }
+  }).catch(err => showToast('Lỗi: ' + err.message));
 }
 
 /* ================= XUẤT BÁN ================= */
 function renderXuatBanTable() {
-  apiCall('getXuatBanList').then(list => {
+  apiCall('getXuatBanList', { gioiHan: STATE_DA_TAI_HET.xuat ? null : GIOI_HAN_MAC_DINH }).then(list => {
     STATE.xuatBanList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
+    drawXuatBanTable();
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function drawXuatBanTable() {
     const wrap = document.getElementById('xuatTableWrap');
-    if (list.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu xuất bán nào.</div>'; return; }
-    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Khách hàng</th><th>Số HĐĐT</th><th>Tổng thanh toán</th><th>Đã thu</th><th>Còn nợ</th><th>Trạng thái HĐ</th><th>Người tạo</th><th></th></tr></thead><tbody>
+    if (STATE.xuatBanList.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu xuất bán nào.</div>'; return; }
+    const goiYXemThem = !STATE_DA_TAI_HET.xuat ? `<p class="muted" style="margin:8px 0;">Đang hiện ${STATE.xuatBanList.length} phiếu gần đây (+ các phiếu còn nợ/chưa xuất HĐ dù cũ). <a href="#" onclick="xemToanBoLichSu('xuat');return false;">Xem toàn bộ lịch sử</a></p>` : '';
+    wrap.innerHTML = `${goiYXemThem}<table><thead><tr><th>Ngày</th><th>Khách hàng</th><th>Số HĐĐT</th><th>Tổng thanh toán</th><th>Đã thu</th><th>Còn nợ</th><th>Trạng thái HĐ</th><th>Người tạo</th><th></th></tr></thead><tbody>
       ${STATE.xuatBanList.map(x => { const conNo = (Number(x.TongTien) || 0) - (Number(x.DaThu) || 0); return `<tr>
         <td>${fmtDate(x.Ngay)}</td><td>${x.TenKH || 'Khách lẻ'}</td><td>${x.SoHDDT || '—'}</td>
         <td>${fmtMoney(x.TongTien)}</td><td>${fmtMoney(x.DaThu)}</td>
@@ -1134,7 +1316,6 @@ function renderXuatBanTable() {
         <td class="rowActions"><button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('xuat','${x.IDPhieu}')">${ICON_HD}</button><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('xuat','${x.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('xuat','${x.IDPhieu}')">${ICON_XOA}</button></td>
       </tr>`; }).join('')}
     </tbody></table>`;
-  }).catch(err => showToast('Lỗi: ' + err.message));
 }
 document.getElementById('btnAddXuat').addEventListener('click', openPhieuXuatForm);
 
@@ -1164,18 +1345,33 @@ function submitPhieuXuat() {
     MaKH: doiTacSel.value, TenKH: doiTacOpt ? doiTacOpt.dataset.ten : '',
     MSTKhachHang: document.getElementById('fMSTKhach').value, items
   };
-  apiCall('saveXuatBan', { data }).then(() => { closeModal(); showToast('Đã lưu phiếu xuất bán.'); renderXuatBanTable(); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+  apiCall('saveXuatBan', { data }).then(res => {
+    closeModal(); showToast('Đã lưu phiếu xuất bán.');
+    if (res && res.phieu) {
+      STATE.xuatBanList.unshift(res.phieu);
+      mergeTonKhoVaoState(res.tonKhoCapNhat);
+      drawXuatBanTable();
+      drawHangHoaTable();
+    } else {
+      renderXuatBanTable(); renderHangHoaTable();
+    }
+  }).catch(err => showToast('Lỗi: ' + err.message));
 }
 
 /* ================= SỬA CHỮA ================= */
 function renderSuaChuaTable() {
-  apiCall('getSuaChuaList').then(list => {
+  apiCall('getSuaChuaList', { gioiHan: STATE_DA_TAI_HET.suachua ? null : GIOI_HAN_MAC_DINH }).then(list => {
     STATE.suaChuaList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
+    drawSuaChuaTable();
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function drawSuaChuaTable() {
     const filterTT = document.getElementById('filterTrangThaiSC').value;
     const filtered = filterTT ? STATE.suaChuaList.filter(x => x.TrangThai === filterTT) : STATE.suaChuaList;
     const wrap = document.getElementById('suaChuaTableWrap');
     if (filtered.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu sửa chữa nào.</div>'; return; }
-    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Khách hàng</th><th>Thiết bị</th><th>Trạng thái</th><th>Tổng thanh toán</th><th>Còn nợ</th><th>Kỹ thuật viên</th><th></th></tr></thead><tbody>
+    const goiYXemThem = !STATE_DA_TAI_HET.suachua ? `<p class="muted" style="margin:8px 0;">Đang hiện ${STATE.suaChuaList.length} phiếu gần đây (+ các phiếu chưa xong dù cũ). <a href="#" onclick="xemToanBoLichSu('suachua');return false;">Xem toàn bộ lịch sử</a></p>` : '';
+    wrap.innerHTML = `${goiYXemThem}<table><thead><tr><th>Ngày</th><th>Khách hàng</th><th>Thiết bị</th><th>Trạng thái</th><th>Tổng thanh toán</th><th>Còn nợ</th><th>Kỹ thuật viên</th><th></th></tr></thead><tbody>
       ${filtered.map(s => { const conNo = (Number(s.TongTien) || 0) - (Number(s.DaThu) || 0); return `<tr>
         <td>${fmtDate(s.Ngay)}</td><td>${s.TenKH || '—'}<div class="muted">${s.SDT || ''}</div></td>
         <td>${s.ThietBi || ''}</td><td>${trangThaiSCTag(s.TrangThai)}</td>
@@ -1190,9 +1386,8 @@ function renderSuaChuaTable() {
         </td>
       </tr>`; }).join('')}
     </tbody></table>`;
-  }).catch(err => showToast('Lỗi: ' + err.message));
 }
-document.getElementById('filterTrangThaiSC').addEventListener('change', renderSuaChuaTable);
+document.getElementById('filterTrangThaiSC').addEventListener('change', drawSuaChuaTable);
 document.getElementById('btnAddSuaChua').addEventListener('click', openPhieuSuaChuaForm);
 
 function openPhieuSuaChuaForm() {
@@ -1245,7 +1440,17 @@ function submitPhieuSuaChua() {
     TrangThai: 'TiepNhan', items
   };
   if (!data.ThietBi) { showToast('Vui lòng nhập tên thiết bị.'); return; }
-  apiCall('saveSuaChua', { data }).then(() => { closeModal(); showToast('Đã lưu phiếu tiếp nhận sửa chữa.'); renderSuaChuaTable(); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+  apiCall('saveSuaChua', { data }).then(res => {
+    closeModal(); showToast('Đã lưu phiếu tiếp nhận sửa chữa.');
+    if (res && res.phieu) {
+      STATE.suaChuaList.unshift(res.phieu);
+      mergeTonKhoVaoState(res.tonKhoCapNhat);
+      drawSuaChuaTable();
+      drawHangHoaTable();
+    } else {
+      renderSuaChuaTable(); renderHangHoaTable();
+    }
+  }).catch(err => showToast('Lỗi: ' + err.message));
 }
 
 function viewPhieuSuaChua(idPhieu) {
@@ -1270,8 +1475,12 @@ function viewPhieuSuaChua(idPhieu) {
         <span style="font-size:16px;font-weight:800;color:var(--brand-deep);">Tổng thanh toán: ${fmtMoney(phieu.TongTien)}</span>
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
+      ${conNo > 0 ? `<div style="text-align:right;margin-bottom:8px;"><button class="btn secondary small" onclick="toggleQR('${idPhieu}',${conNo})">Hiện mã QR chuyển khoản</button></div><div id="qrBox_${idPhieu}" style="display:none;text-align:right;"></div>` : ''}
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>Ghi nhận thu tiền từ khách</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div></div>
+        <div class="formGrid">
+          <div class="field span2"><label>Ghi nhận thu tiền từ khách</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div>
+          <div class="field span2"><label>Phương thức</label><select id="fPhuongThucTT"><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
+        </div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThuSuaChua('${idPhieu}')">Ghi nhận thanh toán</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
@@ -1280,7 +1489,8 @@ function viewPhieuSuaChua(idPhieu) {
 function ghiNhanThuSuaChua(idPhieu) {
   const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
   if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
-  apiCall('capNhatDaThuSuaChua', { idPhieu, soTien }).then(() => { closeModal(); showToast('Đã ghi nhận thanh toán.'); renderSuaChuaTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
+  const phuongThuc = document.getElementById('fPhuongThucTT').value;
+  apiCall('capNhatDaThuSuaChua', { idPhieu, soTien, phuongThuc }).then(() => { closeModal(); showToast('Đã ghi nhận thanh toán.'); renderSuaChuaTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function openCapNhatTrangThaiSC(idPhieu) {
   const phieu = STATE.suaChuaList.find(p => p.IDPhieu === idPhieu);
@@ -1308,13 +1518,18 @@ function trangThaiGCLabel(v) { return { TiepNhan: 'Tiếp nhận', DangGiaCong: 
 function trangThaiGCTag(v) { const map = { TiepNhan: 'info', DangGiaCong: 'warn', HoanThanh: 'good', DaGiao: 'good' }; return `<span class="tag ${map[v] || 'info'}">${trangThaiGCLabel(v)}</span>`; }
 
 function renderGiaCongTable() {
-  apiCall('getGiaCongList').then(list => {
+  apiCall('getGiaCongList', { gioiHan: STATE_DA_TAI_HET.giacong ? null : GIOI_HAN_MAC_DINH }).then(list => {
     STATE.giaCongList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
+    drawGiaCongTable();
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function drawGiaCongTable() {
     const filterLoai = document.getElementById('filterLoaiGC').value;
     const filtered = filterLoai ? STATE.giaCongList.filter(g => g.Loai === filterLoai) : STATE.giaCongList;
     const wrap = document.getElementById('giaCongTableWrap');
     if (filtered.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu gia công nào.</div>'; return; }
-    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Đối tác</th><th>Công việc</th><th>Trạng thái</th><th>Chi phí (sau thuế)</th><th>Còn nợ</th><th></th></tr></thead><tbody>
+    const goiYXemThem = !STATE_DA_TAI_HET.giacong ? `<p class="muted" style="margin:8px 0;">Đang hiện ${STATE.giaCongList.length} phiếu gần đây (+ các phiếu chưa xong dù cũ). <a href="#" onclick="xemToanBoLichSu('giacong');return false;">Xem toàn bộ lịch sử</a></p>` : '';
+    wrap.innerHTML = `${goiYXemThem}<table><thead><tr><th>Ngày</th><th>Loại</th><th>Đối tác</th><th>Công việc</th><th>Trạng thái</th><th>Chi phí (sau thuế)</th><th>Còn nợ</th><th></th></tr></thead><tbody>
       ${filtered.map(g => {
         const isThu = g.Loai === 'NhanGiaCongChoKhach';
         const daXong = isThu ? Number(g.DaThu) || 0 : Number(g.DaTra) || 0;
@@ -1334,9 +1549,8 @@ function renderGiaCongTable() {
         </tr>`;
       }).join('')}
     </tbody></table>`;
-  }).catch(err => showToast('Lỗi: ' + err.message));
 }
-document.getElementById('filterLoaiGC').addEventListener('change', renderGiaCongTable);
+document.getElementById('filterLoaiGC').addEventListener('change', drawGiaCongTable);
 document.getElementById('btnAddGiaCong').addEventListener('click', () => openPhieuGiaCongForm());
 
 function openPhieuGiaCongForm() {
@@ -1394,7 +1608,17 @@ function submitPhieuGiaCong() {
     TrangThai: 'TiepNhan', items
   };
   if (!data.MoTaCongViec) { showToast('Vui lòng nhập mô tả công việc.'); return; }
-  apiCall('saveGiaCong', { data }).then(() => { closeModal(); showToast('Đã lưu phiếu gia công.'); renderGiaCongTable(); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+  apiCall('saveGiaCong', { data }).then(res => {
+    closeModal(); showToast('Đã lưu phiếu gia công.');
+    if (res && res.phieu) {
+      STATE.giaCongList.unshift(res.phieu);
+      mergeTonKhoVaoState(res.tonKhoCapNhat);
+      drawGiaCongTable();
+      drawHangHoaTable();
+    } else {
+      renderGiaCongTable(); renderHangHoaTable();
+    }
+  }).catch(err => showToast('Lỗi: ' + err.message));
 }
 
 function viewPhieuGiaCong(idPhieu) {
@@ -1418,8 +1642,12 @@ function viewPhieuGiaCong(idPhieu) {
         <span style="font-size:16px;font-weight:800;color:var(--brand-deep);">Tổng thanh toán: ${fmtMoney(phieu.ChiPhiGiaCong)}</span>
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
+      ${conNo > 0 && isThu ? `<div style="text-align:right;margin-bottom:8px;"><button class="btn secondary small" onclick="toggleQR('${idPhieu}',${conNo})">Hiện mã QR chuyển khoản</button></div><div id="qrBox_${idPhieu}" style="display:none;text-align:right;"></div>` : ''}
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>${isThu ? 'Ghi nhận thu tiền từ khách' : 'Ghi nhận trả tiền cho bên gia công'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div></div>
+        <div class="formGrid">
+          <div class="field span2"><label>${isThu ? 'Ghi nhận thu tiền từ khách' : 'Ghi nhận trả tiền cho bên gia công'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div>
+          <div class="field span2"><label>Phương thức</label><select id="fPhuongThucTT"><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
+        </div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanGC('${idPhieu}','${isThu ? 'DaThu' : 'DaTra'}')">Ghi nhận</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
@@ -1428,7 +1656,8 @@ function viewPhieuGiaCong(idPhieu) {
 function ghiNhanThanhToanGC(idPhieu, loaiTien) {
   const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
   if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
-  apiCall('capNhatThanhToanGiaCong', { idPhieu, loaiTien, soTien }).then(() => { closeModal(); showToast('Đã ghi nhận.'); renderGiaCongTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
+  const phuongThuc = document.getElementById('fPhuongThucTT').value;
+  apiCall('capNhatThanhToanGiaCong', { idPhieu, loaiTien, soTien, phuongThuc }).then(() => { closeModal(); showToast('Đã ghi nhận.'); renderGiaCongTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function openCapNhatTrangThaiGC(idPhieu) {
   const phieu = STATE.giaCongList.find(p => p.IDPhieu === idPhieu);
@@ -1492,8 +1721,12 @@ function viewPhieuNhapXuat(loai, idPhieu) {
         <span style="font-size:16px;font-weight:800;color:var(--brand-deep);">Tổng thanh toán: ${fmtMoney(phieu.TongTien)}</span>
       </div>
       <p class="muted" style="text-align:right;">Còn nợ: <b>${fmtMoney(conNo)}</b></p>
+      ${conNo > 0 && loai === 'xuat' ? `<div style="text-align:right;margin-bottom:8px;"><button class="btn secondary small" onclick="toggleQR('${idPhieu}',${conNo})">Hiện mã QR chuyển khoản</button></div><div id="qrBox_${idPhieu}" style="display:none;text-align:right;"></div>` : ''}
       ${conNo > 0 ? `
-        <div class="formGrid"><div class="field span2"><label>${loai === 'nhap' ? 'Ghi nhận thanh toán cho NCC' : 'Ghi nhận thu tiền từ khách'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div></div>
+        <div class="formGrid">
+          <div class="field span2"><label>${loai === 'nhap' ? 'Ghi nhận thanh toán cho NCC' : 'Ghi nhận thu tiền từ khách'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div>
+          <div class="field span2"><label>Phương thức</label><select id="fPhuongThucTT"><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
+        </div>
         <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanNX('${loai}','${idPhieu}')">Ghi nhận thanh toán</button></div>
       ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
@@ -1502,8 +1735,9 @@ function viewPhieuNhapXuat(loai, idPhieu) {
 function ghiNhanThanhToanNX(loai, idPhieu) {
   const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
   if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  const phuongThuc = document.getElementById('fPhuongThucTT').value;
   const action = loai === 'nhap' ? 'capNhatDaTraNCC' : 'capNhatDaThuKH';
-  apiCall(action, { idPhieu, soTien }).then(() => {
+  apiCall(action, { idPhieu, soTien, phuongThuc }).then(() => {
     closeModal(); showToast('Đã ghi nhận thanh toán.');
     if (loai === 'nhap') renderNhapKhoTable(); else renderXuatBanTable();
     renderCongNo();
@@ -1537,6 +1771,118 @@ function renderCongNo() {
       </tbody></table>`;
     }
   }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+/* ================= SỔ QUỸ ================= */
+const NHOM_MUC_THU_LABEL = { BanHang: 'Bán hàng', SuaChua: 'Sửa chữa', GiaCong: 'Gia công', ThuKhac: 'Thu khác' };
+const NHOM_MUC_CHI_LABEL = { MuaHang: 'Mua hàng', Luong: 'Lương nhân viên', ThueMatBang: 'Thuê mặt bằng', DienNuoc: 'Điện nước', HoaHong: 'Hoa hồng', ChiKhac: 'Chi khác' };
+function nhomMucLabel(loai, nhomMuc) { return (loai === 'Thu' ? NHOM_MUC_THU_LABEL : NHOM_MUC_CHI_LABEL)[nhomMuc] || nhomMuc; }
+function phuongThucLabel(pt) { return { TienMat: 'Tiền mặt', ChuyenKhoan: 'Chuyển khoản', The: 'Thẻ' }[pt] || pt; }
+function nguonGocLabel(ng) {
+  if (!ng || ng === 'TuDo') return '<span class="muted">Nhập tay</span>';
+  const [sheet, id] = ng.split(':');
+  const map = { XuatBan: 'Xuất bán', NhapKho: 'Nhập kho', SuaChua: 'Sửa chữa', GiaCong: 'Gia công' };
+  return `${map[sheet] || sheet} <span class="muted">${id || ''}</span>`;
+}
+
+(function initQuyDates() {
+  const now = new Date();
+  document.getElementById('quyTuNgay').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().substring(0, 10);
+  document.getElementById('quyDenNgay').value = todayISO();
+})();
+document.getElementById('btnLocQuy').addEventListener('click', renderSoQuy);
+
+/* ================= QR CHUYỂN KHOẢN NHẬN TIỀN ================= */
+// Hiện mã QR VietQR (dùng dịch vụ ảnh miễn phí img.vietqr.io — phù hợp vì chỉ tạo 1 mã QR/lần xem
+// phiếu, không phải sinh hàng loạt) với số tiền = còn nợ, nội dung = đúng mã phiếu để hệ thống SePay tự
+// động khớp và đánh dấu đã thanh toán khi khách chuyển khoản (xem Cài đặt > QR chuyển khoản tự động).
+function taoKhungQR(idPhieu, soTien) {
+  const el = document.getElementById('qrBox_' + idPhieu);
+  if (!el) return;
+  apiCall('getThongTinNganHang').then(c => {
+    if (!c.bankBin || !c.bankAccountNumber) {
+      el.innerHTML = '<p class="muted">Chưa cấu hình tài khoản ngân hàng (Admin vào Cài đặt để bật QR tự động).</p>';
+      return;
+    }
+    const url = `https://img.vietqr.io/image/${encodeURIComponent(c.bankBin)}-${encodeURIComponent(c.bankAccountNumber)}-compact2.png?amount=${Math.round(soTien)}&addInfo=${encodeURIComponent(idPhieu)}&accountName=${encodeURIComponent(c.bankAccountName || '')}`;
+    el.innerHTML = `<img src="${url}" alt="QR chuyển khoản" style="width:220px;max-width:100%;border-radius:10px;border:1px solid var(--line);">
+      <p class="muted" style="margin-top:6px;">Nội dung CK: <b>${idPhieu}</b> — hệ thống sẽ tự đánh dấu đã thanh toán khi nhận được tiền đúng nội dung này.</p>`;
+  }).catch(() => { el.innerHTML = '<p class="muted">Không tải được mã QR.</p>'; });
+}
+function toggleQR(idPhieu, soTien) {
+  const el = document.getElementById('qrBox_' + idPhieu);
+  if (!el) return;
+  const dangAn = el.style.display === 'none' || !el.innerHTML;
+  el.style.display = dangAn ? 'block' : 'none';
+  if (dangAn && !el.innerHTML) taoKhungQR(idPhieu, soTien);
+}
+
+function renderSoQuy() {
+  Promise.all([apiCall('getSoDuQuy'), apiCall('getSoQuyList', {
+    tuNgay: document.getElementById('quyTuNgay').value,
+    denNgay: document.getElementById('quyDenNgay').value,
+    loai: document.getElementById('quyLocLoai').value,
+    phuongThuc: document.getElementById('quyLocPT').value
+  })]).then(([soDu, list]) => {
+    const cards = [
+      { label: 'Số dư tiền mặt', val: fmtMoney(soDu.tienMat.soDu), cls: soDu.tienMat.soDu < 0 ? 'bad' : 'good' },
+      { label: 'Số dư chuyển khoản', val: fmtMoney(soDu.chuyenKhoan.soDu), cls: soDu.chuyenKhoan.soDu < 0 ? 'bad' : 'good' },
+      { label: 'Số dư thẻ', val: fmtMoney(soDu.the.soDu), cls: soDu.the.soDu < 0 ? 'bad' : '' },
+      { label: 'Tổng thu (theo bộ lọc)', val: fmtMoney(list.filter(r => r.Loai === 'Thu').reduce((s, r) => s + Number(r.SoTien), 0)), cls: 'good' },
+      { label: 'Tổng chi (theo bộ lọc)', val: fmtMoney(list.filter(r => r.Loai === 'Chi').reduce((s, r) => s + Number(r.SoTien), 0)), cls: 'bad' }
+    ];
+    document.getElementById('soQuyCards').innerHTML = cards.map(c => `<div class="statCard ${c.cls}"><div class="label">${c.label}</div><div class="val">${c.val}</div></div>`).join('');
+
+    const wrap = document.getElementById('soQuyTableWrap');
+    if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có khoản thu chi nào trong khoảng đã chọn.</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Nhóm mục</th><th>Số tiền</th><th>Phương thức</th><th>Nguồn gốc</th><th>Ghi chú</th><th></th></tr></thead><tbody>
+      ${list.map(r => `<tr>
+        <td>${fmtDate(r.Ngay)}</td>
+        <td>${r.Loai === 'Thu' ? '<span class="tag good">Thu</span>' : '<span class="tag bad">Chi</span>'}</td>
+        <td>${nhomMucLabel(r.Loai, r.NhomMuc)}</td>
+        <td>${fmtMoney(r.SoTien)}</td>
+        <td>${phuongThucLabel(r.PhuongThuc)}</td>
+        <td>${nguonGocLabel(r.NguonGoc)}</td>
+        <td class="muted">${r.MoTa || ''}</td>
+        <td class="rowActions">${r.NguonGoc === 'TuDo' ? `<button class="iconBtn iconDanger" title="Xoá" onclick="xoaThuChiUI('${r.IDPhieu}')">${ICON_XOA}</button>` : ''}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+function moFormThuChi(loai) {
+  const danhSachNhom = loai === 'Thu' ? NHOM_MUC_THU_LABEL : NHOM_MUC_CHI_LABEL;
+  const nhomOptions = Object.keys(danhSachNhom).map(k => `<option value="${k}">${danhSachNhom[k]}</option>`).join('');
+  openModal(`
+    <button class="modalClose" onclick="closeModal()">&times;</button>
+    <h3>${loai === 'Thu' ? '+ Thu tiền' : '+ Chi tiền'}</h3>
+    <div class="formGrid">
+      <div class="field"><label>Ngày</label><input type="date" id="fNgay" value="${todayISO()}"></div>
+      <div class="field"><label>Nhóm mục</label><select id="fNhomMuc">${nhomOptions}</select></div>
+      <div class="field"><label>Số tiền</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTien" placeholder="Số tiền"></div>
+      <div class="field"><label>Phương thức</label><select id="fPhuongThuc"><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
+      <div class="field span2"><label>Ghi chú</label><input id="fMoTa" placeholder="VD: Lương tháng 8, tiền điện T8..."></div>
+    </div>
+    <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="submitThuChi('${loai}')">Lưu</button></div>
+  `);
+}
+document.getElementById('btnThuTien').addEventListener('click', () => moFormThuChi('Thu'));
+document.getElementById('btnChiTien').addEventListener('click', () => moFormThuChi('Chi'));
+
+function submitThuChi(loai) {
+  const soTien = parseSoTien(document.getElementById('fSoTien').value);
+  if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  const data = {
+    Loai: loai, Ngay: document.getElementById('fNgay').value,
+    NhomMuc: document.getElementById('fNhomMuc').value, SoTien: soTien,
+    PhuongThuc: document.getElementById('fPhuongThuc').value,
+    MoTa: document.getElementById('fMoTa').value.trim()
+  };
+  apiCall('saveThuChi', { data }).then(() => { closeModal(); showToast('Đã ghi nhận.'); renderSoQuy(); }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function xoaThuChiUI(idPhieu) {
+  if (!confirm('Xoá khoản thu chi này?')) return;
+  apiCall('xoaThuChi', { idPhieu }).then(() => { showToast('Đã xoá.'); renderSoQuy(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
 
 /* ================= BÁO CÁO ================= */
@@ -1773,10 +2119,12 @@ function parseMoney(val) {
   return digits ? Number(digits) : NaN;
 }
 
-document.getElementById('btnDocFile').addEventListener('click', () => {
+document.getElementById('btnDocFile').addEventListener('click', async () => {
   const fileInput = document.getElementById('dongboFile');
   if (!fileInput.files.length) { showToast('Chọn file trước.'); return; }
   const file = fileInput.files[0];
+  showToast('Đang tải thư viện đọc Excel...');
+  await caiThuVien('xlsx');
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -2056,6 +2404,7 @@ let PDFANH_ROWS = [];
 // Đọc PDF: ưu tiên lấy chữ có sẵn trong file (PDF ký số là văn bản thật, không phải ảnh) — chính xác cao.
 // Nếu trang không có chữ (PDF thực chất là ảnh scan chèn vào) thì mới chuyển sang chụp ảnh trang & chạy OCR.
 async function docChuTuPDF(file) {
+  await caiThuVien('pdfjs');
   const buf = await file.arrayBuffer();
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -2082,6 +2431,7 @@ async function docChuTuPDF(file) {
   if (coChuThat) return { text: toanBoChu, nguon: 'pdf-text' };
 
   // PDF không có lớp chữ (khả năng là ảnh scan) -> chụp ảnh từng trang rồi OCR
+  await caiThuVien('tesseract');
   let chuOCR = '';
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -2096,6 +2446,7 @@ async function docChuTuPDF(file) {
 }
 
 async function docChuTuAnh(file) {
+  await caiThuVien('tesseract');
   const ket = await Tesseract.recognize(file, 'vie+eng');
   return { text: ket.data.text, nguon: 'ocr-anh' };
 }
@@ -2277,10 +2628,12 @@ document.getElementById('btnXacNhanPdfAnh').addEventListener('click', () => {
 let LICHSU_HEADERS = [];
 let LICHSU_ROWS = [];
 
-document.getElementById('btnDocFileLichSu').addEventListener('click', () => {
+document.getElementById('btnDocFileLichSu').addEventListener('click', async () => {
   const fileInput = document.getElementById('lichSuFile');
   if (!fileInput.files.length) { showToast('Chọn file trước.'); return; }
   const file = fileInput.files[0];
+  showToast('Đang tải thư viện đọc Excel...');
+  await caiThuVien('xlsx');
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -2537,9 +2890,11 @@ function parseBangKeSheet(aoa, loai, tenFile) {
   return { invoices };
 }
 
-document.getElementById('btnDocFileBK').addEventListener('click', () => {
+document.getElementById('btnDocFileBK').addEventListener('click', async () => {
   const files = document.getElementById('bkFiles').files;
   if (!files.length) { showToast('Chọn ít nhất 1 file bảng kê.'); return; }
+  document.getElementById('bkParseStatus').textContent = `Đang tải thư viện đọc Excel...`;
+  await caiThuVien('xlsx');
   document.getElementById('bkParseStatus').textContent = `Đang đọc ${files.length} file...`;
 
   const readers = [...files].map(file => new Promise(resolve => {
@@ -2722,6 +3077,40 @@ document.getElementById('btnSaveScriptUrl').addEventListener('click', () => {
   if (!url) { showToast('Vui lòng nhập địa chỉ hợp lệ.'); return; }
   localStorage.setItem('qlbh_script_url', url); CONFIG.SCRIPT_URL = url;
   showToast('Đã lưu địa chỉ Apps Script. Vui lòng đăng xuất và đăng nhập lại.');
+});
+document.getElementById('btnLuuSoDuDauKy').addEventListener('click', () => {
+  const data = {
+    TienMat: parseSoTien(document.getElementById('fSoDuTienMat').value),
+    ChuyenKhoan: parseSoTien(document.getElementById('fSoDuChuyenKhoan').value),
+    The: parseSoTien(document.getElementById('fSoDuThe').value)
+  };
+  apiCall('capNhatSoDuDauKy', { data }).then(() => showToast('Đã lưu số dư đầu kỳ.')).catch(err => showToast('Lỗi: ' + err.message));
+});
+document.getElementById('btnLuuCauHinhNganHang').addEventListener('click', () => {
+  const data = {
+    bankBin: document.getElementById('fBankBin').value.trim(),
+    bankAccountNumber: document.getElementById('fBankAccountNumber').value.trim(),
+    bankAccountName: document.getElementById('fBankAccountName').value.trim()
+  };
+  apiCall('capNhatCauHinhThanhToan', { data }).then(() => showToast('Đã lưu thông tin ngân hàng.')).catch(err => showToast('Lỗi: ' + err.message));
+});
+// Tự điền số dư đầu kỳ + cấu hình ngân hàng hiện tại khi vào tab Cài đặt (chỉ Admin mới thấy các panel này)
+document.getElementById('tabbar').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-tab="caidat"]'); if (!btn) return;
+  if (STATE.user && STATE.user.vaiTro === 'Admin') {
+    apiCall('getSoDuQuy').then(d => {
+      document.getElementById('fSoDuTienMat').value = Math.round(d.tienMat.soDuDauKy).toLocaleString('vi-VN');
+      document.getElementById('fSoDuChuyenKhoan').value = Math.round(d.chuyenKhoan.soDuDauKy).toLocaleString('vi-VN');
+      document.getElementById('fSoDuThe').value = Math.round(d.the.soDuDauKy).toLocaleString('vi-VN');
+    }).catch(() => {});
+    apiCall('getCauHinhThanhToan').then(c => {
+      document.getElementById('fBankBin').value = c.bankBin;
+      document.getElementById('fBankAccountNumber').value = c.bankAccountNumber;
+      document.getElementById('fBankAccountName').value = c.bankAccountName;
+      document.getElementById('fWebhookUrl').value = c.webhookUrl;
+      STATE.cauHinhThanhToan = c; // dùng lại khi hiển thị QR trên các phiếu, khỏi gọi mạng lại mỗi lần mở 1 phiếu
+    }).catch(() => {});
+  }
 });
 document.getElementById('btnXemNhatKy').addEventListener('click', () => {
   apiCall('getNhatKy').then(list => {
