@@ -627,16 +627,48 @@ let STATE = {
 };
 
 /* ================= API HELPER ================= */
+// Gửi request tới Apps Script và ĐỌC PHẢN HỒI DẠNG TEXT TRƯỚC KHI PARSE JSON.
+// Lý do: nếu Google trả về HTML thay vì JSON (quá tải, timeout, hết phiên uỷ quyền, deploy lỗi...),
+// gọi thẳng r.json() sẽ ném lỗi rất khó hiểu kiểu "Unexpected token '<' ... is not valid JSON".
+// Ở đây bắt lỗi đó, xem thử vài ký tự đầu của phản hồi để đoán nguyên nhân và báo rõ ràng hơn.
+// Đồng thời TỰ ĐỘNG THỬ LẠI 1 lần sau 1.5s nếu là lỗi mạng/không phải JSON — nhưng CHỈ áp dụng cho
+// các hành động ĐỌC dữ liệu (action bắt đầu bằng "get", hoặc "login"/"pingPhien") để không có nguy cơ
+// gửi trùng lệnh LƯU/XOÁ 2 lần (VD: bấm 1 lần mà tạo 2 phiếu xuất, ghi trùng 2 khoản thu...).
+function goiApiTho(payload, laLanThuLai) {
+  const action = payload.action || '';
+  const coTheThuLaiKhiLoi = !laLanThuLai && (action === 'login' || action === 'pingPhien' || action.indexOf('get') === 0);
+  return fetch(CONFIG.SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) })
+    .then(r => r.text())
+    .then(text => {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        let goiY = 'Máy chủ Apps Script trả về dữ liệu không phải JSON (thường do quá tải hoặc timeout khi có nhiều yêu cầu cùng lúc).';
+        if (/accounts\.google\.com/i.test(text)) goiY = 'Trình duyệt có thể chưa đăng nhập Google hoặc Web App yêu cầu cấp quyền lại — hãy đăng nhập Google trong trình duyệt này rồi thử lại.';
+        else if (/exceeded maximum execution time/i.test(text)) goiY = 'Máy chủ xử lý quá lâu và bị Google ngắt giữa chừng (có thể do đang tải quá nhiều dữ liệu) — thử lại sau vài giây.';
+        else if (/too many|rate limit|quota/i.test(text)) goiY = 'Gửi quá nhiều yêu cầu cùng lúc tới Apps Script — thử lại sau vài giây.';
+        else if (/moved temporarily|redirect/i.test(text)) goiY = 'URL Apps Script có thể đã đổi (deploy lại) — kiểm tra lại địa chỉ ở tab Cài đặt.';
+        console.error('[goiApiTho] Phản hồi không phải JSON, action=' + action + ':', text.slice(0, 500));
+        throw new Error(goiY + ' (Chi tiết: "' + text.slice(0, 100).replace(/\s+/g, ' ').trim() + '...")');
+      }
+    })
+    .catch(err => {
+      if (coTheThuLaiKhiLoi) {
+        return new Promise(resolve => setTimeout(resolve, 1500)).then(() => goiApiTho(payload, true));
+      }
+      throw err;
+    });
+}
 function apiCall(action, extra) {
   extra = extra || {};
   const payload = Object.assign({ action, token: STATE.token }, extra);
   if (!CONFIG.SCRIPT_URL) { showToast('Chưa cấu hình địa chỉ Apps Script — vào tab Cài đặt.'); return Promise.reject(new Error('NO_SCRIPT_URL')); }
-  return fetch(CONFIG.SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) })
-    .then(r => r.json())
+  return goiApiTho(payload)
     .then(res => { if (!res.success) throw new Error(res.error || 'LOI_KHONG_XAC_DINH'); return res.data; });
 }
 function apiLogin(tenDangNhap, password) {
-  return fetch(CONFIG.SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'login', tenDangNhap, password }) }).then(r => r.json());
+  if (!CONFIG.SCRIPT_URL) return Promise.reject(new Error('NO_SCRIPT_URL'));
+  return goiApiTho({ action: 'login', tenDangNhap, password });
 }
 
 /* ================= UTIL ================= */
@@ -883,6 +915,10 @@ function loadAllData() {
 }
 
 /* ================= DASHBOARD ================= */
+// LƯU Ý: 2 lệnh gọi bên dưới (getDashboard, getSoDuQuy) cố tình gọi TUẦN TỰ (cái sau chờ cái trước
+// xong), KHÔNG gọi song song (Promise.all) — bắn nhiều request cùng lúc tới cùng 1 Apps Script Web App
+// ngay lúc mở tab dễ khiến 1 trong số đó bị Google trả về trang lỗi HTML (timeout/quá tải) thay vì
+// JSON, gây lỗi "not valid json" phía trình duyệt dù bản thân dữ liệu không có vấn đề gì.
 function renderDashboard() {
   apiCall('getDashboard').then(d => {
     const cards = [
@@ -904,16 +940,19 @@ function renderDashboard() {
         ${d.hangSapHet.map(h => `<tr><td>${h.MaHH}</td><td>${h.TenHH}</td><td>${h.TonKho}</td><td>${h.TonKhoToiThieu}</td></tr>`).join('')}
       </tbody></table>`;
     }
-  }).catch(err => showToast('Lỗi: ' + err.message));
-  // Số dư quỹ hiện tại — gọi riêng (không nằm trong getDashboard) để không phải sửa cache dashboard.
-  apiCall('getSoDuQuy').then(soDu => {
-    const wrap = document.getElementById('dashSoDuQuy');
-    if (!wrap) return;
-    wrap.innerHTML = [
-      { label: 'Số dư tiền mặt', val: fmtMoney(soDu.tienMat.soDu), cls: soDu.tienMat.soDu < 0 ? 'bad' : 'good' },
-      { label: 'Số dư chuyển khoản', val: fmtMoney(soDu.chuyenKhoan.soDu), cls: soDu.chuyenKhoan.soDu < 0 ? 'bad' : 'good' }
-    ].map(c => `<div class="statCard ${c.cls}"><div class="label">${c.label}</div><div class="val">${c.val}</div></div>`).join('');
-  }).catch(() => {});
+  }).catch(err => showToast('Lỗi: ' + err.message))
+    // Số dư quỹ hiện tại — gọi SAU khi getDashboard xong (không nằm trong getDashboard để khỏi phải
+    // sửa cache dashboard), .finally để dù getDashboard lỗi vẫn cứ thử tải số dư quỹ.
+    .finally(() => {
+      apiCall('getSoDuQuy').then(soDu => {
+        const wrap = document.getElementById('dashSoDuQuy');
+        if (!wrap) return;
+        wrap.innerHTML = [
+          { label: 'Số dư tiền mặt', val: fmtMoney(soDu.tienMat.soDu), cls: soDu.tienMat.soDu < 0 ? 'bad' : 'good' },
+          { label: 'Số dư chuyển khoản', val: fmtMoney(soDu.chuyenKhoan.soDu), cls: soDu.chuyenKhoan.soDu < 0 ? 'bad' : 'good' }
+        ].map(c => `<div class="statCard ${c.cls}"><div class="label">${c.label}</div><div class="val">${c.val}</div></div>`).join('');
+      }).catch(() => {});
+    });
 }
 
 /* ================= DANH MỤC HÀNG HOÁ ================= */
@@ -1866,13 +1905,15 @@ function toggleQR(idPhieu, soTien) {
   if (dangAn && !el.innerHTML) taoKhungQR(idPhieu, soTien);
 }
 
+// Gọi getSoDuQuy rồi MỚI gọi getSoQuyList (tuần tự, không Promise.all) — tránh bắn 2 request cùng lúc
+// tới cùng 1 Apps Script Web App gây lỗi "not valid json" ngắt quãng (xem ghi chú ở renderDashboard()).
 function renderSoQuy() {
-  Promise.all([apiCall('getSoDuQuy'), apiCall('getSoQuyList', {
+  apiCall('getSoDuQuy').then(soDu => apiCall('getSoQuyList', {
     tuNgay: document.getElementById('quyTuNgay').value,
     denNgay: document.getElementById('quyDenNgay').value,
     loai: document.getElementById('quyLocLoai').value,
     phuongThuc: document.getElementById('quyLocPT').value
-  })]).then(([soDu, list]) => {
+  }).then(list => [soDu, list])).then(([soDu, list]) => {
     const cards = [
       { label: 'Số dư tiền mặt', val: fmtMoney(soDu.tienMat.soDu), cls: soDu.tienMat.soDu < 0 ? 'bad' : 'good' },
       { label: 'Số dư chuyển khoản', val: fmtMoney(soDu.chuyenKhoan.soDu), cls: soDu.chuyenKhoan.soDu < 0 ? 'bad' : 'good' },
@@ -3147,18 +3188,20 @@ document.getElementById('btnLuuCauHinhNganHang').addEventListener('click', () =>
 document.getElementById('tabbar').addEventListener('click', e => {
   const btn = e.target.closest('button[data-tab="caidat"]'); if (!btn) return;
   if (STATE.user && STATE.user.vaiTro === 'Admin') {
+    // Gọi tuần tự (không song song) — xem ghi chú tại renderDashboard().
     apiCall('getSoDuQuy').then(d => {
       document.getElementById('fSoDuTienMat').value = Math.round(d.tienMat.soDuDauKy).toLocaleString('vi-VN');
       document.getElementById('fSoDuChuyenKhoan').value = Math.round(d.chuyenKhoan.soDuDauKy).toLocaleString('vi-VN');
       document.getElementById('fSoDuThe').value = Math.round(d.the.soDuDauKy).toLocaleString('vi-VN');
-    }).catch(() => {});
-    apiCall('getCauHinhThanhToan').then(c => {
-      document.getElementById('fBankBin').value = c.bankBin;
-      document.getElementById('fBankAccountNumber').value = c.bankAccountNumber;
-      document.getElementById('fBankAccountName').value = c.bankAccountName;
-      document.getElementById('fWebhookUrl').value = c.webhookUrl;
-      STATE.cauHinhThanhToan = c; // dùng lại khi hiển thị QR trên các phiếu, khỏi gọi mạng lại mỗi lần mở 1 phiếu
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      apiCall('getCauHinhThanhToan').then(c => {
+        document.getElementById('fBankBin').value = c.bankBin;
+        document.getElementById('fBankAccountNumber').value = c.bankAccountNumber;
+        document.getElementById('fBankAccountName').value = c.bankAccountName;
+        document.getElementById('fWebhookUrl').value = c.webhookUrl;
+        STATE.cauHinhThanhToan = c; // dùng lại khi hiển thị QR trên các phiếu, khỏi gọi mạng lại mỗi lần mở 1 phiếu
+      }).catch(() => {});
+    });
   }
 });
 document.getElementById('btnXemNhatKy').addEventListener('click', () => {
