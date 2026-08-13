@@ -689,7 +689,9 @@ document.getElementById('btnLogin').addEventListener('click', doLogin);
 document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('userInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
+let _dangDangNhap = false; // chặn gọi doLogin() chồng lặp (VD: bấm Enter rồi lại bấm chuột trước khi phản hồi về) — nếu không chặn, 2 lượt đăng nhập chạy song song sẽ tạo 2 phiên cùng lúc, phiên này tự đá phiên kia ra ngay khi vừa đăng nhập xong
 function doLogin() {
+  if (_dangDangNhap) return;
   const tenDangNhap = document.getElementById('userInput').value.trim();
   const pw = document.getElementById('pwInput').value;
   if (!CONFIG.SCRIPT_URL) {
@@ -700,6 +702,8 @@ function doLogin() {
     return;
   }
   if (!tenDangNhap || !pw) { document.getElementById('loginErr').textContent = 'Nhập đủ tài khoản và mật khẩu.'; return; }
+  _dangDangNhap = true;
+  document.getElementById('btnLogin').disabled = true;
   document.getElementById('loginErr').textContent = 'Đang kiểm tra...';
   apiLogin(tenDangNhap, pw).then(res => {
     if (res.success) {
@@ -713,7 +717,8 @@ function doLogin() {
       const msgMap = { SAI_TAI_KHOAN: 'Tài khoản không tồn tại.', SAI_MAT_KHAU: 'Sai mật khẩu.', TAI_KHOAN_BI_KHOA: 'Tài khoản đã bị khoá.' };
       document.getElementById('loginErr').textContent = msgMap[res.error] || ('Lỗi: ' + res.error);
     }
-  }).catch(err => { document.getElementById('loginErr').textContent = 'Lỗi kết nối: ' + err.message; });
+  }).catch(err => { document.getElementById('loginErr').textContent = 'Lỗi kết nối: ' + err.message; })
+    .finally(() => { _dangDangNhap = false; document.getElementById('btnLogin').disabled = false; });
 }
 
 function thucHienDangXuat(lyDo) {
