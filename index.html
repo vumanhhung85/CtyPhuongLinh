@@ -620,8 +620,12 @@ const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxL_9af97B4c
 const CONFIG = { SCRIPT_URL: localStorage.getItem('qlbh_script_url') || DEFAULT_SCRIPT_URL };
 
 let STATE = {
-  token: sessionStorage.getItem('qlbh_token') || '',
-  user: JSON.parse(sessionStorage.getItem('qlbh_user') || 'null'),
+  // Lưu bằng localStorage (KHÔNG dùng sessionStorage) — sessionStorage tách riêng theo TỪNG TAB, nên
+  // trước đây mở 2 tab cùng 1 trình duyệt/máy rồi đăng nhập lại sẽ khiến tab kia bị đá ra nhầm (AUTH_
+  // FAILED) dù thực chất vẫn là cùng 1 người, cùng 1 máy. localStorage dùng chung cho mọi tab của cùng
+  // trình duyệt -> chỉ còn bị đá khi đăng nhập từ THIẾT BỊ/TRÌNH DUYỆT khác thật sự (đúng mục đích ban đầu).
+  token: localStorage.getItem('qlbh_token') || '',
+  user: JSON.parse(localStorage.getItem('qlbh_user') || 'null'),
   hangHoaList: [], khachHangList: [], nhaCungCapList: [],
   nhapKhoList: [], xuatBanList: [], suaChuaList: [], giaCongList: []
 };
@@ -669,7 +673,20 @@ function apiCall(action, extra) {
   const payload = Object.assign({ action, token: STATE.token }, extra);
   if (!CONFIG.SCRIPT_URL) { showToast('Chưa cấu hình địa chỉ Apps Script — vào tab Cài đặt.'); return Promise.reject(new Error('NO_SCRIPT_URL')); }
   return goiApiTho(payload)
-    .then(res => { if (!res.success) throw new Error(res.error || 'LOI_KHONG_XAC_DINH'); return res.data; });
+    .then(res => {
+      if (!res.success) {
+        // Phiên đăng nhập đã hết hiệu lực (tự đăng xuất do 15 phút không thao tác, hoặc tài khoản vừa
+        // đăng nhập ở nơi khác) — XỬ LÝ NGAY TẠI ĐÂY cho MỌI hành động, không chỉ riêng vòng kiểm tra
+        // pingPhien mỗi 30 giây. Trước đây nếu bấm 1 thao tác khác (VD "Xem lịch sử") đúng lúc phiên vừa
+        // hết hạn nhưng pingPhien chưa kịp phát hiện, người dùng chỉ thấy dòng lỗi thô khó hiểu
+        // "Lỗi: AUTH_FAILED" mà màn hình vẫn trông như đang đăng nhập bình thường — dễ hiểu lầm là lỗi vặt.
+        if (action !== 'login' && (res.error === 'AUTH_FAILED')) {
+          thucHienDangXuat('Phiên đăng nhập đã hết hiệu lực (do không thao tác quá lâu, hoặc tài khoản vừa đăng nhập ở nơi khác) — vui lòng đăng nhập lại.');
+        }
+        throw new Error(res.error || 'LOI_KHONG_XAC_DINH');
+      }
+      return res.data;
+    });
 }
 function apiLogin(tenDangNhap, password) {
   if (!CONFIG.SCRIPT_URL) return Promise.reject(new Error('NO_SCRIPT_URL'));
@@ -745,8 +762,8 @@ function doLogin() {
   apiLogin(tenDangNhap, pw).then(res => {
     if (res.success) {
       STATE.token = res.token; STATE.user = res.user;
-      sessionStorage.setItem('qlbh_token', res.token);
-      sessionStorage.setItem('qlbh_user', JSON.stringify(res.user));
+      localStorage.setItem('qlbh_token', res.token);
+      localStorage.setItem('qlbh_user', JSON.stringify(res.user));
       document.getElementById('companyNameLabel').textContent = res.companyName || 'CÔNG TY TNHH DVCN PHƯƠNG LINH';
       document.getElementById('loginErr').textContent = '';
       enterApp(false);
@@ -760,7 +777,7 @@ function doLogin() {
 
 function thucHienDangXuat(lyDo) {
   if (STATE.token && CONFIG.SCRIPT_URL) apiCall('logout').catch(() => {});
-  sessionStorage.removeItem('qlbh_token'); sessionStorage.removeItem('qlbh_user');
+  localStorage.removeItem('qlbh_token'); localStorage.removeItem('qlbh_user');
   STATE.token = ''; STATE.user = null;
   dungGiamSatPhien();
   document.getElementById('appShell').style.display = 'none';
@@ -769,18 +786,14 @@ function thucHienDangXuat(lyDo) {
 }
 document.getElementById('btnLogout').addEventListener('click', () => thucHienDangXuat(''));
 
-/* ---- Tự đăng xuất sau 15 phút không thao tác ---- */
-const THOI_GIAN_CHO_KHONG_THAO_TAC_MS = 15 * 60 * 1000; // 15 phút
-let _henGioKhongThaoTac = null;
-function datLaiDemNguocKhongThaoTac() {
-  clearTimeout(_henGioKhongThaoTac);
-  _henGioKhongThaoTac = setTimeout(() => {
-    thucHienDangXuat('Đã tự động đăng xuất do không thao tác quá 15 phút.');
-  }, THOI_GIAN_CHO_KHONG_THAO_TAC_MS);
-}
-['mousedown', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
-  document.addEventListener(evt, () => { if (STATE.token) datLaiDemNguocKhongThaoTac(); }, { passive: true });
-});
+/* ---- Tự đăng xuất do không thao tác: ĐÃ TẮT theo yêu cầu (13/8/2026) ----
+   Trước đây tự đăng xuất sau 15 phút không có mousedown/keydown/touchstart/scroll TRÊN TRANG APP — gây
+   đăng xuất "oan" khi người dùng vẫn đang bận việc khác (VD đang thao tác bên Apps Script editor) mà
+   không chạm vào trang app. Giữ lại hàm rỗng datLaiDemNguocKhongThaoTac() để các chỗ gọi nó (VD
+   batDauGiamSatPhien) không bị lỗi, nhưng không còn tự đăng xuất nữa.
+   Lưu ý: cơ chế "1 tài khoản chỉ đăng nhập 1 nơi" (đá phiên cũ khi đăng nhập lại ở nơi khác) là tính
+   năng KHÁC, tách biệt, và VẪN GIỮ NGUYÊN — chỉ tính năng đăng xuất do "ngồi yên quá lâu" bị tắt. */
+function datLaiDemNguocKhongThaoTac() { /* đã tắt — không làm gì */ }
 
 /* ---- Kiểm tra định kỳ phiên còn hiệu lực (bị đăng nhập ở máy khác thì tự đá ra) ---- */
 const CHU_KY_KIEM_TRA_PHIEN_MS = 30 * 1000; // 30 giây — không rút ngắn hơn để tránh chạm hạn ngạch Apps Script
@@ -790,15 +803,12 @@ function batDauGiamSatPhien() {
   datLaiDemNguocKhongThaoTac();
   _henGioKiemTraPhien = setInterval(() => {
     if (!STATE.token || !CONFIG.SCRIPT_URL) return;
-    apiCall('pingPhien').catch(err => {
-      if (String(err.message).includes('AUTH_FAILED')) {
-        thucHienDangXuat('Tài khoản này vừa đăng nhập ở thiết bị/trình duyệt khác — phiên trên máy này đã bị đăng xuất.');
-      }
-    });
+    // AUTH_FAILED đã được apiCall() xử lý tập trung (đưa về màn đăng nhập kèm thông báo) — ở đây chỉ
+    // cần .catch(() => {}) để nuốt lỗi, khỏi làm gì thêm, tránh xử lý trùng 2 lần.
+    apiCall('pingPhien').catch(() => {});
   }, CHU_KY_KIEM_TRA_PHIEN_MS);
 }
 function dungGiamSatPhien() {
-  clearTimeout(_henGioKhongThaoTac);
   clearInterval(_henGioKiemTraPhien);
 }
 
