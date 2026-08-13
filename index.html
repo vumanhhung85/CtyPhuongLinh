@@ -616,7 +616,7 @@ function caiThuVien(ten) {
 /* ================= CONFIG ================= */
 // ⚠️ URL Apps Script mặc định — khi cần đổi (deploy lại phiên bản mới), sửa trực tiếp giá trị bên dưới,
 // hoặc vào tab Cài đặt trong app để đổi mà không cần sửa code (ưu tiên giá trị đã lưu trong trình duyệt).
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLb-VSMHSwvUhd-V5z9dE7DyrIkl3YIv6U7umraktzLdBsYO3Sux2dXf2QvTAjYb0iQw/exec';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxL_9af97B4ccYtcJTTUqlJevq9qn80x6W73RjKAmoG42OgUphyEL1sdAL4kwYhTxJ-PA/exec';
 const CONFIG = { SCRIPT_URL: localStorage.getItem('qlbh_script_url') || DEFAULT_SCRIPT_URL };
 
 let STATE = {
@@ -643,13 +643,18 @@ function goiApiTho(payload, laLanThuLai) {
       try {
         return JSON.parse(text);
       } catch (e) {
+        const khopTitle = text.match(/<title[^>]*>([^<]*)<\/title>/i);
+        const tieuDe = khopTitle ? khopTitle[1].trim() : '';
         let goiY = 'Máy chủ Apps Script trả về dữ liệu không phải JSON (thường do quá tải hoặc timeout khi có nhiều yêu cầu cùng lúc).';
         if (/accounts\.google\.com/i.test(text)) goiY = 'Trình duyệt có thể chưa đăng nhập Google hoặc Web App yêu cầu cấp quyền lại — hãy đăng nhập Google trong trình duyệt này rồi thử lại.';
         else if (/exceeded maximum execution time/i.test(text)) goiY = 'Máy chủ xử lý quá lâu và bị Google ngắt giữa chừng (có thể do đang tải quá nhiều dữ liệu) — thử lại sau vài giây.';
         else if (/too many|rate limit|quota/i.test(text)) goiY = 'Gửi quá nhiều yêu cầu cùng lúc tới Apps Script — thử lại sau vài giây.';
         else if (/moved temporarily|redirect/i.test(text)) goiY = 'URL Apps Script có thể đã đổi (deploy lại) — kiểm tra lại địa chỉ ở tab Cài đặt.';
-        console.error('[goiApiTho] Phản hồi không phải JSON, action=' + action + ':', text.slice(0, 500));
-        throw new Error(goiY + ' (Chi tiết: "' + text.slice(0, 100).replace(/\s+/g, ' ').trim() + '...")');
+        // Nếu trang trả về không hề nhắc gì tới Google/Apps Script -> rất có thể yêu cầu bị mạng (wifi/4G/
+        // app chặn quảng cáo, VPN...) chặn giữa đường và trả về 1 trang web khác, KHÔNG phải lỗi từ code.
+        else if (!/google|apps script|gstatic/i.test(text)) goiY = 'Trang trả về không liên quan gì tới Google — nhiều khả năng mạng đang dùng (wifi/4G, app chặn quảng cáo, VPN...) đã chặn hoặc chuyển hướng yêu cầu trước khi tới được máy chủ, không phải lỗi ở phần mềm.' + (tieuDe ? ' Tiêu đề trang lạ: "' + tieuDe + '".' : '');
+        console.error('[goiApiTho] Phản hồi không phải JSON, action=' + action + ':', text.slice(0, 800));
+        throw new Error(goiY + ' (Chi tiết: "' + text.slice(0, 200).replace(/\s+/g, ' ').trim() + '...")');
       }
     })
     .catch(err => {
