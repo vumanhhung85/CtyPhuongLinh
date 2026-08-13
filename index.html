@@ -1158,18 +1158,26 @@ function hhComboSelect(el) {
   const heSo = Number(el.dataset.hesoquydoi) || 0;
   const donViDiv = row.querySelector('.itemRowDonVi');
   const donViSelect = row.querySelector('.itemDonViChon');
-  if (mode === 'gia_von' && heSo > 1 && el.dataset.dvtnhap) {
+  // Chỉ hiện ô chọn đơn vị khi mặt hàng CÓ khai báo đơn vị nhập lớn (VD Cuộn). Áp dụng cho CẢ Nhập kho
+  // lẫn Xuất bán/Sửa chữa/Gia công — trước đây chỉ bật cho Nhập kho, khiến không thể bán theo Cuộn.
+  // Mặc định: Nhập kho chọn sẵn đơn vị lớn (thường nhập theo Cuộn); Xuất bán mặc định đơn vị lẻ (bán
+  // theo Mét là phổ biến nhất), nhân viên tự đổi sang Cuộn khi cần bán nguyên cuộn.
+  if (heSo > 1 && el.dataset.dvtnhap) {
     donViDiv.style.display = 'block';
     donViSelect.innerHTML = `<option value="nhap">${el.dataset.dvtnhap} (1 ${el.dataset.dvtnhap} = ${heSo} ${el.dataset.dvt})</option><option value="goc">${el.dataset.dvt}</option>`;
-    donViSelect.value = 'nhap';
-    row.dataset.donvidachon = 'nhap';
+    const macDinh = mode === 'gia_von' ? 'nhap' : 'goc';
+    donViSelect.value = macDinh;
+    row.dataset.donvidachon = macDinh;
   } else {
     donViDiv.style.display = 'none';
     row.dataset.donvidachon = 'goc';
   }
+  const dangChonDonViLon = row.dataset.donvidachon === 'nhap';
+  // Giá gợi ý: nếu chọn đơn vị lớn (Cuộn), tự tính = giá/đơn vị lẻ × hệ số quy đổi — CHỈ LÀ GỢI Ý, nhân
+  // viên sửa tay nếu giá bán theo Cuộn thực tế khác với quy đổi tuyến tính (VD có chiết khấu khi mua cả cuộn).
   const giaGoiY = mode === 'gia_von'
-    ? (row.dataset.donvidachon === 'nhap' ? (Number(el.dataset.giavon) || 0) * heSo : Number(el.dataset.giavon) || 0)
-    : Number(el.dataset.giaban) || 0;
+    ? (dangChonDonViLon ? (Number(el.dataset.giavon) || 0) * heSo : Number(el.dataset.giavon) || 0)
+    : (dangChonDonViLon ? (Number(el.dataset.giaban) || 0) * heSo : Number(el.dataset.giaban) || 0);
   row.querySelector('.itemGia').value = Math.round(giaGoiY).toLocaleString('vi-VN');
   wrap.querySelector('.hhComboList').style.display = 'none';
   updateLineTotalGeneric(input, containerId);
@@ -1178,8 +1186,9 @@ function doiDonViNhap(select) {
   const row = select.closest('.itemRow');
   row.dataset.donvidachon = select.value;
   const heSo = Number(row.dataset.hesoquydoi) || 1;
-  const giavon = Number(row.dataset.giavon) || 0;
-  const giaGoiY = select.value === 'nhap' ? giavon * heSo : giavon;
+  const mode = row.querySelector('.itemHHSearch').dataset.mode;
+  const giaCoSo = mode === 'gia_von' ? (Number(row.dataset.giavon) || 0) : (Number(row.dataset.giaban) || 0);
+  const giaGoiY = select.value === 'nhap' ? giaCoSo * heSo : giaCoSo;
   row.querySelector('.itemGia').value = Math.round(giaGoiY).toLocaleString('vi-VN');
   const containerId = row.querySelector('.itemHHSearch').dataset.container;
   updateLineTotalGeneric(row.querySelector('.itemGia'), containerId);
@@ -1201,17 +1210,21 @@ function capNhatThongTinDong(row, mode) {
   const loai = row.dataset.loai;
   const ton = row.dataset.tonkho;
   const dvt = row.dataset.dvt || '';
+  const dangChonDonViLon = row.dataset.donvidachon === 'nhap' && Number(row.dataset.hesoquydoi) > 1;
+  const donViHienThi = dangChonDonViLon ? row.dataset.dvtnhap : dvt;
   const giavon = Number(row.dataset.giavon) || 0;
   const giaban = Number(row.dataset.giaban) || 0;
+  const giavonTheoDonVi = dangChonDonViLon ? giavon * Number(row.dataset.hesoquydoi) : giavon;
+  const giabanTheoDonVi = dangChonDonViLon ? giaban * Number(row.dataset.hesoquydoi) : giaban;
   const donGiaNhap = parseSoTien(row.querySelector('.itemGia').value);
   let html = loai === 'HangHoa' ? `Tồn kho hiện có: <b>${ton} ${dvt}</b> &nbsp;·&nbsp; ` : '';
-  html += `Giá vốn: <b>${fmtMoney(giavon)}</b> &nbsp;·&nbsp; Giá bán tham khảo: <b>${fmtMoney(giaban)}</b>`;
-  if (row.dataset.donvidachon === 'nhap' && Number(row.dataset.hesoquydoi) > 1) {
-    html += ` &nbsp;·&nbsp; <span class="muted">(1 ${row.dataset.dvtnhap} = ${row.dataset.hesoquydoi} ${dvt} — giá vốn quy đổi mỗi ${dvt}: ${fmtMoney(giavon)})</span>`;
+  html += `Giá vốn: <b>${fmtMoney(giavonTheoDonVi)}</b>/${donViHienThi} &nbsp;·&nbsp; Giá bán tham khảo: <b>${fmtMoney(giabanTheoDonVi)}</b>/${donViHienThi}`;
+  if (dangChonDonViLon) {
+    html += ` &nbsp;·&nbsp; <span class="muted">(1 ${row.dataset.dvtnhap} = ${row.dataset.hesoquydoi} ${dvt} — giá gợi ý tự quy đổi tuyến tính, sửa lại nếu giá thực tế theo ${row.dataset.dvtnhap} khác)</span>`;
   }
-  if (mode === 'gia_ban' && giavon > 0 && donGiaNhap > 0) {
-    if (donGiaNhap < giavon) html += ` &nbsp;— <span class="warnGia">⚠ Đang bán thấp hơn giá vốn (lỗ ${fmtMoney(giavon - donGiaNhap)}/đơn vị)!</span>`;
-    else html += ` &nbsp;— <span class="okGia">✓ Lãi ${fmtMoney(donGiaNhap - giavon)}/đơn vị</span>`;
+  if (mode === 'gia_ban' && giavonTheoDonVi > 0 && donGiaNhap > 0) {
+    if (donGiaNhap < giavonTheoDonVi) html += ` &nbsp;— <span class="warnGia">⚠ Đang bán thấp hơn giá vốn (lỗ ${fmtMoney(giavonTheoDonVi - donGiaNhap)}/${donViHienThi})!</span>`;
+    else html += ` &nbsp;— <span class="okGia">✓ Lãi ${fmtMoney(donGiaNhap - giavonTheoDonVi)}/${donViHienThi}</span>`;
   }
   infoEl.innerHTML = html;
 }
@@ -1503,7 +1516,7 @@ function viewPhieuSuaChua(idPhieu) {
       <p><b>Phụ kiện kèm theo:</b> ${phieu.PhuKienKemTheo || '—'}</p>
       <p><b>Kỹ thuật viên:</b> ${phieu.NguoiPhuTrach || '—'} &nbsp;|&nbsp; <b>Bảo hành:</b> ${phieu.BaoHanhNgay || 0} ngày</p>
       ${items.length ? `<table class="itemsTable"><thead><tr><th>Linh kiện</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Không có linh kiện thay thế.</p>'}
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Không có linh kiện thay thế.</p>'}
       <p>Tiền công (trước thuế): ${fmtMoney(phieu.TienCong)} — thuế ${thueSuatLabel(phieu.TienCongThueSuat || '0')} &nbsp;|&nbsp; Tiền linh kiện (trước thuế): ${fmtMoney(phieu.TongTienLinhKien)}</p>
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Tạm tính (trước thuế): <b>${fmtMoney(phieu.TongTienTruocThue != null ? phieu.TongTienTruocThue : phieu.TongTien)}</b><br>
@@ -1671,7 +1684,7 @@ function viewPhieuGiaCong(idPhieu) {
       <p><b>Mô tả công việc:</b> ${phieu.MoTaCongViec || ''}</p>
       <p><b>Số lượng sản phẩm:</b> ${phieu.SoLuongSanPham || 0} ${phieu.DonViTinh || ''}</p>
       ${items.length ? `<table class="itemsTable"><thead><tr><th>Vật tư</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>` : ''}
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>` : ''}
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Chi phí gia công (trước thuế): <b>${fmtMoney(phieu.ChiPhiGiaCongTruocThue != null ? phieu.ChiPhiGiaCongTruocThue : phieu.ChiPhiGiaCong)}</b> — thuế ${thueSuatLabel(phieu.ThueSuatGiaCong || '0')}<br>
         Tiền thuế GTGT: <b>${fmtMoney(phieu.TienThueGiaCong || 0)}</b><br>
@@ -1750,7 +1763,7 @@ function viewPhieuNhapXuat(loai, idPhieu) {
       <h3>Chi tiết phiếu ${idPhieu}</h3>
       <p class="muted">Ngày: ${fmtDate(phieu.Ngay)} &nbsp;|&nbsp; ${loai === 'nhap' ? 'NCC: ' + (phieu.TenNCC || '—') : 'Khách: ' + (phieu.TenKH || 'Khách lẻ')}</p>
       <table class="itemsTable"><thead><tr><th>Hàng hoá/dịch vụ</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Tạm tính (trước thuế): <b>${fmtMoney(phieu.TongTienTruocThue != null ? phieu.TongTienTruocThue : phieu.TongTien)}</b><br>
         Tiền thuế GTGT: <b>${fmtMoney(phieu.TongTienThue || 0)}</b><br>
@@ -1948,7 +1961,7 @@ function renderBaoCao() {
     document.getElementById('baocaoCards').innerHTML = cards.map(c => `<div class="statCard ${c.cls}"><div class="label">${c.label}</div><div class="val">${c.val}</div></div>`).join('');
     const topWrap = document.getElementById('baocaoTopWrap');
     if (!d.topBanChay.length) { topWrap.innerHTML = '<div class="empty">Chưa có dữ liệu trong khoảng thời gian này.</div>'; }
-    else { topWrap.innerHTML = `<table><thead><tr><th>Hàng hoá</th><th class="num">SL bán</th><th class="num">Doanh thu</th></tr></thead><tbody>${d.topBanChay.map(t => `<tr><td>${t.ten}</td><td>${t.soLuong}</td><td>${fmtMoney(t.doanhThu)}</td></tr>`).join('')}</tbody></table>`; }
+    else { topWrap.innerHTML = `<table><thead><tr><th>Hàng hoá</th><th class="num">SL bán</th><th class="num">Doanh thu</th></tr></thead><tbody>${d.topBanChay.map(t => `<tr><td>${t.ten}</td><td>${t.soLuong}${t.dvt ? ' ' + t.dvt : ''}</td><td>${fmtMoney(t.doanhThu)}</td></tr>`).join('')}</tbody></table>`; }
 
     const topKHWrap = document.getElementById('baocaoTopKHWrap');
     if (!d.topKhachHang || !d.topKhachHang.length) { topKHWrap.innerHTML = '<div class="empty">Chưa có dữ liệu trong khoảng thời gian này.</div>'; }
