@@ -95,8 +95,17 @@
 
   /* Bỏ khung cuộn riêng bên trong bảng (trước đây max-height:65vh khiến bảng bị nhốt trong 1 khung nhỏ,
      nhìn chật) — giờ để CẢ TRANG cuộn chung như app nhà trọ, nhìn rộng rãi hơn. Chỉ giữ cuộn NGANG khi
-     bảng rộng hơn màn hình (điện thoại), còn theo chiều dọc thì trang tự cao lên bình thường. */
-  .tableWrap{overflow-x:auto;overflow-y:visible;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);}
+     bảng rộng hơn màn hình (điện thoại), còn theo chiều dọc thì trang tự cao lên bình thường.
+     QUAN TRỌNG (gốc rễ lỗi tiêu đề bảng chồng/đè dữ liệu, đã tái diễn nhiều lần trước đây): viết
+     "overflow-x:auto; overflow-y:visible" tưởng là chỉ cuộn ngang, NHƯNG theo đúng chuẩn CSS, hễ 1 trục
+     overflow khác 'visible' thì trục còn lại (đang là 'visible') sẽ bị TRÌNH DUYỆT TỰ ĐỘNG ép thành
+     'auto' — biến .tableWrap thành 1 "vùng cuộn" độc lập ngoài ý muốn. Khi đó "thead th{position:sticky}"
+     bên dưới sẽ neo (sticky) theo vùng cuộn CỦA RIÊNG .tableWrap thay vì theo cả trang/khung nhìn, làm
+     lệch đúng bằng khoảng --sticky-offset đang cộng thêm (vì .tableWrap vốn đã nằm dưới header+tabbar
+     rồi, cộng thêm 1 lần nữa là chồng lên chính nó) => tiêu đề bảng chồng/đè lên dòng dữ liệu khi cuộn.
+     Dùng overflow-y:clip (KHÔNG phải 'visible') để né quy tắc ép nói trên — clip không cho tràn dọc
+     nhưng KHÔNG tạo ra "vùng cuộn" riêng, nên position:sticky bên trong vẫn neo đúng theo cả trang. */
+  .tableWrap{overflow-x:auto;overflow-y:clip;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);}
   table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px;}
   /* Hàng tiêu đề: cam nhạt đậm hơn 1 chút (theo màu logo) thay vì xanh nhạt như trước, dễ phân biệt với dữ liệu bên dưới.
      Vẫn dính (sticky) khi cuộn trang, neo ngay dưới thanh tab. */
@@ -153,7 +162,16 @@
   .moneyInput{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right;letter-spacing:-0.2px;}
 
   .itemsWrap{margin:10px 0;}
-  .itemsTable{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px;}
+  /* .itemsTable dùng trong các modal xem chi tiết phiếu (Xuất bán/Nhập kho/Sửa chữa/Gia công) — KHÔNG
+     đặt min-width như bảng danh sách thường (table{min-width:600px} ở trên), vì bảng này nằm trong 1
+     modal có max-width:680px trên NỀN ĐIỆN THOẠI (~360-400px) — nếu vẫn kế thừa min-width:600px sẽ
+     tràn ra ngoài khung modal, chữ bị cắt/tràn 2 bên (lỗi thực tế đã gặp). Đặt min-width:0 để ghi đè hẳn
+     giá trị kế thừa, cho phép bảng co lại vừa khít modal; cột tên hàng hoá tự xuống dòng khi dài
+     (word-break) thay vì đẩy tràn ngang. Vẫn bọc thêm <div class="tableWrap"> quanh bảng này ở nơi gọi
+     để phòng khi màn quá hẹp (dưới ~340px) — lúc đó cho cuộn ngang NGAY TRONG modal thay vì tràn ra ngoài. */
+  .itemsTable{width:100%;min-width:0;border-collapse:collapse;margin:10px 0;font-size:13.5px;table-layout:fixed;}
+  .itemsTable th:first-child,.itemsTable td:first-child{width:34%;white-space:normal;word-break:break-word;}
+  .itemsTable th:not(:first-child),.itemsTable td:not(:first-child){width:16.5%;}
   .itemsTable th{font-size:11.5px;text-align:left;color:var(--ink-soft);padding:6px 6px;}
   .itemsTable td{padding:6px 6px;border-bottom:1px solid var(--line);}
   .itemRow{border:1.5px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;background:#fff;transition:border-color .15s;}
@@ -193,7 +211,7 @@
 
   .modalBg{display:none;position:fixed;inset:0;background:rgba(28,17,8,.5);z-index:100;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;}
   .modalBg.active{display:flex;}
-  .modalCard{background:var(--card);border-radius:18px;max-width:680px;width:100%;padding:22px;margin:20px 0;}
+  .modalCard{background:var(--card);border-radius:18px;max-width:680px;width:100%;padding:22px;margin:20px 0;overflow-x:hidden;}
   .modalCard h3{margin:0 0 16px;font-size:16px;}
   .modalClose{float:right;background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-soft);}
   .modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap;}
@@ -1569,8 +1587,8 @@ function viewPhieuSuaChua(idPhieu) {
       <p><b>Tình trạng tiếp nhận:</b> ${phieu.TinhTrangTiepNhan || ''}</p>
       <p><b>Phụ kiện kèm theo:</b> ${phieu.PhuKienKemTheo || '—'}</p>
       <p><b>Kỹ thuật viên:</b> ${phieu.NguoiPhuTrach || '—'} &nbsp;|&nbsp; <b>Bảo hành:</b> ${phieu.BaoHanhNgay || 0} ngày</p>
-      ${items.length ? `<table class="itemsTable"><thead><tr><th>Linh kiện</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Không có linh kiện thay thế.</p>'}
+      ${items.length ? `<div class="tableWrap"><table class="itemsTable"><thead><tr><th>Linh kiện</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Không có linh kiện thay thế.</p>'}
       <p>Tiền công (trước thuế): ${fmtMoney(phieu.TienCong)} — thuế ${thueSuatLabel(phieu.TienCongThueSuat || '0')} &nbsp;|&nbsp; Tiền linh kiện (trước thuế): ${fmtMoney(phieu.TongTienLinhKien)}</p>
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Tạm tính (trước thuế): <b>${fmtMoney(phieu.TongTienTruocThue != null ? phieu.TongTienTruocThue : phieu.TongTien)}</b><br>
@@ -1737,8 +1755,8 @@ function viewPhieuGiaCong(idPhieu) {
       <p class="muted">${loaiGCLabel(phieu.Loai)} · Ngày: ${fmtDate(phieu.Ngay)} · Đối tác: ${phieu.TenDoiTac || '—'} · Trạng thái: ${trangThaiGCTag(phieu.TrangThai)}</p>
       <p><b>Mô tả công việc:</b> ${phieu.MoTaCongViec || ''}</p>
       <p><b>Số lượng sản phẩm:</b> ${phieu.SoLuongSanPham || 0} ${phieu.DonViTinh || ''}</p>
-      ${items.length ? `<table class="itemsTable"><thead><tr><th>Vật tư</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${items.length ? `<div class="tableWrap"><table class="itemsTable"><thead><tr><th>Vật tư</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>` : ''}
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Chi phí gia công (trước thuế): <b>${fmtMoney(phieu.ChiPhiGiaCongTruocThue != null ? phieu.ChiPhiGiaCongTruocThue : phieu.ChiPhiGiaCong)}</b> — thuế ${thueSuatLabel(phieu.ThueSuatGiaCong || '0')}<br>
         Tiền thuế GTGT: <b>${fmtMoney(phieu.TienThueGiaCong || 0)}</b><br>
@@ -1816,8 +1834,8 @@ function viewPhieuNhapXuat(loai, idPhieu) {
       <button class="modalClose" onclick="closeModal()">&times;</button>
       <h3>Chi tiết phiếu ${idPhieu}</h3>
       <p class="muted">Ngày: ${fmtDate(phieu.Ngay)} &nbsp;|&nbsp; ${loai === 'nhap' ? 'NCC: ' + (phieu.TenNCC || '—') : 'Khách: ' + (phieu.TenKH || 'Khách lẻ')}</p>
-      <table class="itemsTable"><thead><tr><th>Hàng hoá/dịch vụ</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table>
+      <div class="tableWrap"><table class="itemsTable"><thead><tr><th>Hàng hoá/dịch vụ</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num">${fmtMoney(it.DonGia)}</td><td class="num">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Tạm tính (trước thuế): <b>${fmtMoney(phieu.TongTienTruocThue != null ? phieu.TongTienTruocThue : phieu.TongTien)}</b><br>
         Tiền thuế GTGT: <b>${fmtMoney(phieu.TongTienThue || 0)}</b><br>
