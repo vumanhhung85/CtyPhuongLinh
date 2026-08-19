@@ -106,7 +106,11 @@
   table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:600px;}
   /* Hàng tiêu đề: cam nhạt đậm hơn 1 chút (theo màu logo) thay vì xanh nhạt như trước, dễ phân biệt với dữ liệu bên dưới.
      Vẫn dính (sticky) khi cuộn trang, neo ngay dưới thanh tab. */
-  thead th{position:sticky;top:var(--sticky-offset,97px);background:var(--accent-mid);color:var(--accent-deep);text-align:left;padding:10px 10px;font-weight:800;border-bottom:1.5px solid #f0c37e;white-space:nowrap;z-index:30;}
+  /* Tiêu đề bảng (thead) — KHÔNG còn position:sticky nữa (đã tắt theo yêu cầu 18/8/2026, vì cố định
+     tiêu đề khi cuộn liên tục bị lỗi chồng/đè dữ liệu dù đã thử nhiều cách, không tìm ra bằng chứng chắc
+     chắn để sửa dứt điểm). Giờ tiêu đề bảng cuộn theo trang bình thường như 1 dòng thường — mất đi tiện
+     lợi "cuộn xa vẫn thấy tên cột" nhưng đổi lại chắc chắn không còn lỗi hiển thị. */
+  thead th{background:var(--accent-mid);color:var(--accent-deep);text-align:left;padding:10px 10px;font-weight:800;border-bottom:1.5px solid #f0c37e;white-space:nowrap;}
   tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:#fef8ee;}
@@ -855,36 +859,29 @@ window.addEventListener('DOMContentLoaded', () => {
   if (STATE.token && STATE.user && CONFIG.SCRIPT_URL) enterApp(false);
 });
 
-/* ---- Đo chiều cao THẬT của header + thanh tab (thay vì đoán số cứng) để neo đúng vị trí tiêu đề bảng
-   khi cuộn trang. Đo lại mỗi khi vào app / đổi cỡ màn hình / xoay ngang-dọc, vì chiều cao có thể đổi
-   (VD tên công ty dài xuống dòng, bàn phím ảo mở trên điện thoại...). ---- */
+/* ---- Đo chiều cao THẬT của header (thay vì đoán số cứng) để thanh tab dính (sticky) đúng ngay dưới
+   header, không đè lên nhau. Đo lại mỗi khi vào app / đổi cỡ màn hình / xoay ngang-dọc, vì chiều cao có
+   thể đổi (VD tên công ty dài xuống dòng, bàn phím ảo mở trên điện thoại...).
+   (Trước đây còn tính thêm --sticky-offset để neo tiêu đề BẢNG (thead) — đã BỎ theo yêu cầu 18/8/2026 vì
+   thead không còn sticky nữa, xem CSS "thead th". Chỉ còn --header-h phục vụ thanh tab, vẫn hoạt động
+   bình thường, không đổi.) ---- */
 function capNhatViTriNeo() {
   const header = document.querySelector('header.topbar');
-  const tabbar = document.getElementById('tabbar');
   const headerH = header ? header.offsetHeight : 53;
-  const tabbarH = tabbar ? tabbar.offsetHeight : 44;
   document.documentElement.style.setProperty('--header-h', headerH + 'px');
-  document.documentElement.style.setProperty('--sticky-offset', (headerH + tabbarH) + 'px');
 }
 window.addEventListener('load', capNhatViTriNeo);
 window.addEventListener('resize', capNhatViTriNeo);
-// NGUYÊN NHÂN CHÍNH đã tìm ra của lỗi "tiêu đề bảng chồng/đè dữ liệu" tái diễn nhiều lần: font "Baloo 2"
-// (dùng cho chữ trong thanh tab) tải TỪ GOOGLE FONTS BẤT ĐỒNG BỘ (display=swap) — chữ hiện tạm bằng font
-// dự phòng của máy trước, rồi "nhảy" sang Baloo 2 sau khi tải xong (chậm nhanh tuỳ mạng), có thể đổi
-// chiều cao dòng chữ SAU KHI capNhatViTriNeo() đã đo và chốt --sticky-offset ở trên rồi — không có sự
-// kiện resize/load nào báo lại việc này, nên offset bị lệch (đúng kiểu "lúc dính lúc không, tuỳ lúc" mà
-// trước giờ không bắt được). document.fonts.ready đảm bảo đo LẦN CUỐI đúng lúc font đã ổn định hẳn.
+// Đo lại khi web font (Baloo 2, dùng cho chữ thanh tab) tải xong — font tải bất đồng bộ từ Google Fonts
+// (display=swap) có thể đổi chiều cao header SAU KHI đã đo, không có sự kiện nào báo lại việc này.
 if (document.fonts && document.fonts.ready) { document.fonts.ready.then(capNhatViTriNeo).catch(() => {}); }
-// Bền vững hơn nữa về lâu dài: ResizeObserver tự đo lại BẤT CỨ KHI NÀO header/tabbar đổi kích thước vì
-// BẤT KỲ LÝ DO GÌ (đổi font, tên công ty dài/ngắn, ẩn/hiện tên+vai trò theo vai trò, thu phóng trang...)
-// — không còn phải đoán trước từng nguyên nhân cụ thể như font/resize riêng lẻ ở trên nữa.
+// ResizeObserver: tự đo lại BẤT CỨ KHI NÀO header đổi kích thước vì bất kỳ lý do gì (đổi font, tên công
+// ty dài/ngắn, ẩn/hiện tên+vai trò theo vai trò, thu phóng trang...).
 if (window.ResizeObserver) {
   const _roNeo = new ResizeObserver(() => capNhatViTriNeo());
   window.addEventListener('DOMContentLoaded', () => {
     const header = document.querySelector('header.topbar');
-    const tabbar = document.getElementById('tabbar');
     if (header) _roNeo.observe(header);
-    if (tabbar) _roNeo.observe(tabbar);
   });
 }
 
