@@ -12,10 +12,10 @@ enabled = true
 [vars]
 # Địa chỉ trang web được phép gọi API (tên miền phụ đang chạy GitHub Pages). Nhiều địa chỉ cách nhau dấu phẩy.
 # VÍ DỤ: "https://banhang.phuonglinh.vn"  — SỬA DÒNG DƯỚI cho đúng tên miền của anh.
-ALLOWED_ORIGINS = "https://DIEN-TEN-MIEN-CUA-ANH"
+ALLOWED_ORIGINS = "https://phuonglinh.tytlinhxuan.cloud"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "phuonglinh_erp"
 # SỬA DÒNG DƯỚI: dán Database ID lấy ở Cloudflare Dashboard > Storage & Databases > D1 > phuonglinh_erp
-database_id = "DIEN-DATABASE-ID"
+database_id = "03a67cbb-d04e-4e3b-a067-3c0429d3a79d"
