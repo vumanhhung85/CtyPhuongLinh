@@ -1,0 +1,8 @@
+name = "phuonglinh-erp-api-test"
+main = "../worker/src/index.js"
+compatibility_date = "2025-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "phuonglinh_erp_test"
+database_id = "00000000-0000-0000-0000-00000000test"

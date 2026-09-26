@@ -1,0 +1,21 @@
+# Cấu hình Worker API cho app Phương Linh (Cloudflare nối thẳng repo GitHub, đẩy code lên là tự deploy).
+# Khi nối repo trong Cloudflare: Root directory = worker  |  Deploy command = npx wrangler deploy
+name = "phuonglinh-erp-api"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# Nhật ký lỗi xem trong Cloudflare Dashboard > Workers > phuonglinh-erp-api > Logs (thay cho "Thực thi" của Apps Script)
+[observability]
+enabled = true
+
+[vars]
+# Địa chỉ trang web được phép gọi API (tên miền phụ đang chạy GitHub Pages). Nhiều địa chỉ cách nhau dấu phẩy.
+# VÍ DỤ: "https://banhang.phuonglinh.vn"  — SỬA DÒNG DƯỚI cho đúng tên miền của anh.
+ALLOWED_ORIGINS = "https://DIEN-TEN-MIEN-CUA-ANH"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "phuonglinh_erp"
+# SỬA DÒNG DƯỚI: dán Database ID lấy ở Cloudflare Dashboard > Storage & Databases > D1 > phuonglinh_erp
+database_id = "DIEN-DATABASE-ID"

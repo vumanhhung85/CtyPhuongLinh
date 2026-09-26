@@ -1,34 +1,28 @@
-// Service Worker tối thiểu — chỉ để trình duyệt cho phép "Cài đặt ứng dụng" trên Android.
-// KHÔNG cache dữ liệu từ Apps Script (script.google.com) — luôn lấy dữ liệu mới nhất,
-// vì đây là app quản lý bán hàng, dữ liệu tồn kho/công nợ phải luôn chính xác theo thời gian thực.
+/* Service Worker tối giản: đủ điều kiện để Android/Chrome cho "Cài đặt ứng dụng" (PWA), nhưng KHÔNG giữ bản cũ.
+   - Trang (HTML/JS/CSS cùng tên miền): luôn lấy bản mới nhất từ mạng trước, chỉ dùng bản lưu tạm khi mất mạng
+     -> đẩy code mới lên GitHub là máy anh thấy ngay, không bị kẹt bản cũ.
+   - Gọi API (Cloudflare Worker, khác tên miền) và thư viện CDN: không can thiệp, để trình duyệt tự xử lý.
+   - Khi cài bản sw.js mới: xoá sạch mọi bộ nhớ đệm cũ (kể cả của sw.js bản Apps Script trước đây). */
+const CACHE = 'pl-erp-v20260926';
 
-const CACHE_NAME = 'qlbh-shell-v1';
-const APP_SHELL = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
-
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).catch(() => {})
-  );
-  self.skipWaiting();
-});
+self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(names => Promise.all(
-      names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
-    ))
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', event => {
-  const url = event.request.url;
-  // Không bao giờ can thiệp vào các lệnh gọi tới Apps Script (dữ liệu thật) — luôn lấy trực tiếp từ mạng.
-  if (url.includes('script.google.com') || url.includes('googleusercontent.com') || url.includes('vietqr.io')) {
-    return; // để trình duyệt tự xử lý bình thường, không qua cache
-  }
-  // Với khung giao diện: ưu tiên mạng trước, nếu mất mạng thì lấy bản đã lưu trong cache (chỉ để đỡ trắng trang).
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(req).then(res => {
+      if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); }
+      return res;
+    }).catch(() => caches.match(req).then(r => r || Response.error()))
   );
 });

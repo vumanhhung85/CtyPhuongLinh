@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chuyển dữ liệu Google Sheet → Cloudflare — Phương Linh</title>
+<link rel="icon" type="image/png" href="favicon-32.png">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body{background:var(--paper);}
+  main.mig{max-width:980px;margin:0 auto;padding:18px 16px 60px;}
+  .mig h1{font-size:20px;margin:6px 0 4px;font-family:var(--font-display);}
+  .buoc{display:flex;align-items:center;gap:10px;margin:0 0 10px;}
+  .buoc .so{width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto;}
+  .buoc h3{margin:0;font-size:15px;}
+  .log{background:#0d1b4d;color:#dfe7ff;font-family:var(--font-mono);font-size:12.5px;border-radius:10px;padding:10px 12px;max-height:260px;overflow:auto;white-space:pre-wrap;}
+  .kq-ok{color:var(--good);font-weight:800;} .kq-loi{color:var(--bad);font-weight:800;}
+  .canhbao{background:var(--warn-soft);border:1px solid #f0c37e;border-radius:10px;padding:10px 12px;font-size:13px;margin:8px 0;}
+  .an{display:none;}
+  table.mini{min-width:0;} table.mini td,table.mini th{padding:6px 8px;}
+  .hang{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .hang .field{flex:1;min-width:220px;}
+  label.chk{display:flex;align-items:flex-start;gap:8px;font-size:13.5px;margin:8px 0;}
+  label.chk input{width:auto;margin-top:3px;}
+</style>
+</head>
+<body>
+<main class="mig">
+  <h1>Chuyển dữ liệu từ Google Sheet sang Cloudflare</h1>
+  <p class="muted">Công cụ dùng 1 lần khi chuyển hệ thống. Mọi xử lý đọc file diễn ra ngay trong trình duyệt của anh; dữ liệu chỉ được gửi thẳng tới máy chủ Cloudflare của anh. Làm xong nhớ <b>xoá biến bí mật MIGRATE_KEY</b> trong Cloudflare để khoá công cụ này lại.</p>
+
+  <!-- BƯỚC 1 -->
+  <section class="panel">
+    <div class="buoc"><div class="so">1</div><h3>Kết nối máy chủ & khởi tạo cấu trúc dữ liệu</h3></div>
+    <div class="hang">
+      <div class="field"><label>Địa chỉ API (Worker)</label><input id="apiUrl" placeholder="https://phuonglinh-erp-api.xxx.workers.dev"></div>
+      <div class="field"><label>Mã chuyển dữ liệu (giá trị MIGRATE_KEY đã đặt trong Cloudflare)</label><input id="migKey" type="password" autocomplete="off"></div>
+      <button class="btn" id="btnKetNoi">Kiểm tra &amp; khởi tạo cấu trúc</button>
+    </div>
+    <div id="kqKetNoi" style="margin-top:10px;"></div>
+  </section>
+
+  <!-- BƯỚC 2 -->
+  <section class="panel an" id="panelFile">
+    <div class="buoc"><div class="so">2</div><h3>Chọn file Excel tải từ Google Sheet</h3></div>
+    <p class="muted">Mở Google Sheet của app cũ → <b>Tệp → Tải xuống → Microsoft Excel (.xlsx)</b>. Chọn file vừa tải ở đây. Kiểm tra múi giờ tại <b>Tệp → Cài đặt → Múi giờ</b> của Google Sheet (thường là GMT+7).</p>
+    <div class="hang">
+      <div class="field"><label>File .xlsx</label><input type="file" id="fileXlsx" accept=".xlsx"></div>
+      <div class="field" style="max-width:220px;"><label>Múi giờ của Google Sheet (giờ, VD 7)</label><input id="muiGio" type="number" value="7" step="1"></div>
+      <button class="btn" id="btnDocFile">Đọc &amp; kiểm tra file</button>
+    </div>
+    <div id="kqDocFile" style="margin-top:10px;"></div>
+  </section>
+
+  <!-- BƯỚC 3 -->
+  <section class="panel an" id="panelTon">
+    <div class="buoc"><div class="so">3</div><h3>Rà tồn kho: số trên Sheet so với số tính lại từ sổ nhập–xuất</h3></div>
+    <p class="muted">Hệ thống mới <b>không lưu tồn kho bằng tay nữa</b> — tồn luôn = tổng nhập − tổng xuất/sửa chữa/gia công (đã quy đổi Cuộn → Mét). Dưới đây là các mặt hàng mà số trên Sheet khác số tính từ sổ. Chênh lệch thường do lỗi cũ của bản Apps Script (VD xoá phiếu theo Cuộn chỉ hoàn lại 1 thay vì 300), hoặc do anh từng sửa tay số tồn trên Sheet sau khi kiểm kê.</p>
+    <p class="muted"><b>Không tick</b> = dùng số tính từ sổ. <b>Tick "Giữ số Sheet"</b> = số trên Sheet mới là số đúng thực tế (hệ thống thêm 1 dòng "điều chỉnh tồn" để khớp đúng số đó).</p>
+    <div id="bangTon"></div>
+  </section>
+
+  <!-- BƯỚC 4 -->
+  <section class="panel an" id="panelChuyen">
+    <div class="buoc"><div class="so">4</div><h3>Chuyển dữ liệu &amp; đối soát</h3></div>
+    <label class="chk an" id="dongXoaCu"><input type="checkbox" id="chkXoaCu"> <span>Trên Cloudflare <b>đang có dữ liệu</b>. Tick để <b>xoá sạch</b> rồi chuyển lại từ đầu (dùng khi chạy thử nhiều lần).</span></label>
+    <button class="btn" id="btnChuyen">🚀 Bắt đầu chuyển dữ liệu</button>
+    <div class="log an" id="log" style="margin-top:10px;"></div>
+    <div id="kqDoiSoat" style="margin-top:12px;"></div>
+  </section>
+
+  <!-- PHỤ: làm mới hoàn toàn -->
+  <section class="panel">
+    <details>
+      <summary style="cursor:pointer;font-weight:700;">Không có dữ liệu cũ? Tạo tài khoản quản trị đầu tiên</summary>
+      <p class="muted">Chỉ dùng khi bắt đầu mới hoàn toàn (không chuyển từ Google Sheet). Làm Bước 1 trước, sau đó tạo admin ở đây.</p>
+      <div class="hang">
+        <div class="field"><label>Họ tên</label><input id="adHoTen" value="Vũ Mạnh Hưng"></div>
+        <div class="field"><label>Tên đăng nhập</label><input id="adTen" value="admin"></div>
+        <div class="field"><label>Mật khẩu (≥ 6 ký tự)</label><input id="adMk" type="password"></div>
+        <button class="btn secondary" id="btnTaoAdmin">Tạo tài khoản</button>
+      </div>
+      <div id="kqTaoAdmin" class="muted" style="margin-top:8px;"></div>
+    </details>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="js/config.js"></script>
+<script>
+/* =====================================================================
+   CÔNG CỤ CHUYỂN DỮ LIỆU — đọc file .xlsx xuất từ Google Sheet của bản Apps Script, chuẩn hoá, rồi gửi vào
+   D1 qua các lệnh migrate.* của Worker (chỉ chạy được khi Worker có biến bí mật MIGRATE_KEY).
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const T = 'T', R = 'R', D = 'D', DT = 'DT'; // chữ, số, ngày (YYYY-MM-DD), ngày giờ (ISO)
+const CT = { IDPhieu: T, MaHH: T, TenHH: T, SoLuong: R, DonGia: R, ThanhTien: R, ThueSuat: T, TienThue: R, ThanhTienSauThue: R, DVT: T };
+// Cột của từng sheet GAS cũ (đúng tên sheet/cột Code.gs) — loại dữ liệu để chuẩn hoá khi đọc.
+const BANG = {
+  Config: { Key: T, Value: T },
+  NguoiDung: { MaNV: T, HoTen: T, TenDangNhap: T, MatKhauHash: T, VaiTro: T, TrangThai: T, NgayTao: D },
+  HangHoa: { MaHH: T, TenHH: T, Loai: T, DVT: T, GiaVonTB: R, GiaBan: R, TonKho: R, TonKhoToiThieu: R, GhiChu: T, NgayTao: D, DVTNhap: T, HeSoQuyDoi: R },
+  NhaCungCap: { MaNCC: T, TenNCC: T, MST: T, DiaChi: T, SDT: T, Email: T, GhiChu: T },
+  KhachHang: { MaKH: T, TenKH: T, MST: T, DiaChi: T, SDT: T, Email: T, GhiChu: T },
+  NhapKho: { IDPhieu: T, Ngay: D, MaNCC: T, TenNCC: T, SoHDMuaVao: T, GhiChu: T, TongTienTruocThue: R, TongTienThue: R, TongTien: R, DaTra: R, NguoiTao: T, Timestamp: DT },
+  NhapKhoCT: CT,
+  XuatBan: { IDPhieu: T, Ngay: D, MaKH: T, TenKH: T, MSTKhachHang: T, SoHDDT: T, KyHieuHD: T, GhiChu: T, TongTienTruocThue: R, TongTienThue: R, TongTien: R, DaThu: R, TrangThaiHD: T, NguoiTao: T, Timestamp: DT },
+  XuatBanCT: { ...CT, GiaVon: R },
+  SuaChua: { IDPhieu: T, Ngay: D, MaKH: T, TenKH: T, SDT: T, ThietBi: T, TinhTrangTiepNhan: T, PhuKienKemTheo: T, NguoiPhuTrach: T, TrangThai: T, NgayHenTra: D, NgayHoanThanh: D,
+    TienCong: R, TienCongThueSuat: T, TienCongThue: R, TongTienLinhKien: R, TongTienLinhKienThue: R, TongTienTruocThue: R, TongTienThue: R, TongTien: R, DaThu: R,
+    SoHDDT: T, KyHieuHD: T, TrangThaiHD: T, BaoHanhNgay: R, GhiChu: T, NguoiTao: T, Timestamp: DT },
+  SuaChuaCT: CT,
+  GiaCong: { IDPhieu: T, Loai: T, Ngay: D, MaDoiTac: T, TenDoiTac: T, MoTaCongViec: T, SoLuongSanPham: R, DonViTinh: T, ChiPhiGiaCongTruocThue: R, ThueSuatGiaCong: T,
+    TienThueGiaCong: R, ChiPhiGiaCong: R, TrangThai: T, NgayHenTra: D, NgayHoanThanh: D, DaThu: R, DaTra: R, SoHDDT: T, KyHieuHD: T, TrangThaiHD: T, GhiChu: T, NguoiTao: T, Timestamp: DT },
+  GiaCongCT: CT,
+  SoQuy: { IDPhieu: T, Ngay: D, Loai: T, NhomMuc: T, SoTien: R, PhuongThuc: T, NguonGoc: T, MoTa: T, NguoiTao: T, Timestamp: DT },
+  NhatKyHoatDong: { Timestamp: DT, NguoiDung: T, HanhDong: T, ChiTiet: T }
+};
+const KHOA = { Config: 'Key', NguoiDung: 'MaNV', HangHoa: 'MaHH', NhaCungCap: 'MaNCC', KhachHang: 'MaKH', NhapKho: 'IDPhieu', XuatBan: 'IDPhieu', SuaChua: 'IDPhieu', GiaCong: 'IDPhieu', SoQuy: 'IDPhieu' };
+const CT_CUA = { NhapKhoCT: 'NhapKho', XuatBanCT: 'XuatBan', SuaChuaCT: 'SuaChua', GiaCongCT: 'GiaCong' };
+const THU_TU = ['Config', 'NguoiDung', 'HangHoa', 'NhaCungCap', 'KhachHang', 'NhapKho', 'NhapKhoCT', 'XuatBan', 'XuatBanCT', 'SuaChua', 'SuaChuaCT', 'GiaCong', 'GiaCongCT', 'SoQuy', 'NhatKyHoatDong'];
+// Phiếu do bản cũ TỰ TẠO từ XML/bảng kê — bản cũ lưu ngày bị lùi 1 ngày (lỗi múi giờ khi đổi ngày sang UTC)
+const GHI_CHU_TU_DONG = ['Nhập chi tiết từ bảng kê BKBR', 'Nhập chi tiết từ bảng kê BKMV', 'Nhập từ dữ liệu lịch sử (bảng kê Excel)'];
+
+let DL = null;   // dữ liệu đã chuẩn hoá { bang: [rows] }
+let TON = [];    // danh sách chênh lệch tồn
+let DEM_TREN_SERVER = {};
+
+function showToast(msg) { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(window._tt); window._tt = setTimeout(() => t.style.display = 'none', 3500); }
+const fmt = n => (Math.round(Number(n) * 100) / 100).toLocaleString('vi-VN');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const p2 = n => String(n).padStart(2, '0');
+const chuan = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+function log(msg) { const el = $('log'); el.classList.remove('an'); el.textContent += msg + '\n'; el.scrollTop = el.scrollHeight; }
+
+async function goi(action, extra) {
+  const url = $('apiUrl').value.trim().replace(/\/+$/, '');
+  const r = await fetch(url, { method: 'POST', body: JSON.stringify({ action, key: $('migKey').value, ...extra }) });
+  const text = await r.text();
+  let j; try { j = JSON.parse(text); } catch (e) { throw new Error('Máy chủ trả về dữ liệu lạ (HTTP ' + r.status + '): ' + text.slice(0, 150)); }
+  if (!j.success) throw new Error(j.error || 'LOI');
+  return j.data;
+}
+
+// ---------- BƯỚC 1 ----------
+if (window.PL_CONFIG && /^https?:\/\//.test(PL_CONFIG.API_URL || '') && !/DIEN/.test(PL_CONFIG.API_URL)) $('apiUrl').value = PL_CONFIG.API_URL;
+$('btnKetNoi').addEventListener('click', async () => {
+  const kq = $('kqKetNoi'); kq.textContent = 'Đang kết nối...';
+  try {
+    const s = await goi('migrate.initSchema');
+    const st = await goi('migrate.status');
+    DEM_TREN_SERVER = st.dem;
+    const coDuLieu = Object.entries(st.dem).filter(([, n]) => n > 0);
+    kq.innerHTML = `<span class="kq-ok">✓ Kết nối được, cấu trúc dữ liệu sẵn sàng (${s.soLenh} lệnh tạo bảng/chỉ mục đã chạy).</span> ` +
+      (coDuLieu.length ? `<div class="canhbao">Cloudflare đang có dữ liệu: ${coDuLieu.map(([b, n]) => `${b} (${n})`).join(', ')}.</div>` : '<span class="muted">Cơ sở dữ liệu đang trống — sẵn sàng nhận dữ liệu.</span>');
+    $('dongXoaCu').classList.toggle('an', !coDuLieu.length);
+    $('panelFile').classList.remove('an');
+  } catch (e) { kq.innerHTML = `<span class="kq-loi">✗ ${esc(e.message)}</span>`; }
+});
+
+// ---------- BƯỚC 2: đọc & chuẩn hoá ----------
+function taiXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((ok, loi) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = ok; s.onerror = () => loi(new Error('Không tải được thư viện đọc Excel — kiểm tra mạng.')); document.body.appendChild(s); });
+}
+function serialSangNgay(n) { const d = new Date(Math.round((n - 25569) * 86400000)); return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`; }
+function chuanNgay(v, canhBao) {
+  if (v === '' || v == null) return '';
+  if (typeof v === 'number') return serialSangNgay(v);
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return `${m[1]}-${p2(m[2])}-${p2(m[3])}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return `${m[3]}-${p2(m[2])}-${p2(m[1])}`;
+  canhBao(`ngày không đọc được "${s}"`); return s;
+}
+function chuanNgayGio(v, muiGio, canhBao) {
+  if (v === '' || v == null) return '';
+  if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400000) - muiGio * 3600000).toISOString();
+  const s = String(v).trim();
+  const d = new Date(s);
+  if (!isNaN(d)) return d.toISOString();
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) - muiGio * 3600000).toISOString();
+  canhBao(`ngày giờ không đọc được "${s}"`); return s;
+}
+function chuanSo(v) {
+  if (v === '' || v == null) return null;
+  if (typeof v === 'number') return v;
+  let s = String(v).replace(/\s|đ|₫/gi, '');
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');   // 1.234.567,5
+  else if (/^-?\d+,\d+$/.test(s)) s = s.replace(',', '.');                                  // 12,5
+  else s = s.replace(/,/g, '');                                                             // 1,234,567.5
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+function chuanChu(v, cot) {
+  if (v === '' || v == null) return '';
+  if (typeof v !== 'number') return String(v);
+  let s = String(v);
+  // Ô số đã mất số 0 đầu (Google Sheet tự hiểu là số) -> bù lại theo quy tắc của Code.gs
+  if (/^(MST|MSTKhachHang)$/.test(cot) && /^\d+$/.test(s) && (s.length === 9 || s.length === 12)) s = '0' + s;
+  if (cot === 'SDT' && /^\d+$/.test(s) && (s.length === 9 || (s.length === 10 && s[0] === '2'))) s = '0' + s;
+  return s;
+}
+
+$('btnDocFile').addEventListener('click', async () => {
+  const kq = $('kqDocFile');
+  const f = $('fileXlsx').files[0];
+  if (!f) { showToast('Chọn file .xlsx trước.'); return; }
+  kq.textContent = 'Đang đọc file...';
+  try {
+    await taiXlsx();
+    const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' });
+    const muiGio = Number($('muiGio').value) || 0;
+    const canhBao = [];
+    const dl = {};
+    const boQua = wb.SheetNames.filter(n => !BANG[n]);
+    for (const ten of THU_TU) {
+      const ws = wb.Sheets[ten];
+      if (!ws) { dl[ten] = []; if (!['NhatKyHoatDong', 'SoQuy'].includes(ten)) canhBao.push(`Không thấy sheet "${ten}" trong file.`); continue; }
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+      const hdr = (aoa[0] || []).map(h => String(h).trim());
+      const cotLa = hdr.filter(h => h && !BANG[ten][h]);
+      if (cotLa.length) canhBao.push(`Sheet ${ten}: bỏ qua cột không dùng: ${cotLa.join(', ')}`);
+      const rows = [];
+      aoa.slice(1).forEach((dong, i) => {
+        if (!dong.some(c => c !== '' && c !== null)) return;
+        const o = {};
+        hdr.forEach((h, j) => {
+          const kieu = BANG[ten][h]; if (!kieu) return;
+          const v = dong[j];
+          const cb = msg => canhBao.push(`Sheet ${ten} dòng ${i + 2}, cột ${h}: ${msg}`);
+          o[h] = kieu === R ? chuanSo(v) : kieu === D ? chuanNgay(v, cb) : kieu === DT ? chuanNgayGio(v, muiGio, cb) : chuanChu(v, h);
+        });
+        rows.push(o);
+      });
+      // Trùng khoá chính -> giữ dòng đầu
+      const k = KHOA[ten];
+      if (k) {
+        const daCo = new Set(); const sach = [];
+        rows.forEach(r => { const v = String(r[k] || ''); if (!v) { canhBao.push(`Sheet ${ten}: 1 dòng trống cột ${k}, bỏ qua`); return; } if (daCo.has(v)) { canhBao.push(`Sheet ${ten}: trùng ${k} "${v}", chỉ giữ dòng đầu`); return; } daCo.add(v); sach.push(r); });
+        dl[ten] = sach;
+      } else dl[ten] = rows;
+    }
+    // Dòng chi tiết: bỏ dòng mồ côi (không có đầu phiếu) + tính hệ số quy đổi đã dùng lúc ghi
+    const hhMap = {}; dl.HangHoa.forEach(h => { hhMap[h.MaHH] = h; });
+    let soDongDonViLon = 0;
+    for (const [bangCT, bangDau] of Object.entries(CT_CUA)) {
+      const ids = new Set(dl[bangDau].map(r => r.IDPhieu));
+      const moCoi = dl[bangCT].filter(r => !ids.has(r.IDPhieu));
+      if (moCoi.length) canhBao.push(`${bangCT}: ${moCoi.length} dòng chi tiết không có phiếu tương ứng (dư lại do lỗi ghi dở của bản cũ) — BỎ QUA: ${[...new Set(moCoi.map(r => r.IDPhieu))].slice(0, 8).join(', ')}${moCoi.length > 8 ? '...' : ''}`);
+      dl[bangCT] = dl[bangCT].filter(r => ids.has(r.IDPhieu)).map(r => {
+        const hh = hhMap[r.MaHH];
+        const laDonViLon = hh && chuan(r.DVT) && chuan(r.DVT) === chuan(hh.DVTNhap) && chuan(r.DVT) !== chuan(hh.DVT) && Number(hh.HeSoQuyDoi) > 0;
+        const heSo = laDonViLon ? Number(hh.HeSoQuyDoi) : 1;
+        if (laDonViLon) soDongDonViLon++;
+        return { ...r, HeSoQuyDoi: heSo, SoLuongQuyDoi: (Number(r.SoLuong) || 0) * heSo };
+      });
+    }
+    DL = dl;
+    // Phiếu tạo tự động bởi bản cũ, có thể bị lùi 1 ngày
+    const tuDong = [...dl.NhapKho, ...dl.XuatBan].filter(r => GHI_CHU_TU_DONG.includes(String(r.GhiChu || '').trim()) && /^\d{4}-\d{2}-\d{2}$/.test(r.Ngay));
+    const mau = tuDong.slice(0, 6).map(r => `<tr><td>${esc(r.SoHDDT || r.SoHDMuaVao || '')}</td><td>${esc(r.TenKH || r.TenNCC || '')}</td><td>${esc(r.Ngay)}</td><td>${esc(congNgay(r.Ngay, 1))}</td></tr>`).join('');
+    kq.innerHTML = `
+      <div class="tableWrap"><table class="mini"><thead><tr><th>Sheet</th><th>Số dòng sẽ chuyển</th></tr></thead><tbody>
+        ${THU_TU.map(t => `<tr><td>${t}</td><td>${dl[t].length.toLocaleString('vi-VN')}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="muted">${soDongDonViLon} dòng chi tiết được nhận diện là bán/nhập theo đơn vị lớn (VD Cuộn) và đã quy đổi sang đơn vị chính. ${boQua.length ? 'Bỏ qua các sheet: ' + boQua.map(esc).join(', ') + '.' : ''}</p>
+      ${canhBao.length ? `<div class="canhbao"><b>${canhBao.length} lưu ý khi đọc file:</b><ul style="margin:6px 0 0;padding-left:18px;">${canhBao.slice(0, 40).map(c => `<li>${esc(c)}</li>`).join('')}${canhBao.length > 40 ? `<li>... và ${canhBao.length - 40} lưu ý khác</li>` : ''}</ul></div>` : '<p class="kq-ok">✓ Không có lỗi định dạng.</p>'}
+      ${tuDong.length ? `<div class="canhbao">
+        <b>${tuDong.length} phiếu do bản cũ tự tạo từ XML/bảng kê hoá đơn.</b> Bản cũ có lỗi đổi ngày theo giờ UTC nên các phiếu này nhiều khả năng bị <b>lùi 1 ngày</b> so với ngày trên hoá đơn. Mở 1–2 hoá đơn gốc đối chiếu với bảng mẫu dưới đây:
+        <div class="tableWrap" style="margin:8px 0;"><table class="mini"><thead><tr><th>Số HĐ</th><th>Đối tác</th><th>Ngày trên Sheet</th><th>Nếu cộng 1 ngày</th></tr></thead><tbody>${mau}</tbody></table></div>
+        <label class="chk"><input type="checkbox" id="chkCongNgay"> <span>Ngày trên hoá đơn gốc trùng với cột "Nếu cộng 1 ngày" → <b>cộng 1 ngày cho cả ${tuDong.length} phiếu này</b> khi chuyển.</span></label>
+      </div>` : ''}`;
+    dungBangTon();
+    $('panelTon').classList.remove('an'); $('panelChuyen').classList.remove('an');
+  } catch (e) { kq.innerHTML = `<span class="kq-loi">✗ ${esc(e.message)}</span>`; console.error(e); }
+});
+function congNgay(ymd, n) { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+// ---------- BƯỚC 3: tồn kho ----------
+function tonTheoSo(dl) {
+  const ton = {};
+  const cong = (rows, dau) => rows.forEach(r => { ton[r.MaHH] = (ton[r.MaHH] || 0) + dau * (Number(r.SoLuongQuyDoi) || 0); });
+  cong(dl.NhapKhoCT, 1); cong(dl.XuatBanCT, -1); cong(dl.SuaChuaCT, -1); cong(dl.GiaCongCT, -1);
+  return ton;
+}
+function dungBangTon() {
+  const ton = tonTheoSo(DL);
+  TON = DL.HangHoa.filter(h => h.Loai === 'HangHoa').map(h => {
+    const soSheet = Number(h.TonKho) || 0, soSo = Math.round((ton[h.MaHH] || 0) * 10000) / 10000;
+    return { MaHH: h.MaHH, TenHH: h.TenHH, DVT: h.DVT, soSheet, soSo, giaVon: Number(h.GiaVonTB) || 0, giu: false };
+  }).filter(t => Math.abs(t.soSheet - t.soSo) > 1e-6);
+  const el = $('bangTon');
+  if (!TON.length) { el.innerHTML = '<p class="kq-ok">✓ Tồn kho mọi mặt hàng trên Sheet khớp đúng với số tính từ sổ nhập–xuất.</p>'; return; }
+  el.innerHTML = `<p><b>${TON.length}</b> mặt hàng chênh lệch.
+      <button class="btn secondary small" type="button" onclick="TON.forEach(t=>t.giu=true);dungLaiTick()">Giữ số Sheet cho tất cả</button>
+      <button class="btn secondary small" type="button" onclick="TON.forEach(t=>t.giu=false);dungLaiTick()">Dùng số tính từ sổ cho tất cả</button></p>
+    <div class="tableWrap" style="max-height:420px;"><table class="mini"><thead><tr><th>Mặt hàng</th><th>ĐVT</th><th>Tồn trên Sheet</th><th>Tồn tính từ sổ</th><th>Chênh</th><th>Giữ số Sheet</th></tr></thead><tbody>
+      ${TON.map((t, i) => `<tr><td>${esc(t.TenHH)}</td><td>${esc(t.DVT)}</td><td>${fmt(t.soSheet)}</td><td>${fmt(t.soSo)}</td>
+        <td><span class="tag ${t.soSheet > t.soSo ? 'warn' : 'bad'}">${t.soSheet > t.soSo ? '+' : ''}${fmt(t.soSheet - t.soSo)}</span></td>
+        <td><input type="checkbox" class="chkGiu" data-i="${i}" onchange="TON[${i}].giu=this.checked"></td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+function dungLaiTick() { document.querySelectorAll('.chkGiu').forEach(c => { c.checked = TON[Number(c.dataset.i)].giu; }); }
+
+// ---------- BƯỚC 4: chuyển & đối soát ----------
+$('btnChuyen').addEventListener('click', async () => {
+  if (!DL) { showToast('Đọc file ở Bước 2 trước.'); return; }
+  const btn = $('btnChuyen'); btn.disabled = true; $('log').textContent = ''; $('kqDoiSoat').innerHTML = '';
+  try {
+    const st = await goi('migrate.status');
+    const coDuLieu = Object.values(st.dem).some(n => n > 0);
+    if (coDuLieu) {
+      if (!$('chkXoaCu').checked) { $('dongXoaCu').classList.remove('an'); throw new Error('Cloudflare đang có dữ liệu — tick ô "xoá sạch" phía trên nếu muốn chuyển lại từ đầu.'); }
+      if (!confirm('Xoá SẠCH toàn bộ dữ liệu hiện có trên Cloudflare rồi chuyển lại từ đầu?')) throw new Error('Đã huỷ.');
+      await goi('migrate.reset', { xacNhan: 'XOA_HET' }); log('Đã xoá dữ liệu cũ trên Cloudflare.');
+    }
+    // Áp dụng sửa lệch ngày (nếu anh chọn) trên bản sao dữ liệu
+    const dl = JSON.parse(JSON.stringify(DL));
+    if ($('chkCongNgay') && $('chkCongNgay').checked) {
+      let n = 0;
+      [...dl.NhapKho, ...dl.XuatBan].forEach(r => { if (GHI_CHU_TU_DONG.includes(String(r.GhiChu || '').trim()) && /^\d{4}-\d{2}-\d{2}$/.test(r.Ngay)) { r.Ngay = congNgay(r.Ngay, 1); n++; } });
+      log(`Đã cộng 1 ngày cho ${n} phiếu tạo tự động từ hoá đơn.`);
+    }
+    for (const ten of THU_TU) {
+      const rows = dl[ten];
+      if (!rows.length) { log(`${ten}: 0 dòng`); continue; }
+      // Cỡ lô tính dư ra 3 cột (máy chủ có thể có thêm cột mới như SoLanSai...) và tối đa ~30 câu lệnh/lần gửi,
+      // dưới giới hạn 40 lệnh/lần của Worker (gói miễn phí giới hạn 50 lệnh D1 mỗi request).
+      const soCot = Object.keys(BANG[ten]).length + (CT_CUA[ten] ? 2 : 0);
+      const lo = Math.floor(100 / (soCot + 3)) * 30;
+      for (let i = 0; i < rows.length; i += lo) {
+        await goi('migrate.insert', { table: ten, rows: rows.slice(i, i + lo) });
+        log(`${ten}: ${Math.min(i + lo, rows.length)}/${rows.length}`);
+      }
+    }
+    // Tính lại tồn + giá vốn từ sổ, kèm dòng điều chỉnh cho mặt hàng anh chọn giữ số Sheet
+    const dieuChinhTheoMa = {};
+    TON.filter(t => t.giu).forEach(t => { dieuChinhTheoMa[t.MaHH] = { MaHH: t.MaHH, SoLuongQuyDoi: t.soSheet - t.soSo, DonGiaQuyDoi: t.giaVon }; });
+    const tatCaMa = dl.HangHoa.map(h => h.MaHH);
+    for (let i = 0; i < tatCaMa.length; i += 150) {
+      const lo = tatCaMa.slice(i, i + 150);
+      await goi('migrate.finalize', { maHHs: lo, dieuChinh: lo.map(m => dieuChinhTheoMa[m]).filter(Boolean) });
+      log(`Tính lại tồn kho & giá vốn từ sổ: ${Math.min(i + 150, tatCaMa.length)}/${tatCaMa.length} mặt hàng`);
+    }
+    log('Đang đối soát...');
+    await doiSoat(dl, dieuChinhTheoMa);
+  } catch (e) { log('✗ LỖI: ' + e.message); showToast(e.message); }
+  finally { btn.disabled = false; }
+});
+
+async function doiSoat(dl, dieuChinhTheoMa) {
+  const sv = await goi('migrate.doiSoat');
+  const tong = (rows, f) => rows.reduce((s, r) => s + (Number(f(r)) || 0), 0);
+  const tt = r => (r.TongTienTruocThue !== null && r.TongTienTruocThue !== undefined && r.TongTienTruocThue !== '') ? r.TongTienTruocThue : r.TongTien;
+  const cfg = {}; dl.Config.forEach(c => { cfg[c.Key] = c.Value; });
+  const quy = pt => (Number(cfg[{ TienMat: 'SoDuTienMatDauKy', ChuyenKhoan: 'SoDuChuyenKhoanDauKy', The: 'SoDuTheDauKy' }[pt]]) || 0)
+    + tong(dl.SoQuy.filter(r => r.PhuongThuc === pt && r.Loai === 'Thu'), r => r.SoTien) - tong(dl.SoQuy.filter(r => r.PhuongThuc === pt && r.Loai === 'Chi'), r => r.SoTien);
+  const kyVong = {
+    phaiThu: tong(dl.XuatBan, r => (Number(r.TongTien) || 0) - (Number(r.DaThu) || 0)) + tong(dl.SuaChua, r => (Number(r.TongTien) || 0) - (Number(r.DaThu) || 0))
+      + tong(dl.GiaCong.filter(g => g.Loai === 'NhanGiaCongChoKhach'), r => (Number(r.ChiPhiGiaCong) || 0) - (Number(r.DaThu) || 0)),
+    phaiTra: tong(dl.NhapKho, r => (Number(r.TongTien) || 0) - (Number(r.DaTra) || 0)) + tong(dl.GiaCong.filter(g => g.Loai === 'ThueNgoaiGiaCong'), r => (Number(r.ChiPhiGiaCong) || 0) - (Number(r.DaTra) || 0)),
+    doanhThu: tong(dl.XuatBan, tt), nhap: tong(dl.NhapKho, tt)
+  };
+  const dong = [];
+  const them = (ten, a, b, laTien) => dong.push({ ten, a, b, ok: Math.abs((Number(a) || 0) - (Number(b) || 0)) < (laTien ? 0.5 : 1e-9) });
+  THU_TU.forEach(t => them(`Số dòng ${t}`, dl[t].length, sv.dem[t]));
+  them('Tổng công nợ phải thu', kyVong.phaiThu, sv.congNoPhaiThu, true);
+  them('Tổng công nợ phải trả', kyVong.phaiTra, sv.congNoPhaiTra, true);
+  them('Tổng doanh thu bán hàng (trước thuế)', kyVong.doanhThu, sv.doanhThuXuatBan, true);
+  them('Tổng giá trị nhập kho (trước thuế)', kyVong.nhap, sv.tongNhapKho, true);
+  ['TienMat', 'ChuyenKhoan', 'The'].forEach(pt => them(`Số dư quỹ ${{ TienMat: 'tiền mặt', ChuyenKhoan: 'chuyển khoản', The: 'thẻ' }[pt]}`, quy(pt), sv.soDuQuy[pt], true));
+  // Tồn kho: kỳ vọng = số tính từ sổ, hoặc số Sheet nếu anh chọn giữ
+  const tonSo = tonTheoSo(dl);
+  const hh = dl.HangHoa.filter(h => h.Loai === 'HangHoa');
+  const lechTon = hh.filter(h => {
+    const ky = dieuChinhTheoMa[h.MaHH] ? Number(h.TonKho) || 0 : (tonSo[h.MaHH] || 0);
+    return Math.abs(ky - (sv.ton[h.MaHH] || 0)) > 1e-4;
+  });
+  dong.push({ ten: 'Tồn kho từng mặt hàng', a: `${hh.length} mặt hàng`, b: `${hh.length - lechTon.length} khớp`, ok: !lechTon.length });
+  const tatCaOk = dong.every(d => d.ok);
+  $('kqDoiSoat').innerHTML = `
+    <h3 style="margin:6px 0;">${tatCaOk ? '<span class="kq-ok">✓ ĐỐI SOÁT KHỚP 100%</span>' : '<span class="kq-loi">✗ CÓ CHỖ CHƯA KHỚP — xem các dòng đánh dấu đỏ</span>'}</h3>
+    <div class="tableWrap"><table class="mini"><thead><tr><th>Hạng mục</th><th>Theo file Sheet</th><th>Trên Cloudflare</th><th></th></tr></thead><tbody>
+      ${dong.map(d => `<tr><td>${esc(d.ten)}</td><td>${typeof d.a === 'number' ? fmt(d.a) : esc(d.a)}</td><td>${typeof d.b === 'number' ? fmt(d.b) : esc(d.b)}</td><td>${d.ok ? '<span class="kq-ok">✓</span>' : '<span class="kq-loi">✗</span>'}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${lechTon.length ? `<p class="kq-loi">Lệch tồn: ${lechTon.slice(0, 20).map(h => esc(h.TenHH)).join(', ')}</p>` : ''}
+    ${tatCaOk ? `<div class="canhbao" style="background:var(--good-soft);border-color:#9fd7b3;"><b>Việc tiếp theo:</b> (1) vào Cloudflare xoá biến bí mật <b>MIGRATE_KEY</b> để khoá công cụ này; (2) mở <b>index.html</b> đăng nhập bằng tài khoản & mật khẩu cũ; (3) cập nhật URL webhook SePay (tab Cài đặt).</div>` : ''}`;
+  log(tatCaOk ? '✓ Hoàn tất — đối soát khớp.' : '✗ Hoàn tất nhưng đối soát có chỗ lệch.');
+}
+
+// ---------- PHỤ: tạo admin khi làm mới ----------
+$('btnTaoAdmin').addEventListener('click', async () => {
+  try { await goi('migrate.taoAdmin', { hoTen: $('adHoTen').value, tenDangNhap: $('adTen').value, matKhau: $('adMk').value }); $('kqTaoAdmin').innerHTML = '<span class="kq-ok">✓ Đã tạo — mở index.html để đăng nhập.</span>'; }
+  catch (e) { $('kqTaoAdmin').innerHTML = `<span class="kq-loi">✗ ${esc(e.message)}</span>`; }
+});
+</script>
+</body>
+</html>

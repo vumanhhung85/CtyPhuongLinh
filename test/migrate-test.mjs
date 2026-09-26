@@ -1,0 +1,85 @@
+// Kiểm thử trọn quy trình chuyển dữ liệu bằng Chromium thật: migrate.html -> đối soát -> đăng nhập index.html
+// bằng mật khẩu cũ -> kiểm tra số liệu hiển thị. Chạy 2 lần liên tiếp (lần 2 có "xoá sạch rồi chuyển lại").
+import { createRequire } from 'node:module';
+const require = createRequire('/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/tools/package.json');
+const { chromium } = require('playwright-core');
+const WEB = 'http://localhost:8000', API = 'http://localhost:8787', KEY = 'khoa-chuyen-du-lieu-test-123';
+const FILE = '/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/QLBanHangPhuongLinh.xlsx';
+const SHOT = '/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/shots';
+let pass = 0, fail = 0;
+const ok = (dk, ten, ct) => { if (dk) { pass++; console.log('  ✓', ten); } else { fail++; console.log('  ✗', ten, ct !== undefined ? JSON.stringify(ct).slice(0, 400) : ''); } };
+const cho = ms => new Promise(r => setTimeout(r, ms));
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+await ctx.route('**/js/config.js*', r => r.fulfill({ contentType: 'application/javascript', body: `window.PL_CONFIG={API_URL:'${API}'};` }));
+await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+await ctx.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx/, r => r.fulfill({ contentType: 'application/javascript', path: '/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/tools/node_modules/xlsx/dist/xlsx.full.min.js' }));
+const page = await ctx.newPage();
+const loi = [];
+page.on('pageerror', e => loi.push(e.message));
+page.on('dialog', d => d.accept());
+
+for (const lan of [1, 2]) {
+  console.log(`LẦN ${lan}: chuyển dữ liệu qua migrate.html`);
+  await page.goto(WEB + '/migrate.html');
+  ok(await page.inputValue('#apiUrl') === API, 'tự điền địa chỉ API từ config.js');
+  await page.fill('#migKey', 'sai-ma-123456789');
+  await page.click('#btnKetNoi'); await cho(800);
+  ok((await page.textContent('#kqKetNoi')).includes('SAI_MA_CHUYEN_DU_LIEU'), 'sai mã chuyển dữ liệu bị từ chối');
+  await page.fill('#migKey', KEY);
+  await page.click('#btnKetNoi'); await cho(1200);
+  ok((await page.textContent('#kqKetNoi')).includes('Kết nối được'), 'kết nối + khởi tạo cấu trúc', await page.textContent('#kqKetNoi'));
+  await page.setInputFiles('#fileXlsx', FILE);
+  await page.click('#btnDocFile'); await page.waitForSelector('#bangTon *', { timeout: 10000 });
+  const kqDoc = await page.textContent('#kqDocFile');
+  ok(/NhapKhoCT\s*5(?!\d)/.test(kqDoc), 'bỏ dòng chi tiết mồ côi: NhapKhoCT còn 5 dòng', kqDoc.slice(0, 500));
+  ok(kqDoc.includes('NK-DA-XOA'), 'báo rõ mã phiếu mồ côi');
+  ok(kqDoc.includes('1 dòng chi tiết được nhận diện là bán/nhập theo đơn vị lớn'), 'nhận diện dòng nhập theo Cuộn', kqDoc.match(/\d+ dòng chi tiết được nhận diện[^.]*/));
+  ok(kqDoc.includes('2 phiếu do bản cũ tự tạo'), 'phát hiện 2 phiếu tự tạo từ hoá đơn có thể lệch ngày');
+  ok(!/Sessions/.test(kqDoc) || kqDoc.includes('Bỏ qua các sheet: Sessions'), 'bỏ qua sheet Sessions');
+  const bangTon = await page.textContent('#bangTon');
+  ok(bangTon.includes('2 mặt hàng chênh lệch') && bangTon.includes('Chuột Logitech') && bangTon.includes('DÂY ĐEO'), 'liệt kê 2 mặt hàng lệch tồn', bangTon.slice(0, 300));
+  ok(!bangTon.includes('Dây cáp mạng'), 'dây cáp (1 Cuộn nhập, bán 299 Mét) khớp đúng 1 Mét, không bị báo lệch');
+  // Chuột: giữ số Sheet (kiểm kê); Dây đeo: dùng số tính từ sổ
+  const dongChuot = page.locator('#bangTon tr', { hasText: 'Chuột Logitech' });
+  await dongChuot.locator('input.chkGiu').check();
+  await page.check('#chkCongNgay');
+  if (lan === 2) await page.check('#chkXoaCu');
+  await page.screenshot({ path: `${SHOT}/4-migrate-truoc-${lan}.png`, fullPage: true });
+  await page.click('#btnChuyen');
+  await page.waitForFunction(() => /ĐỐI SOÁT|LỖI/.test(document.getElementById('kqDoiSoat').textContent + document.getElementById('log').textContent), null, { timeout: 60000 });
+  const kqDs = await page.textContent('#kqDoiSoat');
+  ok(kqDs.includes('ĐỐI SOÁT KHỚP 100%'), `đối soát khớp 100% (lần ${lan})`, (await page.textContent('#log')).slice(-600) + ' || ' + kqDs.slice(0, 600));
+  await page.screenshot({ path: `${SHOT}/5-migrate-doisoat-${lan}.png`, fullPage: true });
+}
+
+console.log('SAU CHUYỂN: đăng nhập app bằng mật khẩu cũ, kiểm tra số liệu');
+await page.goto(WEB + '/index.html');
+await page.fill('#userInput', 'admin'); await page.fill('#pwInput', 'matkhau-cu-2026'); await page.click('#btnLogin');
+await page.waitForSelector('#dashCards .statCard', { timeout: 8000 });
+const dash = await page.textContent('#dashCards');
+ok(dash.includes('3.454.000'), 'dashboard: công nợ phải thu 3.454.000', dash);
+ok(dash.includes('1.227.000'), 'dashboard: công nợ phải trả 1.227.000');
+await page.click('#tabbar button[data-tab="danhmuc"]'); await cho(800);
+const dm = await page.textContent('#hhTableWrap');
+ok(/Chuột Logitech M331[\s\S]*?Hàng hoá[\s\S]*?Cái[\s\S]*?9\b/.test(dm), 'chuột giữ đúng số kiểm kê 9', dm.slice(0, 200));
+const ton = await page.evaluate(() => Object.fromEntries(STATE.hangHoaList.map(h => [h.MaHH, [h.TonKho, h.GiaVonTB]])));
+ok(ton['HH-CHUOT'][0] === 9 && ton['HH2608102243525271'][0] === 120 && ton['HH2608010211330024'][0] === 1, 'tồn sau chuyển: chuột 9 (giữ Sheet), dây đeo 120 (theo sổ), cáp 1 Mét', ton);
+ok(ton['HH2608010211330024'][1] === 5083, 'giá vốn cáp tính lại từ sổ = 1.525.000 / 300 Mét = 5.083đ', ton['HH2608010211330024']);
+await page.click('#tabbar button[data-tab="nhapkho"]'); await cho(800);
+const nk = await page.evaluate(() => STATE.nhapKhoList.map(n => [n.IDPhieu, n.Ngay, n.SoHDMuaVao]));
+ok(nk.find(n => n[0] === 'NK1')[1] === '2026-07-17' && nk.find(n => n[0] === 'NK2')[1] === '2026-08-09', 'phiếu tự tạo được cộng 1 ngày, phiếu nhập tay giữ nguyên', nk);
+ok(nk.find(n => n[0] === 'NK3')[2] === '182' && nk.find(n => n[0] === 'NK2')[2] === '01794', 'số hoá đơn giữ dạng chữ (01794 còn số 0 đầu)');
+const kh = await page.evaluate(() => STATE.khachHangList.map(k => [k.MST, k.SDT]));
+ok(kh[0][0] === '0312345678' && kh[1][1] === '02838123456', 'MST và SĐT bị Google Sheet cắt mất số 0 đầu đã được bù lại', kh);
+await page.click('#tabbar button[data-tab="soquy"]'); await cho(900);
+const sq = await page.textContent('#soQuyCards');
+ok(sq.includes('1.000.000') && sq.includes('43.000.000'), 'số dư quỹ: tiền mặt 1.000.000, chuyển khoản 43.000.000', sq);
+await page.click('#tabbar button[data-tab="caidat"]'); await cho(900);
+ok((await page.inputValue('#fWebhookUrl')).endsWith('/webhook/sepay?secret=secret-cu-cua-anh'), 'giữ nguyên mã bí mật webhook SePay cũ, chỉ đổi địa chỉ');
+const lg2 = await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'login', tenDangNhap: 'kythuat', password: 'kt123456' }) }).then(r => r.json());
+ok(lg2.error === 'TAI_KHOAN_BI_KHOA', 'tài khoản đang khoá trên Sheet vẫn bị khoá');
+ok(loi.length === 0, 'không có lỗi JavaScript', loi);
+await browser.close();
+console.log(`\nKẾT QUẢ CHUYỂN DỮ LIỆU: ${pass} đạt, ${fail} lỗi`);
+process.exit(fail ? 1 : 0);
