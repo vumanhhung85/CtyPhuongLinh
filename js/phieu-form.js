@@ -213,7 +213,7 @@ function updateLineTotalGeneric(el, containerId) {
   const thueSuat = row.querySelector('.itemThueSuat').value;
   const truocThue = sl * gia;
   const tienThue = tinhTienThueJS(truocThue, thueSuat);
-  row.querySelector('.lineTotal').textContent = fmtMoney(truocThue + tienThue);
+  row.querySelector('.lineTotal').innerHTML = fmtMoney(truocThue + tienThue);
   const mode = row.querySelector('.itemHHSearch').dataset.mode;
   capNhatThongTinDong(row, mode);
   recalcGrandTotalGeneric(containerId);
@@ -230,9 +230,9 @@ function recalcGrandTotalGeneric(containerId) {
   const grandEl = document.getElementById(containerId + '_grand');
   const grandTruocEl = document.getElementById(containerId + '_grandTruoc');
   const grandThueEl = document.getElementById(containerId + '_grandThue');
-  if (grandEl) grandEl.textContent = fmtMoney(truoc + thue);
-  if (grandTruocEl) grandTruocEl.textContent = fmtMoney(truoc);
-  if (grandThueEl) grandThueEl.textContent = fmtMoney(thue);
+  if (grandEl) grandEl.innerHTML = fmtMoney(truoc + thue);
+  if (grandTruocEl) grandTruocEl.innerHTML = fmtMoney(truoc);
+  if (grandThueEl) grandThueEl.innerHTML = fmtMoney(thue);
   return truoc + thue;
 }
 function readItemsFrom(containerId) {
