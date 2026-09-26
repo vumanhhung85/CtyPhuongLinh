@@ -6,5 +6,5 @@
    Sửa trực tiếp trên GitHub (bấm biểu tượng bút chì) rồi Commit — không cần sửa file nào khác.
    ===================================================================== */
 window.PL_CONFIG = {
-  API_URL: 'https://DIEN-DIA-CHI-WORKER.workers.dev'
+  API_URL: 'https://phuonglinh-erp-api.congnghephuonglinh.workers.dev/'
 };
