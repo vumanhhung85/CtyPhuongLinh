@@ -40,7 +40,13 @@ function addItemRowInto(containerId, mode) {
       <select class="itemDonViChon" onchange="doiDonViNhap(this)" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;"></select>
     </div>
     <div class="itemRowGrid">
-      <div class="field"><label>Số lượng</label><input type="number" class="itemSL" value="1" min="0.01" step="0.01" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
+      <div class="field"><label>Số lượng</label>
+        <div class="itemSLWrap">
+          <button type="button" class="itemSLBtn itemSLMinus" tabindex="-1" aria-label="Giảm 1" onclick="buocSoLuong(this,-1,'${containerId}')">−</button>
+          <input type="number" class="itemSL" value="1" min="0.01" step="0.01" oninput="updateLineTotalGeneric(this,'${containerId}')">
+          <button type="button" class="itemSLBtn itemSLPlus" tabindex="-1" aria-label="Tăng 1" onclick="buocSoLuong(this,1,'${containerId}')">+</button>
+        </div>
+      </div>
       <div class="field"><label>Đơn giá</label><input type="text" inputmode="numeric" class="itemGia moneyInput" value="0" oninput="updateLineTotalGeneric(this,'${containerId}')"></div>
       <div class="field"><label>Thuế</label><select class="itemThueSuat" onchange="updateLineTotalGeneric(this,'${containerId}')">${thueSuatOptionsHtml('8')}</select></div>
       <div class="field itemRowTotal"><label>Thành tiền</label><div class="lineTotal">0 đ</div></div>
@@ -209,6 +215,14 @@ function capNhatThongTinDong(row, mode) {
     else html += ` &nbsp;— <span class="okGia">✓ Lãi ${fmtMoney(donGiaNhap - giavonTheoDonVi)}/${donViHienThi}</span>`;
   }
   infoEl.innerHTML = html;
+}
+function buocSoLuong(btn, delta, containerId) {
+  const input = btn.closest('.itemSLWrap').querySelector('.itemSL');
+  const min = Number(input.min) || 0;
+  let val = Math.round(((Number(input.value) || 0) + delta) * 100) / 100;
+  if (val < min) val = min;
+  input.value = val;
+  updateLineTotalGeneric(input, containerId);
 }
 function updateLineTotalGeneric(el, containerId) {
   const row = el.closest('.itemRow');
