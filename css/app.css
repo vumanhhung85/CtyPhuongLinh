@@ -318,3 +318,31 @@ td.rowActions>*{vertical-align:middle;}
   .itemsTable td:first-child{font-weight:700;display:block;margin-bottom:3px;}
   .itemsTable td[data-label]::before{content:attr(data-label);color:var(--ink-soft);font-size:12px;font-family:var(--font-body);}
 }
+
+/* Bảng "Xem trước & phân loại" (Hoá đơn điện tử): tên hàng + trạng thái danh mục, số lượng, giá, từng hoá đơn */
+.itemsTable.bkPhanLoai{margin:0;}
+.itemsTable.bkPhanLoai th:nth-child(1),.itemsTable.bkPhanLoai td:nth-child(1){width:23%;}
+.itemsTable.bkPhanLoai th:nth-child(2),.itemsTable.bkPhanLoai td:nth-child(2){width:6%;}
+.itemsTable.bkPhanLoai th:nth-child(3),.itemsTable.bkPhanLoai td:nth-child(3),
+.itemsTable.bkPhanLoai th:nth-child(4),.itemsTable.bkPhanLoai td:nth-child(4){width:8%;text-align:right;}
+.itemsTable.bkPhanLoai th:nth-child(5),.itemsTable.bkPhanLoai td:nth-child(5){width:10%;text-align:right;}
+.itemsTable.bkPhanLoai th:nth-child(6),.itemsTable.bkPhanLoai td:nth-child(6){width:28%;}
+.itemsTable.bkPhanLoai th:nth-child(7),.itemsTable.bkPhanLoai td:nth-child(7){width:17%;}
+.itemsTable.bkPhanLoai td{vertical-align:top;}
+.itemsTable.bkPhanLoai select{width:100%;max-width:100%;}
+.itemsTable.bkPhanLoai th{white-space:normal;}
+.bkTen{font-weight:600;}
+.bkTrangThai{font-size:12px;margin-top:4px;font-weight:500;}
+.bkTrangThai.daCo{color:var(--good);}
+.bkTrangThai.moi{color:var(--warn);}
+.bkHD{font-size:12.5px;line-height:1.5;padding:2px 0;}
+.bkHD + .bkHD{border-top:1px dashed var(--line);}
+.bkHD .tag{padding:1px 7px;font-size:11px;margin-right:2px;}
+@media (max-width:560px){
+  .itemsTable.bkPhanLoai td:nth-child(n){width:auto !important;text-align:left;}
+  .itemsTable.bkPhanLoai td.bkDsHD{display:block;}
+  .itemsTable.bkPhanLoai td.bkDsHD::before{display:block;margin:4px 0 2px;}
+  .itemsTable.bkPhanLoai td:first-child .bkTrangThai{font-weight:500;}
+  .itemsTable.bkPhanLoai td::before{white-space:nowrap;}
+  .itemsTable.bkPhanLoai select{width:auto;}
+}

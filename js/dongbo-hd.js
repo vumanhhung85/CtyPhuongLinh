@@ -918,7 +918,10 @@ document.getElementById('btnDocFileBK').addEventListener('click', async () => {
   });
 });
 
+// Gom theo tên hàng (1 dòng/tên) nhưng giữ đủ từng lần xuất hiện: hoá đơn nào, ngày, đối tác, số lượng, đơn giá —
+// để anh nhìn là nhớ ra hàng gì. Giữ lại lựa chọn phân loại đã sửa khi đọc thêm file.
 function xayDungDanhSachTenHang() {
+  const cu = BK_TEN_HANG_MAP || {};
   BK_TEN_HANG_MAP = {};
   BK_INVOICES.forEach(inv => {
     inv.items.forEach(it => {
@@ -926,36 +929,77 @@ function xayDungDanhSachTenHang() {
       if (!BK_TEN_HANG_MAP[key]) {
         BK_TEN_HANG_MAP[key] = {
           tenGoc: it.tenHang, dvt: it.dvt,
-          loaiGoiY: timHangHoaLoai(it.tenHang, it.dvt),
-          soLanXuatHien: 0
+          loaiGoiY: cu[key] ? cu[key].loaiGoiY : timHangHoaLoai(it.tenHang, it.dvt),
+          soLanXuatHien: 0, dong: []
         };
       }
-      BK_TEN_HANG_MAP[key].soLanXuatHien++;
+      const m = BK_TEN_HANG_MAP[key];
+      m.soLanXuatHien++;
+      m.dong.push({ loai: inv.loai, soHD: inv.soHD, ngay: inv.ngay, doiTac: inv.tenDoiTac || inv.mst || '', dvt: it.dvt || '',
+        soLuong: Number(it.soLuong) || 0, donGia: Number(it.donGia) || 0, thueSuat: it.thueSuat });
     });
   });
 }
 
+// Mặt hàng đã có trong danh mục (khớp tên như máy chủ: bỏ hoa/thường + khoảng trắng thừa) -> máy chủ dùng luôn
+// mặt hàng đó (loại, ĐVT sẵn có), ô "Phân loại" không có tác dụng -> hiện rõ, khoá ô chọn.
+function timHHDanhMucTheoTen(ten) {
+  const k = String(ten || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return (STATE.hangHoaList || []).find(h => String(h.TenHH || '').trim().toLowerCase().replace(/\s+/g, ' ') === k) || null;
+}
+function escBK(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function soGon(n) { return (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('vi-VN'); }
+
 function renderBkClassifyTable() {
   document.getElementById('bkClassifyPanel').style.display = 'block';
   capNhatNutXoaDanhSach();
-  const search = (document.getElementById('bkClassifySearch').value || '').toLowerCase();
+  const search = normalizeVN(document.getElementById('bkClassifySearch').value || '');
   const wrap = document.getElementById('bkClassifyWrap');
+  // Tìm theo tên hàng, số hoá đơn hoặc tên đối tác
   const keys = Object.keys(BK_TEN_HANG_MAP)
-    .filter(k => !search || BK_TEN_HANG_MAP[k].tenGoc.toLowerCase().includes(search))
-    .sort((a, b) => BK_TEN_HANG_MAP[b].soLanXuatHien - BK_TEN_HANG_MAP[a].soLanXuatHien);
+    .filter(k => {
+      if (!search) return true;
+      const m = BK_TEN_HANG_MAP[k];
+      return normalizeVN(m.tenGoc).includes(search) || m.dong.some(d => normalizeVN(d.soHD).includes(search) || normalizeVN(d.doiTac).includes(search));
+    })
+    .sort((a, b) => BK_TEN_HANG_MAP[a].tenGoc.localeCompare(BK_TEN_HANG_MAP[b].tenGoc, 'vi'));
 
-  wrap.innerHTML = `<table><thead><tr><th>Tên hàng</th><th>ĐVT</th><th>Số lần xuất hiện</th><th>Phân loại</th></tr></thead><tbody>
+  wrap.innerHTML = `<table class="itemsTable bkPhanLoai"><thead><tr><th>Tên hàng</th><th>ĐVT</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Hoá đơn</th><th>Phân loại</th></tr></thead><tbody>
     ${keys.map(k => {
-      const item = BK_TEN_HANG_MAP[k];
+      const m = BK_TEN_HANG_MAP[k];
+      const tongSL = m.dong.reduce((s, d) => s + d.soLuong, 0);
+      const tongTien = m.dong.reduce((s, d) => s + d.soLuong * d.donGia, 0);
+      const gia = [...new Set(m.dong.map(d => Math.round(d.donGia)))].sort((a, b) => a - b);
+      const giaTxt = gia.length === 1 ? fmtMoney(gia[0]) : `<span>${fmtMoney(gia[0])} – ${fmtMoney(gia[gia.length - 1])}</span>`;
+      const dvts = []; m.dong.forEach(d => { if (d.dvt && !dvts.some(x => x.toLowerCase() === d.dvt.toLowerCase())) dvts.push(d.dvt); });
+      const coMua = m.dong.some(d => d.loai === 'nhap'), coBan = m.dong.some(d => d.loai === 'xuat');
+      const hh = timHHDanhMucTheoTen(m.tenGoc);
+      const trangThai = hh
+        ? `<div class="bkTrangThai daCo">Đã có trong danh mục · ${hh.Loai === 'DichVu' ? 'Dịch vụ' : 'Hàng hoá, tồn ' + tonKhoKep(hh)}</div>`
+        : `<div class="bkTrangThai moi">Mặt hàng mới — sẽ tự tạo trong danh mục</div>`;
+      const dsHD = m.dong.map(d => `<div class="bkHD"><span class="tag ${d.loai === 'nhap' ? 'info' : 'warn'}">${d.loai === 'nhap' ? 'Mua' : 'Bán'}</span>
+          HĐ <b>${escBK(d.soHD)}</b> · ${fmtDate(d.ngay)} · ${escBK(d.doiTac)}
+          <span class="muted">— ${soGon(d.soLuong)} ${escBK(d.dvt)} × ${fmtMoney(d.donGia)}${d.thueSuat && d.thueSuat !== '0' ? ', VAT ' + escBK(d.thueSuat) + (d.thueSuat === 'KCT' ? '' : '%') : ''}</span></div>`).join('');
+      const oChon = hh
+        ? `<span class="muted">Theo danh mục: <b>${hh.Loai === 'DichVu' ? 'Dịch vụ' : 'Hàng hoá'}</b></span>`
+        : `<select class="bkChonLoai" data-key="${escBK(k)}">
+          <option value="HangHoa" ${m.loaiGoiY === 'HangHoa' ? 'selected' : ''}>Hàng hoá (có tồn kho)</option>
+          <option value="DichVu" ${m.loaiGoiY === 'DichVu' ? 'selected' : ''}>Dịch vụ (không tồn kho)</option>
+        </select>`;
       return `<tr>
-        <td>${item.tenGoc}</td><td>${item.dvt || '—'}</td><td>${item.soLanXuatHien}</td>
-        <td><select data-key="${k}" onchange="BK_TEN_HANG_MAP['${k}'].loaiGoiY=this.value">
-          <option value="HangHoa" ${item.loaiGoiY === 'HangHoa' ? 'selected' : ''}>Hàng hoá (có tồn kho)</option>
-          <option value="DichVu" ${item.loaiGoiY === 'DichVu' ? 'selected' : ''}>Dịch vụ (không tồn kho)</option>
-        </select></td>
+        <td><div class="bkTen">${escBK(m.tenGoc)}</div>${trangThai}</td>
+        <td data-label="ĐVT">${escBK(dvts.join(' / ') || '—')}</td>
+        <td data-label="Số lượng"><b>${soGon(tongSL)}</b>${coMua && coBan ? '<div class="muted">(cả mua & bán)</div>' : ''}</td>
+        <td data-label="Đơn giá">${giaTxt}</td>
+        <td data-label="Thành tiền (trước thuế)">${fmtMoney(Math.round(tongTien))}</td>
+        <td data-label="Hoá đơn (${m.dong.length})" class="bkDsHD">${dsHD}</td>
+        <td data-label="Phân loại">${oChon}</td>
       </tr>`;
     }).join('')}
   </tbody></table>`;
+  wrap.querySelectorAll('.bkChonLoai').forEach(sel => sel.addEventListener('change', () => {
+    const m = BK_TEN_HANG_MAP[sel.dataset.key]; if (m) m.loaiGoiY = sel.value;
+  }));
 }
 document.getElementById('bkClassifySearch').addEventListener('input', renderBkClassifyTable);
 document.getElementById('btnXoaDanhSachCho').addEventListener('click', () => {
