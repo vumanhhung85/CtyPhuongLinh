@@ -292,11 +292,10 @@ document.getElementById('btnDocXml').addEventListener('click', () => {
     const loi = results.filter(r => r.loi).map(r => r.loi);
     const hopLe = results.filter(r => !r.loi);
     const soBiTuChoiDoMST = loi.filter(l => l.includes('KHÔNG PHẢI hoá đơn của công ty')).length;
-    BK_INVOICES = BK_INVOICES.concat(hopLe);
-    BK_INVOICES.sort((a, b) => new Date(a.ngay) - new Date(b.ngay));
     BK_PARSE_ERRORS = BK_PARSE_ERRORS.concat(loi);
+    const { them, trung } = gopVaoDanhSachCho(hopLe);
     document.getElementById('bkParseStatus').textContent =
-      `[Từ XML] Đọc ${files.length} file — thêm ${hopLe.length} hoá đơn hợp lệ vào danh sách chờ nhập (tổng hiện có: ${BK_INVOICES.length}).` +
+      `[Từ XML] Đọc ${files.length} file — thêm ${them.length} hoá đơn hợp lệ vào danh sách chờ nhập (tổng hiện có: ${BK_INVOICES.length}).` + thongBaoTrung(trung) +
       (soBiTuChoiDoMST > 0 ? ` ⚠️ ${soBiTuChoiDoMST} file bị TỪ CHỐI vì không liên quan đến MST công ty 0317838601 (không phải người mua hoặc người bán).` : '') +
       (loi.length > soBiTuChoiDoMST ? ` ${loi.length - soBiTuChoiDoMST} file lỗi khác (xem chi tiết ở bước Tổng kết).` : '');
     if (hopLe.length) {
@@ -529,12 +528,11 @@ document.getElementById('btnXacNhanPdfAnh').addEventListener('click', () => {
   const thieu = PDFANH_ROWS.filter(r => !r.loi && (!r.loai || !r.soHD || !r.mst || !r.ngay));
   if (thieu.length) { showToast(`${thieu.length} file còn thiếu Loại/Số HĐ/MST/Ngày — vui lòng điền đủ trước khi xác nhận.`); return; }
   if (!hopLe.length) { showToast('Không có hoá đơn hợp lệ để thêm.'); return; }
-  BK_INVOICES = BK_INVOICES.concat(hopLe);
-  BK_INVOICES.sort((a, b) => new Date(a.ngay) - new Date(b.ngay));
+  const { them, trung } = gopVaoDanhSachCho(hopLe);
   xayDungDanhSachTenHang();
   renderBkClassifyTable();
   document.getElementById('bkClassifyPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  showToast(`Đã thêm ${hopLe.length} hoá đơn vào danh sách chờ nhập.`);
+  showToast(`Đã thêm ${them.length} hoá đơn vào danh sách chờ nhập.` + thongBaoTrung(trung));
 });
 let LICHSU_HEADERS = [];
 let LICHSU_ROWS = [];
@@ -671,6 +669,66 @@ document.getElementById('btnTaoPhieuLichSu').addEventListener('click', () => {
 let BK_INVOICES = [];      // tất cả hoá đơn đã gộp từ mọi file, đã phân loại xong
 let BK_TEN_HANG_MAP = {};  // tenHangChuanHoa -> { tenGoc, dvt, loaiGoiY, loaiDaChon, soLanXuatHien }
 let BK_PARSE_ERRORS = [];
+
+// Khoá nhận diện 1 hoá đơn — cùng quy tắc với server (khoaHoaDon trong worker): bỏ khoảng trắng + số 0 đầu của số HĐ
+// ("00001794" = "1794"), chuẩn hoá MST, kèm năm (số HĐ đánh lại từ 1 mỗi năm).
+function chuanHoaSoHDClient(so) { return String(so || '').replace(/\s+/g, '').toUpperCase().replace(/^0+(?=.)/, ''); }
+function khoaHoaDonClient(inv) {
+  return (inv.loai || '') + '|' + chuanHoaSoHDClient(inv.soHD) + '|' + chuanHoaMSTClient(inv.mst) + '|' + String(inv.ngay || '').slice(0, 4);
+}
+// Gộp hoá đơn mới vào danh sách chờ nhập, BỎ QUA hoá đơn đã có sẵn trong danh sách (đọc lại cùng file, hoặc
+// cùng 1 hoá đơn vừa có trong XML vừa có trong bảng kê Excel) — trước đây cộng dồn thẳng nên nhập trùng, tồn kho x2.
+function gopVaoDanhSachCho(moi) {
+  const daCo = new Set(BK_INVOICES.map(khoaHoaDonClient));
+  const them = [], trung = [];
+  moi.forEach(inv => {
+    const k = khoaHoaDonClient(inv);
+    if (daCo.has(k)) trung.push(inv); else { daCo.add(k); them.push(inv); }
+  });
+  BK_INVOICES = BK_INVOICES.concat(them);
+  BK_INVOICES.sort((a, b) => new Date(a.ngay) - new Date(b.ngay));
+  if (trung.length) {
+    BK_PARSE_ERRORS = BK_PARSE_ERRORS.concat(trung.map(inv => `Bỏ qua hoá đơn trùng: số ${inv.soHD} (${inv.tenDoiTac || inv.mst}, ${fmtDate(inv.ngay)}${inv.tenFile ? ', file ' + inv.tenFile : ''}) — đã có trong danh sách chờ nhập, không cộng dồn lần 2.`));
+  }
+  // Bắt đầu đợt nhập mới -> bỏ khung kết quả đợt trước, phải bấm lại "Xác nhận phân loại" để xem tổng kết mới
+  document.getElementById('bkSummaryPanel').style.display = 'none';
+  document.getElementById('bkProgressWrap').style.display = 'none';
+  document.getElementById('bkResultWrap').innerHTML = '';
+  document.getElementById('btnBatDauNhapBK').style.display = '';
+  return { them, trung };
+}
+function thongBaoTrung(trung) {
+  return trung.length ? ` ⚠️ Bỏ qua ${trung.length} hoá đơn TRÙNG với hoá đơn đã có trong danh sách chờ (không cộng dồn): ${trung.slice(0, 5).map(i => i.soHD).join(', ')}${trung.length > 5 ? '…' : ''}.` : '';
+}
+function capNhatNutXoaDanhSach() {
+  const nut = document.getElementById('btnXoaDanhSachCho');
+  if (nut) nut.textContent = `Xoá danh sách chờ nhập (${BK_INVOICES.length} hoá đơn)`;
+}
+// Làm trống toàn bộ danh sách chờ nhập (sau khi đã nhập vào hệ thống xong, hoặc anh bấm xoá tay để đọc bộ file khác).
+// giuKetQua = true: giữ lại khung kết quả của lần nhập vừa xong để anh xem, chỉ ẩn phần tổng kết/nút nhập.
+function lamTrongDanhSachCho(giuKetQua) {
+  BK_INVOICES = []; BK_TEN_HANG_MAP = {}; BK_PARSE_ERRORS = [];
+  PDFANH_ROWS = [];
+  ['dongboXmlFiles', 'bkFiles', 'pdfAnhFiles'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('bkClassifyWrap').innerHTML = '';
+  document.getElementById('bkClassifySearch').value = '';
+  document.getElementById('bkClassifyPanel').style.display = 'none';
+  document.getElementById('pdfAnhPreviewPanel').style.display = 'none';
+  document.getElementById('pdfAnhPreviewList').innerHTML = '';
+  document.getElementById('bkSummaryCards').innerHTML = '';
+  document.getElementById('bkErrorList').innerHTML = '';
+  document.getElementById('btnBatDauNhapBK').style.display = 'none';
+  if (giuKetQua) {
+    document.getElementById('bkSummaryTitle').textContent = 'Kết quả lần nhập vừa xong';
+    document.getElementById('bkSummaryPanel').style.display = 'block';
+  } else {
+    document.getElementById('bkSummaryPanel').style.display = 'none';
+    document.getElementById('bkProgressWrap').style.display = 'none';
+    document.getElementById('bkResultWrap').innerHTML = '';
+  }
+  document.getElementById('bkParseStatus').textContent = 'Danh sách chờ nhập đang trống (0 hoá đơn) — chọn file để bắt đầu đợt nhập mới.';
+  capNhatNutXoaDanhSach();
+}
 
 function timHangHoaLoai(tenHang, dvt) {
   const t = normalizeVN(tenHang);
@@ -844,14 +902,16 @@ document.getElementById('btnDocFileBK').addEventListener('click', async () => {
   }));
 
   Promise.all(readers).then(results => {
-    BK_INVOICES = [];
-    BK_PARSE_ERRORS = [];
-    results.forEach(r => { BK_INVOICES.push(...r.invoices); BK_PARSE_ERRORS.push(...r.errors); });
-    BK_INVOICES.sort((a, b) => new Date(a.ngay) - new Date(b.ngay));
+    // Gộp (có lọc trùng) vào chung danh sách chờ với XML/PDF — trước đây xoá sạch danh sách rồi đọc lại,
+    // làm mất các hoá đơn XML đã đọc trước đó dù giao diện ghi "gộp từ XML + Excel".
+    const docDuoc = [];
+    results.forEach(r => { docDuoc.push(...r.invoices); BK_PARSE_ERRORS.push(...r.errors); });
+    const { them, trung } = gopVaoDanhSachCho(docDuoc);
 
     document.getElementById('bkParseStatus').textContent =
-      `Đã đọc xong ${files.length} file — tìm được ${BK_INVOICES.length} hoá đơn` +
-      (BK_PARSE_ERRORS.length ? ` (có ${BK_PARSE_ERRORS.length} cảnh báo, xem bên dưới sau khi xác nhận phân loại).` : '.');
+      `Đã đọc xong ${files.length} file — tìm được ${docDuoc.length} hoá đơn, thêm ${them.length} vào danh sách chờ nhập (tổng hiện có: ${BK_INVOICES.length}).` +
+      thongBaoTrung(trung) +
+      (BK_PARSE_ERRORS.length ? ` Có ${BK_PARSE_ERRORS.length} cảnh báo, xem bên dưới sau khi xác nhận phân loại.` : '');
 
     xayDungDanhSachTenHang();
     renderBkClassifyTable();
@@ -877,6 +937,7 @@ function xayDungDanhSachTenHang() {
 
 function renderBkClassifyTable() {
   document.getElementById('bkClassifyPanel').style.display = 'block';
+  capNhatNutXoaDanhSach();
   const search = (document.getElementById('bkClassifySearch').value || '').toLowerCase();
   const wrap = document.getElementById('bkClassifyWrap');
   const keys = Object.keys(BK_TEN_HANG_MAP)
@@ -897,6 +958,12 @@ function renderBkClassifyTable() {
   </tbody></table>`;
 }
 document.getElementById('bkClassifySearch').addEventListener('input', renderBkClassifyTable);
+document.getElementById('btnXoaDanhSachCho').addEventListener('click', () => {
+  if (!BK_INVOICES.length) { lamTrongDanhSachCho(false); return; }
+  if (!confirm(`Xoá ${BK_INVOICES.length} hoá đơn khỏi danh sách chờ nhập? (Chỉ xoá danh sách đang xem trước, KHÔNG ảnh hưởng phiếu đã có trong hệ thống.)`)) return;
+  lamTrongDanhSachCho(false);
+  showToast('Đã làm trống danh sách chờ nhập.');
+});
 
 document.getElementById('btnXacNhanPhanLoai').addEventListener('click', () => {
   // Gán loại đã chọn vào từng dòng hàng trong hoá đơn
@@ -910,6 +977,7 @@ document.getElementById('btnXacNhanPhanLoai').addEventListener('click', () => {
 });
 
 function renderBkSummary() {
+  document.getElementById('bkSummaryTitle').textContent = 'Tổng kết trước khi nhập';
   document.getElementById('bkSummaryPanel').style.display = 'block';
   const xuat = BK_INVOICES.filter(i => i.loai === 'xuat');
   const nhap = BK_INVOICES.filter(i => i.loai === 'nhap');
@@ -939,6 +1007,9 @@ function renderBkSummary() {
 document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
   if (!BK_INVOICES.length) { showToast('Chưa có dữ liệu để nhập.'); return; }
   if (!confirm(`Sẽ tạo tối đa ${BK_INVOICES.length} phiếu (bỏ qua tự động các hoá đơn đã tồn tại trong hệ thống). Tiếp tục?`)) return;
+  const nutNhap = document.getElementById('btnBatDauNhapBK');
+  if (nutNhap.disabled) return; // chống bấm 2 lần khi đang chạy
+  nutNhap.disabled = true;
 
   const daThanhToanDu = document.getElementById('bkDaThanhToan').checked;
   const invoicesToSend = BK_INVOICES.map(inv => ({ ...inv, daThanhToanDu }));
@@ -957,7 +1028,7 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
   const progressText = document.getElementById('bkProgressText');
   const resultWrap = document.getElementById('bkResultWrap');
   resultWrap.innerHTML = '';
-  let tongThanhCong = 0, tongDaTonTai = 0, tongLoi = [], tongCanhBaoTonKhoAm = [], tongCanhBaoDonVi = [];
+  let tongThanhCong = 0, tongDaTonTai = 0, tongLoi = [], tongCanhBaoTonKhoAm = [], tongCanhBaoDonVi = [], tongDsDaTonTai = [];
 
   function xuLyChunk(idx) {
     if (idx >= chunks.length) {
@@ -980,8 +1051,17 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
           ${tongLoi.map(l => `<tr><td>${l.soHD}</td><td>${fmtDate(l.ngay)}</td><td>${l.doiTac || ''}</td><td>${l.error}</td></tr>`).join('')}
         </tbody></table></div>`;
       }
+      if (tongDsDaTonTai.length) {
+        resultWrap.innerHTML += `<p class="muted" style="margin-top:10px;">${tongDsDaTonTai.length} hoá đơn đã có phiếu trong hệ thống từ trước (kể cả phiếu nhập tay ghi số HĐ không có số 0 đầu) — đã bỏ qua, không nhập lần 2:</p>
+          <ul class="muted">${tongDsDaTonTai.map(d => `<li>HĐ ${d.soHD} · ${fmtDate(d.ngay)} · ${d.doiTac}</li>`).join('')}</ul>`;
+      }
       renderXuatBanTable(); renderNhapKhoTable(); renderHangHoaTable(); renderKhachHangTable(); renderNhaCungCapTable();
-      showToast('Đã nhập xong dữ liệu chi tiết BKMV/BKBR.');
+      // Đã đưa vào hệ thống xong -> danh sách chờ về 0, giữ lại khung kết quả để xem. Lô lỗi (nếu có) cần đọc lại file
+      // để nhập lại — an toàn vì các hoá đơn đã nhập thành công sẽ tự được bỏ qua.
+      nutNhap.disabled = false;
+      lamTrongDanhSachCho(true);
+      if (tongLoi.length) document.getElementById('bkParseStatus').textContent += ' Có hoá đơn bị lỗi ở lần nhập vừa rồi — sửa rồi đọc lại file để nhập tiếp (hoá đơn đã nhập thành công sẽ tự bỏ qua).';
+      showToast('Đã nhập xong — danh sách chờ nhập đã được làm trống.');
       return;
     }
     progressText.textContent = `Đang xử lý lô ${idx + 1}/${chunks.length}...`;
@@ -995,6 +1075,7 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
         tongLoi = tongLoi.concat(res.loi || []);
         tongCanhBaoTonKhoAm = tongCanhBaoTonKhoAm.concat(res.canhBaoTonKhoAm || []);
         tongCanhBaoDonVi = tongCanhBaoDonVi.concat(res.canhBaoDonVi || []);
+        tongDsDaTonTai = tongDsDaTonTai.concat(res.dsDaTonTai || []);
       }
       xuLyChunk(idx + 1);
     }).catch(err => {

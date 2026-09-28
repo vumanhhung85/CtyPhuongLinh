@@ -163,6 +163,12 @@ function chuanHoaMST(mst) {
   if (s.length === 12) s = '0' + s;
   return s;
 }
+// Số hoá đơn dùng để SO TRÙNG (không đổi giá trị lưu): bảng kê Excel mới ghi "00001794", XML/nhập tay ghi "1794"
+// -> trước đây coi là 2 hoá đơn khác nhau nên nhập trùng (tồn kho x2). Bỏ khoảng trắng + số 0 đầu, không phân biệt hoa/thường.
+const chuanHoaSoHD = so => String(so || '').replace(/\s+/g, '').toUpperCase().replace(/^0+(?=.)/, '');
+// Số HĐ đánh lại từ 1 mỗi năm (theo ký hiệu) -> khoá trùng gồm cả NĂM, tránh bỏ nhầm hoá đơn năm sau cùng số.
+const khoaHoaDon = (so, mst, ngay) => chuanHoaSoHD(so) + '|' + chuanHoaMST(mst) + '|' + String(ngay || '').slice(0, 4);
+const SQL_SO_HD_CHUAN = cot => `ltrim(upper(replace(replace(replace(${cot},' ',''),char(9),''),char(10),'')),'0')`;
 const chuanHoaTen = ten => String(ten || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const tong = (arr, f) => arr.reduce((s, x) => s + (Number(f(x)) || 0), 0);
 const duyNhat = arr => [...new Set(arr.filter(Boolean))];
@@ -595,11 +601,26 @@ async function getPhieuDetail(env, bangCT, idPhieu) {
   return { items: await all(env, `SELECT * FROM "${bangCT}" WHERE "IDPhieu" = ?1 ORDER BY "ID"`, idPhieu) };
 }
 
+// Phiếu nhập tay ghi Số HĐ mua vào đã có phiếu khác của cùng nhà cung cấp, cùng năm (VD đã nhập từ bảng kê BKMV)
+// -> báo lỗi HOA_DON_DA_NHAP để người dùng xác nhận; gửi lại kèm choPhepTrungSoHD nếu chắc chắn là hoá đơn khác.
+async function kiemTraTrungHoaDonNhap(env, data) {
+  const so = chuanHoaSoHD(data.SoHDMuaVao);
+  if (!so || !data.MaNCC) return;
+  const ncc = await first(env, `SELECT "MST" FROM "NhaCungCap" WHERE "MaNCC" = ?1`, data.MaNCC);
+  const mst = ncc ? chuanHoaMST(ncc.MST) : '';
+  const nam = String(data.Ngay || homNayVN()).slice(0, 4);
+  const ds = await all(env, `SELECT n."IDPhieu", n."Ngay", n."SoHDMuaVao", n."MaNCC", c."MST" FROM "NhapKho" n LEFT JOIN "NhaCungCap" c ON c."MaNCC" = n."MaNCC"
+    WHERE ${SQL_SO_HD_CHUAN('n."SoHDMuaVao"')} = ?1 AND substr(n."Ngay",1,4) = ?2`, so.replace(/^0+/, ''), nam);
+  const trung = ds.find(r => chuanHoaSoHD(r.SoHDMuaVao) === so && (r.MaNCC === data.MaNCC || (mst && chuanHoaMST(r.MST) === mst)));
+  if (trung) throw loi(`HOA_DON_DA_NHAP: Hoá đơn số ${data.SoHDMuaVao} của nhà cung cấp này đã có phiếu nhập ${trung.IDPhieu} (ngày ${trung.Ngay}, ghi số HĐ "${trung.SoHDMuaVao}"). Nhập thêm sẽ cộng tồn kho 2 lần.`);
+}
+
 // ================== LƯU PHIẾU (mỗi phiếu = 1 giao dịch) ==================
 async function luuPhieuNhap(env, data, user) {
   data = data || {};
   const items = data.items || [];
   if (!items.length) throw loi('KHONG_CO_HANG_HOA');
+  if (!data.choPhepTrungSoHD) await kiemTraTrungHoaDonNhap(env, data);
   const hhMap = await layHangHoaMap(env, items.map(i => i.MaHH));
   const dong = items.map(it => lapDongCT(it, hhMap[it.MaHH]));
   const tongTienTruocThue = tong(dong, d => d.ThanhTien), tongTienThue = tong(dong, d => d.TienThue);
@@ -903,23 +924,24 @@ async function importChiTietBKMVBR(env, invoices, user) {
   if (!invoices || !invoices.length) throw loi('KHONG_CO_DU_LIEU');
   if (invoices.length > MAX_HOA_DON_MOI_LO) throw loi(`LO_QUA_LON: tối đa ${MAX_HOA_DON_MOI_LO} hoá đơn mỗi lần gửi`);
   const sorted = invoices.slice().sort((a, b) => String(a.ngay || '').localeCompare(String(b.ngay || '')));
-  const soHDs = duyNhat(sorted.map(i => String(i.soHD || '').trim()));
+  // So trùng theo số HĐ đã chuẩn hoá (bỏ số 0 đầu) — tìm cả phiếu nhập tay trước đó ghi "1794" khi bảng kê ghi "00001794"
+  const soHDs = duyNhat(sorted.map(i => chuanHoaSoHD(i.soHD).replace(/^0+/, '')));
   const [xbCo, nkCo] = await env.DB.batch([
-    env.DB.prepare(`SELECT "SoHDDT","MSTKhachHang" FROM "XuatBan" WHERE "SoHDDT" IN (SELECT value FROM json_each(?1))`).bind(JSON.stringify(soHDs)),
-    env.DB.prepare(`SELECT n."SoHDMuaVao", c."MST" FROM "NhapKho" n LEFT JOIN "NhaCungCap" c ON c."MaNCC" = n."MaNCC" WHERE n."SoHDMuaVao" IN (SELECT value FROM json_each(?1))`).bind(JSON.stringify(soHDs))
+    env.DB.prepare(`SELECT "SoHDDT","MSTKhachHang","Ngay" FROM "XuatBan" WHERE ${SQL_SO_HD_CHUAN('"SoHDDT"')} IN (SELECT value FROM json_each(?1))`).bind(JSON.stringify(soHDs)),
+    env.DB.prepare(`SELECT n."SoHDMuaVao", n."Ngay", c."MST" FROM "NhapKho" n LEFT JOIN "NhaCungCap" c ON c."MaNCC" = n."MaNCC" WHERE ${SQL_SO_HD_CHUAN('n."SoHDMuaVao"')} IN (SELECT value FROM json_each(?1))`).bind(JSON.stringify(soHDs))
   ]);
-  const keyXuat = new Set(xbCo.results.map(r => String(r.SoHDDT || '').trim() + '|' + chuanHoaMST(r.MSTKhachHang)));
-  const keyNhap = new Set(nkCo.results.map(r => String(r.SoHDMuaVao || '').trim() + '|' + chuanHoaMST(r.MST)));
+  const keyXuat = new Set(xbCo.results.map(r => khoaHoaDon(r.SoHDDT, r.MSTKhachHang, r.Ngay)));
+  const keyNhap = new Set(nkCo.results.map(r => khoaHoaDon(r.SoHDMuaVao, r.MST, r.Ngay)));
   const nap = await napDoiTac(env);
   const bo = taoBoTimHoacTao(nap);
   const moPhong = {};
   const cacPhieu = [];
-  let daTonTai = 0; const loiDs = []; const canhBaoDonVi = [];
+  let daTonTai = 0; const loiDs = []; const canhBaoDonVi = []; const dsDaTonTai = [];
   for (const inv of sorted) {
     if (inv.loai !== 'xuat' && inv.loai !== 'nhap') { loiDs.push({ soHD: inv.soHD, error: 'LOAI_KHONG_HOP_LE: hoá đơn không xác định được là mua vào hay bán ra, đã bỏ qua' }); continue; }
     if (chuanHoaMST(inv.mst) === chuanHoaMST(MST_CONG_TY)) { loiDs.push({ soHD: inv.soHD, error: `MST_TRUNG_CONG_TY: MST đối tác trùng với MST công ty (${MST_CONG_TY}) - dữ liệu có vấn đề, đã bỏ qua` }); continue; }
-    const key = String(inv.soHD || '').trim() + '|' + chuanHoaMST(inv.mst);
-    if ((inv.loai === 'xuat' ? keyXuat : keyNhap).has(key)) { daTonTai++; continue; }
+    const key = khoaHoaDon(inv.soHD, inv.mst, inv.ngay);
+    if ((inv.loai === 'xuat' ? keyXuat : keyNhap).has(key)) { daTonTai++; dsDaTonTai.push({ soHD: inv.soHD, ngay: inv.ngay, doiTac: inv.tenDoiTac || '' }); continue; }
     if (!inv.items || !inv.items.length) { loiDs.push({ soHD: inv.soHD, error: 'KHONG_CO_MAT_HANG' }); continue; }
     const them = { diaChi: inv.diaChiDoiTac, sdt: inv.sdtDoiTac, email: inv.emailDoiTac };
     const dongVao = inv.items.map(it => {
@@ -945,7 +967,7 @@ async function importChiTietBKMVBR(env, invoices, user) {
     }
   }
   const maHHs = await ghiLo(env, bo, cacPhieu);
-  return { thanhCong: cacPhieu.length, daTonTai, tongSo: invoices.length, loi: loiDs, canhBaoTonKhoAm: await canhBaoTonAm(env, maHHs), canhBaoDonVi };
+  return { thanhCong: cacPhieu.length, daTonTai, dsDaTonTai, tongSo: invoices.length, loi: loiDs, canhBaoTonKhoAm: await canhBaoTonAm(env, maHHs), canhBaoDonVi };
 }
 
 async function importLichSuTuBangKe(env, items, user) {

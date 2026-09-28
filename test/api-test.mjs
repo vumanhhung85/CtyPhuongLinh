@@ -201,6 +201,38 @@ ok(ls.thanhCong === 2 && ls.loi.length === 0, 'nhập lịch sử bảng kê', l
 hh = await api('getHangHoaList');
 ok(hh.filter(h => h.MaHH === 'HH-LICHSU').length === 1 && hh.find(h => h.MaHH === 'HH-LICHSU').Loai === 'DichVu', 'tạo đúng 1 mặt hàng giữ chỗ HH-LICHSU');
 
+console.log('11b. Chống nhập trùng hoá đơn khi số HĐ lệch số 0 đầu ("1794" vs "00001794")');
+{
+  const nccNS = (await api('getNhaCungCapList')).find(n => n.MST === '0301234567');
+  const tonSSD = async () => (await api('getHangHoaList')).find(h => h.MaHH === ssd.MaHH).TonKho;
+  const ton0 = await tonSSD();
+  // Trường hợp thật: nhập tay trước, ghi số HĐ "1794"; sau đó nhập bảng kê BKMV mới ghi "00001794"
+  const tay = await api('saveNhapKho', { data: { Ngay: '2026-08-10', MaNCC: nccNS.MaNCC, TenNCC: nccNS.TenNCC, SoHDMuaVao: '1794',
+    items: [{ MaHH: ssd.MaHH, SoLuong: 120, DonGia: 18036, ThueSuat: '0', DonViDaChon: 'goc' }] } });
+  ok(!!tay.idPhieu && await tonSSD() === ton0 + 120, 'nhập tay HĐ 1794 -> +120', tay.idPhieu);
+  const bk = await api('importChiTietBKMVBR', { invoices: [{ loai: 'nhap', ngay: '2026-08-08', soHD: '00001794', mst: '0301234567', tenDoiTac: 'Công ty Ngôi Sao Lớn',
+    items: [{ tenHang: 'Ổ cứng SSD 256GB', dvt: 'Cái', soLuong: 120, donGia: 18036, thueSuat: '0', loaiHangHoa: 'HangHoa' }] }] });
+  ok(bk.thanhCong === 0 && bk.daTonTai === 1 && bk.dsDaTonTai[0].soHD === '00001794', 'bảng kê ghi "00001794" -> nhận ra đã có, bỏ qua', bk);
+  ok(await tonSSD() === ton0 + 120, 'tồn kho KHÔNG bị cộng 2 lần (không lên 240)');
+  // Chiều ngược lại: đã nhập từ bảng kê ("555", 07/2026), nhập tay lại "000555" -> hỏi xác nhận
+  const eTrung = await apiLoi('saveNhapKho', { data: { Ngay: '2026-07-05', MaNCC: nccNS.MaNCC, SoHDMuaVao: ' 000555 ',
+    items: [{ MaHH: ssd.MaHH, SoLuong: 1, DonGia: 1, ThueSuat: '0', DonViDaChon: 'goc' }] } });
+  ok(/^HOA_DON_DA_NHAP/.test(eTrung || ''), 'nhập tay trùng số HĐ đã có -> báo HOA_DON_DA_NHAP', eTrung);
+  const choPhep = await api('saveNhapKho', { data: { Ngay: '2026-07-05', MaNCC: nccNS.MaNCC, SoHDMuaVao: '000555', choPhepTrungSoHD: true,
+    items: [{ MaHH: ssd.MaHH, SoLuong: 1, DonGia: 1, ThueSuat: '0', DonViDaChon: 'goc' }] } });
+  ok(!!choPhep.idPhieu, 'người dùng xác nhận là hoá đơn khác -> vẫn lưu được');
+  await api('xoaPhieuNhap', { idPhieu: choPhep.idPhieu });
+  const namKhac = await api('saveNhapKho', { data: { Ngay: '2025-07-05', MaNCC: nccNS.MaNCC, SoHDMuaVao: '555',
+    items: [{ MaHH: ssd.MaHH, SoLuong: 1, DonGia: 1, ThueSuat: '0', DonViDaChon: 'goc' }] } });
+  ok(!!namKhac.idPhieu, 'cùng số HĐ nhưng khác năm (số HĐ đánh lại từ đầu mỗi năm) -> không chặn');
+  await api('xoaPhieuNhap', { idPhieu: namKhac.idPhieu });
+  const bkNamSau = await api('importChiTietBKMVBR', { invoices: [{ loai: 'nhap', ngay: '2027-01-05', soHD: '0000555', mst: '0301234567', tenDoiTac: 'Công ty Ngôi Sao Lớn',
+    items: [{ tenHang: 'Phí dịch vụ năm sau', dvt: '', soLuong: 1, donGia: 1000, thueSuat: '0', loaiHangHoa: 'DichVu' }] }] });
+  ok(bkNamSau.thanhCong === 1 && bkNamSau.daTonTai === 0, 'bảng kê năm sau trùng số 555 -> vẫn nhập (khác năm)', bkNamSau);
+  await api('xoaPhieuNhap', { idPhieu: tay.idPhieu });
+  ok(await tonSSD() === ton0, 'dọn dữ liệu thử, tồn SSD trở lại như cũ');
+}
+
 console.log('12. Sổ quỹ tự do, người dùng, phân quyền, xuất Excel');
 const tc = await api('saveThuChi', { data: { Loai: 'Chi', Ngay: '2026-09-06', NhomMuc: 'Luong', SoTien: 5000000, PhuongThuc: 'TienMat', MoTa: 'Lương T8' } });
 ok(tc.phieu.NhomMuc === 'Luong', 'ghi chi lương');

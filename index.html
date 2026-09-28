@@ -19,7 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QL Phương Linh">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="css/app.css?v=20260928a">
+<link rel="stylesheet" href="css/app.css?v=20260928b">
 <!-- xlsx / pdf.js / tesseract.js tải khi cần (caiThuVien) — không nạp sẵn ở đây để app mở nhanh. -->
 </head>
 <body>
@@ -325,10 +325,13 @@
             <p class="muted">App đã tự đoán loại cho từng tên hàng xuất hiện trong các hoá đơn (dựa theo đơn vị tính và từ khoá). Sửa lại nếu cần — ảnh hưởng trực tiếp đến việc mặt hàng đó có được tính vào tồn kho hay không.</p>
             <div class="toolbar"><input type="text" id="bkClassifySearch" class="oTim" placeholder="Tìm theo tên hàng..."></div>
             <div class="tableWrap" id="bkClassifyWrap" style="max-height:420px;overflow-y:auto;"></div>
-            <button class="btn" id="btnXacNhanPhanLoai" style="margin-top:10px;">Xác nhận phân loại, xem tổng kết</button>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+              <button class="btn" id="btnXacNhanPhanLoai">Xác nhận phân loại, xem tổng kết</button>
+              <button class="btn secondary" id="btnXoaDanhSachCho">Xoá danh sách chờ nhập</button>
+            </div>
           </div>
           <div class="panel" id="bkSummaryPanel" style="display:none;">
-            <h3>Tổng kết trước khi nhập</h3>
+            <h3 id="bkSummaryTitle">Tổng kết trước khi nhập</h3>
             <div class="cardGrid" id="bkSummaryCards"></div>
             <div id="bkErrorList"></div>
             <button class="btn" id="btnBatDauNhapBK" style="margin-top:10px;">Bắt đầu nhập vào hệ thống</button>
@@ -487,17 +490,17 @@
 <div class="toast" id="toast"></div>
 
 <!-- Thứ tự nạp quan trọng: config -> core (hàm dùng chung) -> shell (đăng nhập, chuyển tab) -> các nghiệp vụ. -->
-<script src="js/config.js?v=20260928a"></script>
-<script src="js/core.js?v=20260928a"></script>
-<script src="js/shell.js?v=20260928a"></script>
-<script src="js/danhmuc.js?v=20260928a"></script>
-<script src="js/phieu-form.js?v=20260928a"></script>
-<script src="js/nhap-xuat.js?v=20260928a"></script>
-<script src="js/suachua-giacong.js?v=20260928a"></script>
-<script src="js/congno-soquy.js?v=20260928a"></script>
-<script src="js/baocao.js?v=20260928a"></script>
-<script src="js/doitac-nguoidung.js?v=20260928a"></script>
-<script src="js/dongbo-hd.js?v=20260928a"></script>
-<script src="js/caidat.js?v=20260928a"></script>
+<script src="js/config.js?v=20260928b"></script>
+<script src="js/core.js?v=20260928b"></script>
+<script src="js/shell.js?v=20260928b"></script>
+<script src="js/danhmuc.js?v=20260928b"></script>
+<script src="js/phieu-form.js?v=20260928b"></script>
+<script src="js/nhap-xuat.js?v=20260928b"></script>
+<script src="js/suachua-giacong.js?v=20260928b"></script>
+<script src="js/congno-soquy.js?v=20260928b"></script>
+<script src="js/baocao.js?v=20260928b"></script>
+<script src="js/doitac-nguoidung.js?v=20260928b"></script>
+<script src="js/dongbo-hd.js?v=20260928b"></script>
+<script src="js/caidat.js?v=20260928b"></script>
 </body>
 </html>

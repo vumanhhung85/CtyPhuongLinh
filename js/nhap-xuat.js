@@ -77,6 +77,9 @@ function submitPhieuNhap() {
     MaNCC: doiTacSel.value, TenNCC: doiTacOpt ? doiTacOpt.dataset.ten : '',
     SoHDMuaVao: document.getElementById('fSoHD').value, items
   };
+  guiPhieuNhap(data);
+}
+function guiPhieuNhap(data) {
   apiCall('saveNhapKho', { data }).then(res => {
     closeModal(); showToast('Đã lưu phiếu nhập kho.');
     // Gộp thẳng phiếu + tồn kho mới vào STATE và vẽ lại — khỏi phải gọi mạng lại 2 lần (getNhapKhoList + getHangHoaList).
@@ -88,7 +91,18 @@ function submitPhieuNhap() {
     } else {
       renderNhapKhoTable(); renderHangHoaTable();
     }
-  }).catch(err => showToast('Lỗi: ' + err.message));
+  }).catch(err => {
+    // Số HĐ mua vào đã có phiếu nhập của cùng nhà cung cấp (VD đã nhập từ bảng kê) -> hỏi trước, tránh cộng tồn 2 lần
+    const msg = String(err.message || '');
+    if (msg.startsWith('HOA_DON_DA_NHAP')) {
+      const lyDo = msg.replace(/^HOA_DON_DA_NHAP:\s*/, '');
+      if (confirm(`⚠️ ${lyDo}\n\nBấm OK CHỈ KHI chắc chắn đây là hoá đơn KHÁC (VD khác ký hiệu). Bấm Huỷ để không lưu.`)) {
+        guiPhieuNhap({ ...data, choPhepTrungSoHD: true });
+      }
+      return;
+    }
+    showToast('Lỗi: ' + msg);
+  });
 }
 
 /* ================= XUẤT BÁN ================= */
