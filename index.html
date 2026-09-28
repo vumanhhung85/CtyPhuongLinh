@@ -19,7 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QL Phương Linh">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="css/app.css?v=20260928d">
+<link rel="stylesheet" href="css/app.css?v=20260928e">
 <!-- xlsx / pdf.js / tesseract.js tải khi cần (caiThuVien) — không nạp sẵn ở đây để app mở nhanh. -->
 </head>
 <body>
@@ -289,39 +289,18 @@
           <button data-pane="lichsu">Nhập dữ liệu lịch sử</button>
         </div>
 
-        <!-- Nhóm 1: tạo phiếu mới từ XML / PDF-ảnh / BKMV — 3 nguồn dùng chung 1 danh sách chờ nhập bên dưới -->
+        <!-- Nhóm 1: tạo phiếu mới — XML (chính) ở đầu, danh sách chờ nhập ngay dưới; PDF-ảnh / bảng kê Excel (ít dùng) xuống cuối -->
         <div class="pane active" data-nhom="dongbo" data-pane="taophieu">
           <div class="panel noiBat">
             <h3>Tự động tạo phiếu từ file XML hoá đơn gốc (khuyên dùng — chính xác nhất)</h3>
             <p class="muted">File XML là bản gốc có giá trị pháp lý của hoá đơn điện tử, chứa sẵn <b>đầy đủ chi tiết từng mặt hàng</b> (tên, đơn vị, số lượng, đơn giá, thuế suất) — không phải chỉ tổng tiền như bảng kê Excel. Khi khách hàng/nhà cung cấp gửi email kèm file <b>.xml</b>, chọn thẳng vào đây — có thể chọn <b>nhiều file cùng lúc</b>. App tự đọc, tự nhận diện mua vào/bán ra (theo MST 0317838601), <b>tự tạo mới hàng hoá + đối tác nếu chưa có, tự tạo phiếu Nhập kho/Xuất bán đầy đủ chi tiết</b> — không cần phiếu có sẵn, không cần nhập tay lại.</p>
             <div class="field"><label>Chọn file XML (có thể chọn nhiều file)</label><input type="file" id="dongboXmlFiles" accept=".xml" multiple></div>
             <button class="btn" id="btnDocXml" style="margin-top:8px;">Đọc file XML &amp; thêm vào danh sách chờ nhập</button>
-            <p class="muted" style="margin-top:8px;">Sau khi đọc xong, kéo xuống mục "Xem trước &amp; phân loại" bên dưới để rà lại phân loại hàng hoá rồi bấm nhập — dùng chung 1 quy trình với bảng kê BKMV, có thể đọc XML rồi bổ sung thêm cả Excel vào cùng 1 đợt nhập nếu cần. File nào lỗi hoặc thiếu dữ liệu sẽ được báo rõ, không làm ảnh hưởng các file khác.</p>
-          </div>
-
-          <div class="panel canhBao">
-            <h3>Đọc hoá đơn từ file PDF hoặc ảnh chụp <span class="tag warn">Thử nghiệm</span></h3>
-            <p class="muted">Dùng khi <b>không có file XML gốc</b> — chỉ có bản PDF ký số hoặc ảnh chụp hoá đơn giấy. App tự đọc chữ trong file (PDF đọc trực tiếp văn bản — chính xác cao; nếu PDF là ảnh scan hoặc là ảnh chụp thường thì tự chuyển sang nhận dạng chữ OCR — kém chính xác hơn, tuỳ độ nét) rồi tự tìm Số hoá đơn, Ngày lập, MST đối tác, Tổng tiền thanh toán. <b>Bắt buộc rà lại số liệu trước khi xác nhận.</b> Chỉ tạo 1 dòng gộp "hàng hoá/dịch vụ theo hoá đơn" (không tách được từng mặt hàng như XML) — đủ cho doanh thu/công nợ, không dựng được tồn kho chi tiết. Sau khi xác nhận sẽ gộp chung vào danh sách chờ nhập bên dưới.</p>
-            <div class="field"><label>Chọn file PDF hoặc ảnh (.pdf, .jpg, .png — có thể chọn nhiều file)</label><input type="file" id="pdfAnhFiles" accept=".pdf,.jpg,.jpeg,.png" multiple></div>
-            <button class="btn" id="btnDocPdfAnh" style="margin-top:10px;">Đọc file &amp; trích xuất thông tin</button>
-            <div id="pdfAnhStatus" class="muted" style="margin-top:8px;"></div>
-          </div>
-          <div class="panel" id="pdfAnhPreviewPanel" style="display:none;">
-            <h3>Kiểm tra lại thông tin trước khi xác nhận (bắt buộc)</h3>
-            <div id="pdfAnhPreviewList"></div>
-            <button class="btn" id="btnXacNhanPdfAnh" style="margin-top:10px;">Xác nhận, thêm vào danh sách chờ nhập</button>
-          </div>
-
-          <div class="panel noiBat">
-            <h3>Bổ sung từ bảng kê Excel BKMV/BKBR (nhiều quý) — không bắt buộc nếu đã dùng XML</h3>
-            <p class="muted">Dùng khi anh có sẵn file bảng kê mua vào/bán ra dạng đầy đủ (sheet BKBR/BKMV, do kế toán xuất theo quý) — đã có sẵn chi tiết từng mặt hàng, số lượng, đơn giá, thuế suất. Có thể dùng <b>thay thế</b> cho XML (nếu không có sẵn file XML gốc) hoặc <b>bổ sung thêm</b> vào danh sách đã đọc từ XML ở trên — cả 2 nguồn đều gộp chung vào 1 danh sách chờ nhập bên dưới. Chọn <b>tất cả các file quý cùng lúc</b> — app sẽ tự gộp và xử lý theo đúng trình tự thời gian.</p>
-            <div class="field"><label>Chọn các file bảng kê theo quý (.xlsb, .xlsx — chọn nhiều file cùng lúc)</label><input type="file" id="bkFiles" accept=".xlsb,.xlsx,.xls" multiple></div>
-            <label class="chkPill" style="margin-top:8px;"><input type="checkbox" id="bkDaThanhToan" checked> Đánh dấu tất cả là <b>đã thanh toán đủ</b> (bỏ chọn nếu cần đối chiếu công nợ thực tế sau)</label>
-            <button class="btn" id="btnDocFileBK" style="margin-top:10px;">Đọc &amp; phân tích tất cả file</button>
             <div id="bkParseStatus" class="muted" style="margin-top:8px;"></div>
+            <p class="muted" style="margin-top:8px;">Sau khi đọc xong, kéo xuống mục "Xem trước &amp; phân loại" bên dưới để rà lại phân loại hàng hoá rồi bấm nhập — dùng chung 1 quy trình với bảng kê BKMV, có thể bổ sung thêm từ bảng kê Excel hoặc PDF/ảnh (mục "Nguồn khác" ở cuối trang) vào cùng 1 đợt nhập nếu cần. File nào lỗi hoặc thiếu dữ liệu sẽ được báo rõ, không làm ảnh hưởng các file khác.</p>
           </div>
           <div class="panel" id="bkClassifyPanel" style="display:none;">
-            <h3>Xem trước &amp; phân loại — danh sách chờ nhập (gộp từ XML + Excel đã đọc ở trên)</h3>
+            <h3>Xem trước &amp; phân loại — danh sách chờ nhập (gộp từ mọi file đã đọc)</h3>
             <p class="muted">App đã tự đoán loại cho từng tên hàng xuất hiện trong các hoá đơn (dựa theo đơn vị tính và từ khoá). Sửa lại nếu cần — ảnh hưởng trực tiếp đến việc mặt hàng đó có được tính vào tồn kho hay không.</p>
             <div class="toolbar"><input type="text" id="bkClassifySearch" class="oTim" placeholder="Tìm theo tên hàng, số hoá đơn, đối tác..."></div>
             <div class="tableWrap" id="bkClassifyWrap" style="max-height:420px;overflow-y:auto;"></div>
@@ -334,11 +313,31 @@
             <h3 id="bkSummaryTitle">Tổng kết trước khi nhập</h3>
             <div class="cardGrid" id="bkSummaryCards"></div>
             <div id="bkErrorList"></div>
-            <button class="btn" id="btnBatDauNhapBK" style="margin-top:10px;">Bắt đầu nhập vào hệ thống</button>
+            <label class="chkPill" style="margin-top:10px;"><input type="checkbox" id="bkDaThanhToan" checked> Đánh dấu tất cả là <b>đã thanh toán đủ</b> (bỏ chọn nếu cần đối chiếu công nợ thực tế sau)</label>
+            <div><button class="btn" id="btnBatDauNhapBK" style="margin-top:10px;">Bắt đầu nhập vào hệ thống</button></div>
             <div id="bkProgressWrap" style="margin-top:12px;display:none;">
               <div class="muted" id="bkProgressText">Đang xử lý...</div>
               <div id="bkResultWrap" style="margin-top:10px;"></div>
             </div>
+          </div>
+          <h3 class="nhomNguonKhac">Nguồn khác — ít dùng (khi không có file XML gốc)</h3>
+          <div class="panel canhBao">
+            <h3>Đọc hoá đơn từ file PDF hoặc ảnh chụp <span class="tag warn">Thử nghiệm</span></h3>
+            <p class="muted">Dùng khi <b>không có file XML gốc</b> — chỉ có bản PDF ký số hoặc ảnh chụp hoá đơn giấy. App tự đọc chữ trong file (PDF đọc trực tiếp văn bản — chính xác cao; nếu PDF là ảnh scan hoặc là ảnh chụp thường thì tự chuyển sang nhận dạng chữ OCR — kém chính xác hơn, tuỳ độ nét) rồi tự tìm Số hoá đơn, Ngày lập, MST đối tác, Tổng tiền thanh toán. <b>Bắt buộc rà lại số liệu trước khi xác nhận.</b> Chỉ tạo 1 dòng gộp "hàng hoá/dịch vụ theo hoá đơn" (không tách được từng mặt hàng như XML) — đủ cho doanh thu/công nợ, không dựng được tồn kho chi tiết. Sau khi xác nhận sẽ gộp chung vào danh sách chờ nhập ở trên.</p>
+            <div class="field"><label>Chọn file PDF hoặc ảnh (.pdf, .jpg, .png — có thể chọn nhiều file)</label><input type="file" id="pdfAnhFiles" accept=".pdf,.jpg,.jpeg,.png" multiple></div>
+            <button class="btn" id="btnDocPdfAnh" style="margin-top:10px;">Đọc file &amp; trích xuất thông tin</button>
+            <div id="pdfAnhStatus" class="muted" style="margin-top:8px;"></div>
+          </div>
+          <div class="panel" id="pdfAnhPreviewPanel" style="display:none;">
+            <h3>Kiểm tra lại thông tin trước khi xác nhận (bắt buộc)</h3>
+            <div id="pdfAnhPreviewList"></div>
+            <button class="btn" id="btnXacNhanPdfAnh" style="margin-top:10px;">Xác nhận, thêm vào danh sách chờ nhập</button>
+          </div>
+          <div class="panel">
+            <h3>Bổ sung từ bảng kê Excel BKMV/BKBR (nhiều quý) — không bắt buộc nếu đã dùng XML</h3>
+            <p class="muted">Dùng khi anh có sẵn file bảng kê mua vào/bán ra dạng đầy đủ (sheet BKBR/BKMV, do kế toán xuất theo quý) — đã có sẵn chi tiết từng mặt hàng, số lượng, đơn giá, thuế suất. Có thể dùng <b>thay thế</b> cho XML (nếu không có sẵn file XML gốc) hoặc <b>bổ sung thêm</b> vào danh sách đã đọc từ XML — mọi nguồn đều gộp chung vào 1 danh sách chờ nhập ở trên. Chọn <b>tất cả các file quý cùng lúc</b> — app sẽ tự gộp và xử lý theo đúng trình tự thời gian.</p>
+            <div class="field"><label>Chọn các file bảng kê theo quý (.xlsb, .xlsx — chọn nhiều file cùng lúc)</label><input type="file" id="bkFiles" accept=".xlsb,.xlsx,.xls" multiple></div>
+            <button class="btn" id="btnDocFileBK" style="margin-top:10px;">Đọc &amp; phân tích tất cả file</button>
           </div>
         </div>
 
@@ -490,17 +489,17 @@
 <div class="toast" id="toast"></div>
 
 <!-- Thứ tự nạp quan trọng: config -> core (hàm dùng chung) -> shell (đăng nhập, chuyển tab) -> các nghiệp vụ. -->
-<script src="js/config.js?v=20260928d"></script>
-<script src="js/core.js?v=20260928d"></script>
-<script src="js/shell.js?v=20260928d"></script>
-<script src="js/danhmuc.js?v=20260928d"></script>
-<script src="js/phieu-form.js?v=20260928d"></script>
-<script src="js/nhap-xuat.js?v=20260928d"></script>
-<script src="js/suachua-giacong.js?v=20260928d"></script>
-<script src="js/congno-soquy.js?v=20260928d"></script>
-<script src="js/baocao.js?v=20260928d"></script>
-<script src="js/doitac-nguoidung.js?v=20260928d"></script>
-<script src="js/dongbo-hd.js?v=20260928d"></script>
-<script src="js/caidat.js?v=20260928d"></script>
+<script src="js/config.js?v=20260928e"></script>
+<script src="js/core.js?v=20260928e"></script>
+<script src="js/shell.js?v=20260928e"></script>
+<script src="js/danhmuc.js?v=20260928e"></script>
+<script src="js/phieu-form.js?v=20260928e"></script>
+<script src="js/nhap-xuat.js?v=20260928e"></script>
+<script src="js/suachua-giacong.js?v=20260928e"></script>
+<script src="js/congno-soquy.js?v=20260928e"></script>
+<script src="js/baocao.js?v=20260928e"></script>
+<script src="js/doitac-nguoidung.js?v=20260928e"></script>
+<script src="js/dongbo-hd.js?v=20260928e"></script>
+<script src="js/caidat.js?v=20260928e"></script>
 </body>
 </html>

@@ -915,6 +915,8 @@ document.getElementById('btnDocFileBK').addEventListener('click', async () => {
 
     xayDungDanhSachTenHang();
     renderBkClassifyTable();
+    // Mục bảng kê nằm cuối trang, danh sách chờ nhập ở trên -> cuộn lên cho anh thấy kết quả
+    document.getElementById('bkParseStatus').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 });
 

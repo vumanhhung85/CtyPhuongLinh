@@ -346,3 +346,5 @@ td.rowActions>*{vertical-align:middle;}
   .itemsTable.bkPhanLoai td::before{white-space:nowrap;}
   .itemsTable.bkPhanLoai select{width:auto;}
 }
+/* Tiêu đề ngăn cách nhóm nguồn nhập ít dùng (PDF/ảnh, bảng kê Excel) ở cuối tab Hoá đơn điện tử */
+.nhomNguonKhac{font-size:14px;font-weight:600;color:var(--ink-soft);margin:28px 0 10px;padding-top:14px;border-top:1px dashed var(--line-strong);}
