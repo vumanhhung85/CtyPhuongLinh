@@ -230,7 +230,7 @@ function renderDashboard() {
       lowStockWrap.innerHTML = '<div class="empty">Không có hàng nào dưới mức tồn tối thiểu.</div>';
     } else {
       lowStockWrap.innerHTML = `<table><thead><tr><th>Mã</th><th>Tên hàng</th><th>Tồn kho</th><th>Tồn tối thiểu</th></tr></thead><tbody>
-        ${d.hangSapHet.map(h => `<tr><td>${h.MaHH}</td><td>${h.TenHH}</td><td>${h.TonKho}</td><td>${h.TonKhoToiThieu}</td></tr>`).join('')}
+        ${d.hangSapHet.map(h => `<tr><td>${h.MaHH}</td><td>${h.TenHH}</td><td>${tonKhoKep(h)}</td><td>${h.TonKhoToiThieu}</td></tr>`).join('')}
       </tbody></table>`;
     }
     // Các trang Bán hàng / Nhập kho dùng lại số tháng này của Tổng quan cho thẻ đầu trang

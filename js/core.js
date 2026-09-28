@@ -116,6 +116,28 @@ function showToast(msg) {
   const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block';
   clearTimeout(window._toastTimer); window._toastTimer = setTimeout(() => (t.style.display = 'none'), 3200);
 }
+// Số lượng gọn: tối đa 2 chữ số thập phân, dấu chấm hàng nghìn kiểu VN.
+function fmtSoLuong(n) { n = Number(n) || 0; return (Math.round(n * 100) / 100).toLocaleString('vi-VN'); }
+// Tồn kho dạng kép, VD "150 Mét (≈ 1 Cuộn + 50 Mét)". CHỈ để hiển thị/đối chiếu khi đếm kho — tồn thật luôn
+// tính theo đơn vị chính (Mét). Phần "≈" là quy đổi số học, ngoài thực tế có thể là 2 cuộn dở.
+function tonKhoKep(h, ton) {
+  h = h || {};
+  ton = ton === undefined ? Number(h.TonKho) || 0 : Number(ton) || 0;
+  const dvt = h.DVT || '', heSo = Number(h.HeSoQuyDoi) || 0;
+  let s = (fmtSoLuong(ton) + ' ' + dvt).trim();
+  if (h.DVTNhap && heSo > 1 && ton >= heSo) {
+    const nguyen = Math.floor(ton / heSo + 1e-9);
+    const du = Math.round((ton - nguyen * heSo) * 100) / 100;
+    s += ` (≈ ${nguyen} ${h.DVTNhap}${du > 0 ? ' + ' + fmtSoLuong(du) + ' ' + dvt : ''})`;
+  }
+  return s;
+}
+// Hỏi lại khi phiếu có dòng đơn giá 0 đ (nhập giá 0 làm sai giá vốn; bán giá 0 làm sai doanh thu/thuế).
+function xacNhanDonGiaKhong(items) {
+  const ds = (items || []).filter(it => !(Number(it.DonGia) > 0));
+  if (!ds.length) return true;
+  return confirm(`Có ${ds.length} dòng đơn giá = 0 đ:\n- ${ds.slice(0, 5).map(i => i.TenHH || i.MaHH).join('\n- ')}${ds.length > 5 ? '\n...' : ''}\n\nĐơn giá 0 làm sai giá vốn/doanh thu. Vẫn lưu phiếu?`);
+}
 function openModal(html) { document.getElementById('modalCard').innerHTML = html; document.getElementById('modalBg').classList.add('active'); }
 function closeModal() { document.getElementById('modalBg').classList.remove('active'); }
 // Chỉ đóng modal khi CẢ mousedown lẫn click đều nhắm đúng vào nền mờ (không phải bôi đen text

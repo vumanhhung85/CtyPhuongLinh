@@ -55,7 +55,11 @@ function tinhSoLuongDaDungTrongPhieu(containerId, maHH, boQuaRow) {
   let daDung = 0;
   document.querySelectorAll('#' + containerId + '_list .itemRow').forEach(r => {
     if (r === boQuaRow) return;
-    if (r.dataset.mahh === maHH) daDung += Number(r.querySelector('.itemSL').value) || 0;
+    // Quy về đơn vị chính: dòng chọn "Cuộn" dùng SL x hệ số (trước đây cộng thẳng SL nên 1 Cuộn chỉ tính 1 Mét)
+    if (r.dataset.mahh === maHH) {
+      const heSo = r.dataset.donvidachon === 'nhap' ? (Number(r.dataset.hesoquydoi) || 1) : 1;
+      daDung += (Number(r.querySelector('.itemSL').value) || 0) * heSo;
+    }
   });
   return daDung;
 }
@@ -79,7 +83,7 @@ function hhComboFilter(input) {
       const tonThap = h.Loai === 'HangHoa' && !tonHet && tonThucTe <= Number(h.TonKhoToiThieu || 0);
       const tonCls = tonHet ? 'hhComboTonHet' : (tonThap ? 'hhComboTonThap' : '');
       const tonText = h.Loai === 'HangHoa'
-        ? (daDungDongKhac > 0 ? `Còn lại: ${tonThucTe} ${h.DVT || ''} (đã dùng ${daDungDongKhac} ở dòng khác)` : `Tồn: ${h.TonKho} ${h.DVT || ''}`)
+        ? (daDungDongKhac > 0 ? `Còn lại: ${tonKhoKep(h, tonThucTe)} (đã dùng ${fmtSoLuong(daDungDongKhac)} ở dòng khác)` : `Tồn: ${tonKhoKep(h)}`)
         : 'Dịch vụ';
       const dongKhacTag = daDungDongKhac > 0 ? `<span class="hhComboBadge hhComboTonThap">Đã có trong phiếu (SL: ${daDungDongKhac})</span>` : '';
       // Chỉ chặn chọn khi ĐANG XUẤT/DÙNG hàng (gia_ban) và hết tồn thực tế — Nhập kho (gia_von) vẫn chọn được vì đang mua thêm
@@ -195,7 +199,7 @@ function capNhatThongTinDong(row, mode) {
   const giavonTheoDonVi = dangChonDonViLon ? giavon * Number(row.dataset.hesoquydoi) : giavon;
   const giabanTheoDonVi = dangChonDonViLon ? giaban * Number(row.dataset.hesoquydoi) : giaban;
   const donGiaNhap = parseSoTien(row.querySelector('.itemGia').value);
-  let html = loai === 'HangHoa' ? `Tồn kho hiện có: <b>${ton} ${dvt}</b> &nbsp;·&nbsp; ` : '';
+  let html = loai === 'HangHoa' ? `Tồn kho hiện có: <b>${tonKhoKep({ DVT: dvt, DVTNhap: row.dataset.dvtnhap, HeSoQuyDoi: row.dataset.hesoquydoi }, ton)}</b> &nbsp;·&nbsp; ` : '';
   html += `Giá vốn: <b>${fmtMoney(giavonTheoDonVi)}</b>/${donViHienThi} &nbsp;·&nbsp; Giá bán tham khảo: <b>${fmtMoney(giabanTheoDonVi)}</b>/${donViHienThi}`;
   if (dangChonDonViLon) {
     html += ` &nbsp;·&nbsp; <span class="muted">(1 ${row.dataset.dvtnhap} = ${row.dataset.hesoquydoi} ${dvt} — giá gợi ý tự quy đổi tuyến tính, sửa lại nếu giá thực tế theo ${row.dataset.dvtnhap} khác)</span>`;

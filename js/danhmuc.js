@@ -19,7 +19,7 @@ function drawHangHoaTable() {
   wrap.innerHTML = `<table><thead><tr>${anCotMa ? '' : '<th style="width:1%;">Mã</th>'}<th>Tên</th><th>Loại</th><th>ĐVT</th><th>Giá vốn TB</th><th>Giá bán</th><th>Tồn kho</th><th></th></tr></thead><tbody>
     ${list.map(h => {
       const ton = Number(h.TonKho);
-      const tonHtml = h.Loai === 'HangHoa' ? (ton <= 0 ? `<span class="tag bad">${ton}</span>` : ton) : '—';
+      const tonHtml = h.Loai === 'HangHoa' ? (ton <= 0 ? `<span class="tag bad">${fmtSoLuong(ton)}</span>` : tonKhoKep(h)) : '—';
       return `<tr>
       ${anCotMa ? '' : `<td class="muted" style="font-size:11px;white-space:nowrap;">${h.MaHH}</td>`}
       <td>${h.TenHH}${h.DVTNhap && Number(h.HeSoQuyDoi) > 1 ? `<div class="muted" style="font-size:11.5px;">1 ${h.DVTNhap} = ${h.HeSoQuyDoi} ${h.DVT}</div>` : ''}</td>
@@ -61,7 +61,13 @@ function openEditHH(maHH) {
       <p class="muted" style="margin:0 0 8px;">Nếu vừa đổi Loại (Hàng hoá ↔ Dịch vụ) hoặc nghi ngờ tồn kho sai — bấm nút này để quét lại toàn bộ lịch sử phiếu Nhập/Xuất/Sửa chữa/Gia công và tính lại đúng tồn kho + giá vốn từ đầu.</p>
       <button class="btn secondary small" type="button" onclick="tinhLaiTonKhoUI('${item.MaHH}')">🔄 Tính lại tồn kho từ lịch sử</button>
       <div id="ketQuaTinhLaiTon" style="margin-top:8px;font-size:13px;"></div>
-    </div>` : ''}
+    </div>
+    ${item.Loai === 'HangHoa' ? `
+    <div class="panel" style="margin:10px 0 0;background:#fffaf0;border-color:#f3dfb4;">
+      <p class="muted" style="margin:0 0 8px;">Phiếu cũ ghi sai đơn vị (VD hoá đơn nhập <b>1 Cuộn</b> nhưng kho chỉ tăng <b>1 Mét</b> vì lúc đó chưa khai "Đơn vị nhập lớn") — bấm để xem từng dòng và chọn lại đúng đơn vị. Tồn kho, giá vốn và giá vốn các dòng bán sẽ được tính lại.</p>
+      <button class="btn secondary small" type="button" onclick="moDongTheoDonVi('${item.MaHH}')">📐 Kiểm tra đơn vị các phiếu đã ghi</button>
+      <div id="dsDongDonVi" style="margin-top:8px;"></div>
+    </div>` : ''}` : ''}
     <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="saveHH('${item ? item.MaHH : ''}')">Lưu</button></div>
   `);
 }
@@ -92,11 +98,83 @@ function deleteHH(maHH) {
   if (!confirm('Xoá mục này khỏi danh mục?')) return;
   apiCall('deleteHangHoa', { maHH }).then(() => { showToast('Đã xoá.'); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
+/* ---- Chọn lại đơn vị cho dòng phiếu cũ (áp hệ số quy đổi) ---- */
+let _dongDonVi = null;
+function moDongTheoDonVi(maHH, thongBao) {
+  const box = document.getElementById('dsDongDonVi');
+  const item = STATE.hangHoaList.find(h => h.MaHH === maHH) || {};
+  const dvtNhapForm = document.getElementById('fDVTNhap').value.trim();
+  const heSoForm = Number(document.getElementById('fHeSoQuyDoi').value) || 0;
+  if (dvtNhapForm !== (item.DVTNhap || '') || heSoForm !== (Number(item.HeSoQuyDoi) || 0) || document.getElementById('fDVT').value.trim() !== (item.DVT || '')) {
+    box.innerHTML = '<p style="color:var(--warn);margin:0;">Anh vừa đổi đơn vị/hệ số trong form — bấm <b>Lưu</b> trước, rồi mở lại để kiểm tra phiếu cũ.</p>';
+    return;
+  }
+  box.textContent = 'Đang tải các dòng phiếu...';
+  apiCall('getDongTheoDonVi', { maHH }).then(res => {
+    _dongDonVi = res; veDongTheoDonVi();
+    if (thongBao) { const k = document.getElementById('kqDonVi'); if (k) k.innerHTML = thongBao; }
+  })
+    .catch(err => { box.textContent = ''; showToast('Lỗi: ' + err.message); });
+}
+function veDongTheoDonVi() {
+  const box = document.getElementById('dsDongDonVi');
+  const { hangHoa: h, dong } = _dongDonVi;
+  const heSo = Number(h.HeSoQuyDoi) || 0;
+  const coDonViLon = !!(h.DVTNhap && heSo > 1);
+  if (!dong.length) { box.innerHTML = '<p class="muted" style="margin:0;">Chưa có phiếu nào dùng mặt hàng này.</p>'; return; }
+  const dvHienTai = d => (Number(d.HeSoQuyDoi) > 1 ? 'nhap' : 'goc');
+  box.innerHTML = `
+    ${coDonViLon ? `<p class="muted" style="margin:0 0 6px;">1 ${h.DVTNhap} = ${fmtSoLuong(heSo)} ${h.DVT}. Dòng tô vàng: hệ số 1 và không ghi ĐVT — thường là dòng nhập từ bảng kê trước khi khai hệ số.</p>`
+      : `<p style="color:var(--warn);margin:0 0 6px;">Mặt hàng chưa khai "Đơn vị nhập lớn" và hệ số (&gt; 1) — khai rồi bấm Lưu trước khi chọn lại đơn vị.</p>`}
+    <div class="tableWrap"><table class="itemsTable"><thead><tr><th>Phiếu</th><th>Số lượng ghi</th><th>Đơn vị</th><th class="num">Quy ra ${h.DVT || 'ĐV chính'}</th><th class="num">Thành tiền</th></tr></thead><tbody>
+    ${dong.map((d, i) => {
+      const nghiVan = coDonViLon && Number(d.HeSoQuyDoi) <= 1 && !d.DVT;
+      return `<tr style="${nghiVan ? 'background:#fff4d6;' : ''}">
+        <td>${d.TenBang} · ${fmtDate(d.Ngay)}${d.SoHD ? ' · HĐ ' + d.SoHD : ''}</td>
+        <td data-label="Số lượng ghi">${fmtSoLuong(d.SoLuong)}${d.DVT ? ' ' + d.DVT : ''}</td>
+        <td data-label="Đơn vị"><select data-i="${i}" onchange="capNhatXemTruocDonVi(this)" ${coDonViLon ? '' : 'disabled'} style="width:100%;padding:6px;">
+          <option value="goc" ${dvHienTai(d) === 'goc' ? 'selected' : ''}>${h.DVT || 'ĐV chính'}</option>
+          ${coDonViLon ? `<option value="nhap" ${dvHienTai(d) === 'nhap' ? 'selected' : ''}>${h.DVTNhap}</option>` : ''}
+        </select></td>
+        <td class="num" data-label="Quy ra ${h.DVT || ''}" id="xtDV${i}">${fmtSoLuong(d.SoLuongQuyDoi)}</td>
+        <td class="num" data-label="Thành tiền">${fmtMoney(d.ThanhTien)}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>
+    ${coDonViLon ? `<div style="text-align:right;margin-top:8px;"><button class="btn small" type="button" onclick="luuDonViDongCu('${h.MaHH}')">Lưu đơn vị các dòng đã đổi</button></div>` : ''}
+    <div id="kqDonVi" style="margin-top:6px;font-size:13px;"></div>`;
+}
+function capNhatXemTruocDonVi(sel) {
+  const i = Number(sel.dataset.i), d = _dongDonVi.dong[i], heSo = Number(_dongDonVi.hangHoa.HeSoQuyDoi) || 1;
+  const moi = (Number(d.SoLuong) || 0) * (sel.value === 'nhap' ? heSo : 1);
+  const doi = Math.abs(moi - Number(d.SoLuongQuyDoi)) > 1e-9;
+  document.getElementById('xtDV' + i).innerHTML = doi ? `<span><s class="muted">${fmtSoLuong(d.SoLuongQuyDoi)}</s> → <b>${fmtSoLuong(moi)}</b></span>` : fmtSoLuong(d.SoLuongQuyDoi);
+}
+function luuDonViDongCu(maHH) {
+  const heSo = Number(_dongDonVi.hangHoa.HeSoQuyDoi) || 1;
+  const doi = [...document.querySelectorAll('#dsDongDonVi select[data-i]')].map(sel => {
+    const d = _dongDonVi.dong[Number(sel.dataset.i)];
+    const moi = (Number(d.SoLuong) || 0) * (sel.value === 'nhap' ? heSo : 1);
+    return Math.abs(moi - Number(d.SoLuongQuyDoi)) > 1e-9 ? { Bang: d.Bang, ID: d.ID, DonVi: sel.value } : null;
+  }).filter(Boolean);
+  if (!doi.length) { showToast('Chưa đổi dòng nào.'); return; }
+  if (!confirm(`Ghi lại đơn vị cho ${doi.length} dòng phiếu cũ, rồi tính lại tồn kho + giá vốn (kể cả giá vốn các dòng đã bán)?`)) return;
+  const kq = document.getElementById('kqDonVi');
+  kq.textContent = 'Đang cập nhật...';
+  apiCall('apDungDonViDongCu', { maHH, dong: doi }).then(res => {
+    const idx = STATE.hangHoaList.findIndex(h => h.MaHH === maHH);
+    if (idx >= 0 && res.hangHoa) STATE.hangHoaList[idx] = res.hangHoa;
+    drawHangHoaTable();
+    showToast(`Đã cập nhật ${res.soDongCapNhat} dòng.`);
+    moDongTheoDonVi(maHH, `✅ Đã cập nhật ${res.soDongCapNhat} dòng. <b>Tồn kho mới: ${tonKhoKep(res.hangHoa)}</b> · <b>Giá vốn mới: ${fmtMoney(res.giaVonMoi)}/${res.hangHoa.DVT || ''}</b>`);
+  }).catch(err => { kq.textContent = ''; showToast('Lỗi: ' + err.message); });
+}
 function tinhLaiTonKhoUI(maHH) {
   const box = document.getElementById('ketQuaTinhLaiTon');
   box.textContent = 'Đang quét lịch sử phiếu...';
   apiCall('tinhLaiTonKho', { maHH }).then(res => {
-    box.innerHTML = `Đã quét ${res.soSuKien} phiếu liên quan. <b>Tồn kho mới: ${res.tonKhoMoi}</b> · <b>Giá vốn mới: ${fmtMoney(res.giaVonMoi)}</b>`;
+    const hh = STATE.hangHoaList.find(h => h.MaHH === maHH);
+    box.innerHTML = `Đã quét ${res.soSuKien} phiếu liên quan. <b>Tồn kho mới: ${hh ? tonKhoKep(hh, res.tonKhoMoi) : res.tonKhoMoi}</b> · <b>Giá vốn mới: ${fmtMoney(res.giaVonMoi)}</b>`;
     showToast('Đã tính lại tồn kho.');
     renderHangHoaTable();
   }).catch(err => { box.textContent = ''; showToast('Lỗi: ' + err.message); });

@@ -70,6 +70,7 @@ function openPhieuNhapForm() {
 function submitPhieuNhap() {
   const items = readItemsFrom('nhapItemsContainer');
   if (items.length === 0) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
+  if (!xacNhanDonGiaKhong(items)) return;
   const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
   const data = {
     Ngay: document.getElementById('fNgay').value, GhiChu: document.getElementById('fGhiChuPhieu').value,
@@ -156,6 +157,7 @@ function openPhieuXuatForm() {
 function submitPhieuXuat() {
   const items = readItemsFrom('xuatItemsContainer');
   if (items.length === 0) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
+  if (!xacNhanDonGiaKhong(items)) return;
   const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
   const data = {
     Ngay: document.getElementById('fNgay').value, GhiChu: document.getElementById('fGhiChuPhieu').value,

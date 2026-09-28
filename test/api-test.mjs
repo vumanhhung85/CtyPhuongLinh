@@ -217,6 +217,7 @@ lg = await goi({ action: 'login', tenDangNhap: 'ketoan', password: 'ketoan123' }
 TOKEN = lg.token;
 ok(await apiLoi('xoaPhieuXuat', { idPhieu: xb.idPhieu }) === 'KHONG_CO_QUYEN', 'kế toán không được xoá phiếu');
 ok(await apiLoi('exportTable', { table: 'HangHoa' }) === 'KHONG_CO_QUYEN', 'kế toán không được xuất toàn bộ dữ liệu');
+ok(await apiLoi('apDungDonViDongCu', { maHH: 'X', dong: [] }) === 'KHONG_CO_QUYEN', 'kế toán không được sửa đơn vị dòng phiếu cũ');
 ok(Array.isArray(await api('getCongNo').then(r => r.phaiThu)), 'kế toán xem được công nợ');
 await api('doiMatKhau', { matKhauCu: 'ketoan123', matKhauMoi: 'moi12345' });
 ok(await apiLoi('doiMatKhau', { matKhauCu: 'sai', matKhauMoi: 'moi12345' }) === 'SAI_MAT_KHAU_CU', 'đổi mật khẩu sai mật khẩu cũ');
@@ -234,6 +235,41 @@ ok(cfg.webhookUrl.endsWith('/webhook/sepay?secret=bi-mat-sepay-abc') && cfg.bank
 const nk2 = (await api('getNhatKy'));
 ok(nk2.length > 5 && !nk2.some(l => /phuonglinh2026|moi12345|"token"/.test(l.ChiTiet)), 'nhật ký không lưu mật khẩu/token', nk2.slice(0, 3));
 ok(await apiLoi('actionKhongCo') && (await apiLoi('actionKhongCo')).startsWith('UNKNOWN_ACTION'), 'action lạ báo UNKNOWN_ACTION');
+
+console.log('12b. Đơn vị lớn (Cuộn) nhập từ bảng kê trước khi khai hệ số -> sửa lại dòng cũ');
+{
+  const invCap = [{ loai: 'nhap', ngay: '2026-08-01', soHD: '4412', mst: '0311111111', tenDoiTac: 'NCC Cáp', daThanhToanDu: false,
+    items: [{ tenHang: 'Cáp mạng Cat5E 100m/cuộn', dvt: 'Cuộn', soLuong: 1, donGia: 1000000, thueSuat: '10', loaiHangHoa: 'HangHoa' }] }];
+  await api('importChiTietBKMVBR', { invoices: invCap });
+  let cap = (await api('getHangHoaList')).find(h => h.TenHH === 'Cáp mạng Cat5E 100m/cuộn');
+  ok(cap && cap.TonKho === 1 && cap.GiaVonTB === 1000000, 'tái hiện lỗi cũ: chưa khai hệ số -> kho 1, giá 1tr', cap);
+  await api('saveHangHoa', { data: { ...cap, DVT: 'Mét', DVTNhap: 'Cuộn', HeSoQuyDoi: 100 } });
+  const ds = await api('getDongTheoDonVi', { maHH: cap.MaHH });
+  ok(ds.dong.length === 1 && ds.dong[0].Bang === 'NhapKhoCT' && ds.dong[0].DVT === 'Cuộn' && ds.dong[0].SoLuongQuyDoi === 1, 'liệt kê dòng cũ (có lưu ĐVT hoá đơn)', ds.dong);
+  ok(/BANG_KHONG_HOP_LE/.test(await apiLoi('apDungDonViDongCu', { maHH: cap.MaHH, dong: [{ Bang: 'NguoiDung', ID: 1, DonVi: 'nhap' }] })), 'chặn tên bảng lạ');
+  const ap = await api('apDungDonViDongCu', { maHH: cap.MaHH, dong: [{ Bang: 'NhapKhoCT', ID: ds.dong[0].ID, DonVi: 'nhap' }] });
+  ok(ap.soDongCapNhat === 1 && ap.tonKhoMoi === 100 && ap.giaVonMoi === 10000, 'áp hệ số: 1 Cuộn -> 100 Mét, giá vốn 10.000đ/Mét', ap);
+  const ban = await api('saveXuatBan', { data: { Ngay: '2026-08-05', items: [{ MaHH: cap.MaHH, SoLuong: 50, DonGia: 12000, ThueSuat: '10', DonViDaChon: 'goc', DVT: 'Mét' }] } });
+  ok(ban.tonKhoCapNhat[cap.MaHH].TonKho === 50, 'bán 50 Mét -> còn 50 Mét', ban.tonKhoCapNhat);
+  const ctBan = await api('getXuatBanDetail', { idPhieu: ban.idPhieu });
+  ok(ctBan.items[0].GiaVon === 10000 && ctBan.items[0].SoLuongQuyDoi * ctBan.items[0].GiaVon === 500000, 'giá vốn xuất 500.000đ, lãi 100.000đ', ctBan.items);
+  ok(/KHONG_DU_TON_KHO/.test(await apiLoi('saveXuatBan', { data: { Ngay: '2026-08-06', items: [{ MaHH: cap.MaHH, SoLuong: 1, DonGia: 1000000, DonViDaChon: 'nhap' }] } })), 'bán 1 Cuộn (=100 Mét) khi còn 50 Mét bị chặn');
+  // Hoá đơn mới ghi "cuộn" (khác hoa/thường) -> tự nhân hệ số
+  const imp3 = await api('importChiTietBKMVBR', { invoices: [{ ...invCap[0], soHD: '4413', ngay: '2026-08-10', items: [{ ...invCap[0].items[0], dvt: 'cuộn', soLuong: 2, donGia: 1200000 }] }] });
+  cap = (await api('getHangHoaList')).find(h => h.MaHH === cap.MaHH);
+  ok(imp3.thanhCong === 1 && cap.TonKho === 250 && cap.GiaVonTB === Math.round((50 * 10000 + 200 * 12000) / 250), 'bảng kê mới ghi "cuộn" tự quy ra 200 Mét, bình quân lại giá', cap);
+  const imp4 = await api('importChiTietBKMVBR', { invoices: [{ ...invCap[0], soHD: '4414', ngay: '2026-08-11', items: [{ ...invCap[0].items[0], dvt: 'Thùng', soLuong: 1, donGia: 1 }] }] });
+  ok(imp4.canhBaoDonVi.length === 1 && imp4.canhBaoDonVi[0].dvtHoaDon === 'Thùng', 'ĐVT lạ trên hoá đơn -> cảnh báo', imp4.canhBaoDonVi);
+  // Đổi ngược dòng về đơn vị chính: tồn + giá vốn dòng bán tính lại theo đúng thứ tự thời gian
+  const ds2 = await api('getDongTheoDonVi', { maHH: cap.MaHH });
+  const back = await api('apDungDonViDongCu', { maHH: cap.MaHH, dong: [{ Bang: 'NhapKhoCT', ID: ds2.dong[0].ID, DonVi: 'goc' }] });
+  ok(back.tonKhoMoi === 1 - 50 + 200 + 1, 'đổi ngược về đơn vị chính -> tồn tính lại', back);
+  const ctBan2 = await api('getXuatBanDetail', { idPhieu: ban.idPhieu });
+  ok(ctBan2.items[0].GiaVon === 1000000, 'giá vốn dòng bán cũ được ghi lại theo sổ', ctBan2.items);
+  await api('apDungDonViDongCu', { maHH: cap.MaHH, dong: [{ Bang: 'NhapKhoCT', ID: ds2.dong[0].ID, DonVi: 'nhap' }] });
+  const ctBan3 = await api('getXuatBanDetail', { idPhieu: ban.idPhieu });
+  ok(ctBan3.items[0].GiaVon === 10000, 'áp lại hệ số -> giá vốn dòng bán về 10.000đ/Mét', ctBan3.items);
+}
 
 console.log('13. Đổi loại Hàng hoá -> Dịch vụ tính lại tồn, sửa danh mục');
 const sv = await api('saveHangHoa', { data: { MaHH: 'CHUOT', TenHH: 'Chuột Logitech', Loai: 'DichVu', DVT: 'Cái', GiaBan: 150000, TonKhoToiThieu: 1 } });

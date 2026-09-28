@@ -957,7 +957,7 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
   const progressText = document.getElementById('bkProgressText');
   const resultWrap = document.getElementById('bkResultWrap');
   resultWrap.innerHTML = '';
-  let tongThanhCong = 0, tongDaTonTai = 0, tongLoi = [], tongCanhBaoTonKhoAm = [];
+  let tongThanhCong = 0, tongDaTonTai = 0, tongLoi = [], tongCanhBaoTonKhoAm = [], tongCanhBaoDonVi = [];
 
   function xuLyChunk(idx) {
     if (idx >= chunks.length) {
@@ -970,6 +970,10 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
         tongCanhBaoTonKhoAm.forEach(w => { uniqueMap[w.tenHH] = w.tonKho; });
         resultWrap.innerHTML += `<p class="muted" style="color:var(--warn);margin-top:10px;">⚠️ ${Object.keys(uniqueMap).length} mặt hàng đang bị âm tồn kho sau khi nhập (do bán trước khi có phiếu nhập tương ứng trong dữ liệu) — anh rà lại ở tab Danh mục:</p>
           <ul class="muted">${Object.keys(uniqueMap).map(ten => `<li>${ten}: còn ${uniqueMap[ten]}</li>`).join('')}</ul>`;
+      }
+      if (tongCanhBaoDonVi.length) {
+        resultWrap.innerHTML += `<p class="muted" style="color:var(--warn);margin-top:10px;">⚠️ ${tongCanhBaoDonVi.length} dòng hoá đơn có ĐVT khác cả đơn vị chính lẫn đơn vị nhập lớn trong danh mục — đã ghi theo đơn vị chính (hệ số 1). Anh kiểm tra lại bằng nút "Kiểm tra đơn vị các phiếu đã ghi" trong form sửa hàng hoá:</p>
+          <ul class="muted">${tongCanhBaoDonVi.map(w => `<li>HĐ ${w.soHD} · ${w.tenHH}: hoá đơn ghi "${w.dvtHoaDon}", danh mục: ${w.dvt} / ${w.dvtNhap}</li>`).join('')}</ul>`;
       }
       if (tongLoi.length) {
         resultWrap.innerHTML += `<div class="tableWrap"><table><thead><tr><th>Số HĐ</th><th>Ngày</th><th>Đối tác</th><th>Lỗi</th></tr></thead><tbody>
@@ -990,6 +994,7 @@ document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
         tongDaTonTai += Number(res.daTonTai) || 0;
         tongLoi = tongLoi.concat(res.loi || []);
         tongCanhBaoTonKhoAm = tongCanhBaoTonKhoAm.concat(res.canhBaoTonKhoAm || []);
+        tongCanhBaoDonVi = tongCanhBaoDonVi.concat(res.canhBaoDonVi || []);
       }
       xuLyChunk(idx + 1);
     }).catch(err => {

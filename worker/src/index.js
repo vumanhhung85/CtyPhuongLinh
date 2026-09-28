@@ -35,11 +35,11 @@ const ADMIN_ONLY_ACTIONS = new Set([
   'deleteHangHoa', 'deleteNhaCungCap', 'deleteKhachHang',
   'xoaPhieuNhap', 'xoaPhieuXuat', 'xoaPhieuSuaChua', 'xoaPhieuGiaCong',
   'xoaThuChi', 'capNhatSoDuDauKy', 'getCauHinhThanhToan', 'capNhatCauHinhThanhToan',
-  'exportTable'
+  'exportTable', 'apDungDonViDongCu'
 ]);
 
 const WRITE_ACTIONS = new Set([
-  'saveHangHoa', 'deleteHangHoa', 'tinhLaiTonKho',
+  'saveHangHoa', 'deleteHangHoa', 'tinhLaiTonKho', 'apDungDonViDongCu',
   'saveNhaCungCap', 'deleteNhaCungCap',
   'saveKhachHang', 'deleteKhachHang',
   'saveNhapKho', 'capNhatDaTraNCC', 'xoaPhieuNhap',
@@ -367,7 +367,10 @@ function lenhTinhLaiTon(db, maHHs) {
 
 // Giá vốn bình quân gia quyền liên hoàn, đi lần lượt theo thời gian (Ngay, Timestamp) qua mọi phiếu của mặt hàng.
 // Không làm được bằng 1 câu SQL nên tính trong JS, chỉ cho đúng các mặt hàng vừa bị ảnh hưởng.
-async function tinhLaiGiaVon(env, maHHs) {
+// opts.ghiGiaVonXuat = true: ghi lại luôn GiaVon (giá vốn/đơn vị chính tại thời điểm bán) trên từng dòng XuatBanCT
+// theo đúng thứ tự thời gian — dùng khi sửa lại lịch sử (áp hệ số quy đổi cho dòng cũ, nút "Tính lại tồn kho").
+// Lưu phiếu thường KHÔNG bật để không làm đổi giá vốn của các kỳ báo cáo trước.
+async function tinhLaiGiaVon(env, maHHs, opts) {
   maHHs = duyNhat(maHHs);
   if (!maHHs.length) return { soSuKien: {} };
   const j = JSON.stringify(maHHs);
@@ -389,9 +392,11 @@ async function tinhLaiGiaVon(env, maHHs) {
     UNION ALL SELECT d."MaHH", d."Ngay", d."Timestamp", 5, d."ID", d."SoLuongQuyDoi", d."DonGiaQuyDoi"
       FROM "DieuChinhKho" d WHERE d."MaHH" IN (SELECT value FROM json_each(?1))
     ORDER BY MaHH, Ngay, TS, K, ID`, jh);
+  const giaVonXuat = {};
   for (const e of suKien) {
     const s = trangThai[e.MaHH]; if (!s) continue;
     s.n++;
+    if (e.K === 2) giaVonXuat[String(e.ID)] = Math.round(s.gia);
     const q = Number(e.Q) || 0;
     const laNhapCoGia = (e.K === 1 && q > 0) || (e.K === 5 && q > 0 && e.TT !== null && e.TT !== '');
     if (laNhapCoGia) {
@@ -409,6 +414,10 @@ async function tinhLaiGiaVon(env, maHHs) {
   for (const ma of dsHH) { giaMoi[ma] = Math.round(trangThai[ma].gia); soSuKien[ma] = trangThai[ma].n; }
   await run(env, `UPDATE "HangHoa" SET "GiaVonTB" = (SELECT value FROM json_each(?1) WHERE key = "HangHoa"."MaHH")
     WHERE "MaHH" IN (SELECT key FROM json_each(?1))`, JSON.stringify(giaMoi));
+  if (opts && opts.ghiGiaVonXuat && Object.keys(giaVonXuat).length) {
+    await run(env, `UPDATE "XuatBanCT" SET "GiaVon" = (SELECT value FROM json_each(?1) WHERE key = CAST("XuatBanCT"."ID" AS TEXT))
+      WHERE "ID" IN (SELECT CAST(key AS INTEGER) FROM json_each(?1))`, JSON.stringify(giaVonXuat));
+  }
   return { giaMoi, soSuKien };
 }
 
@@ -498,9 +507,55 @@ async function tinhLaiTonKho(env, maHH) {
   const hh = await first(env, `SELECT "MaHH" FROM "HangHoa" WHERE "MaHH" = ?1`, maHH);
   if (!hh) throw loi('KHONG_TIM_THAY_HANG_HOA');
   await env.DB.batch([lenhTinhLaiTon(env.DB, [maHH])]);
-  const { giaMoi, soSuKien } = await tinhLaiGiaVon(env, [maHH]);
+  const { giaMoi, soSuKien } = await tinhLaiGiaVon(env, [maHH], { ghiGiaVonXuat: true });
   const moi = await first(env, `SELECT "TonKho","GiaVonTB" FROM "HangHoa" WHERE "MaHH" = ?1`, maHH);
   return { maHH, tonKhoMoi: Number(moi.TonKho) || 0, giaVonMoi: Number(moi.GiaVonTB) || 0, soSuKien: (soSuKien && soSuKien[maHH]) || 0, _giaMoi: giaMoi };
+}
+
+// ===== ÁP ĐƠN VỊ / HỆ SỐ QUY ĐỔI CHO DÒNG PHIẾU CŨ =====
+// Dòng phiếu chụp hệ số tại lúc ghi. Nếu lúc đó mặt hàng chưa khai "Đơn vị nhập lớn" (VD nhập BKMV 1 Cuộn khi
+// danh mục chưa có hệ số) thì dòng bị lưu 1 Cuộn = 1 đơn vị chính. Công cụ này cho admin chọn lại đơn vị từng dòng.
+const BANG_CT = {
+  NhapKhoCT: { h: 'NhapKho', so: 'SoHDMuaVao', ten: 'Nhập kho' },
+  XuatBanCT: { h: 'XuatBan', so: 'SoHDDT', ten: 'Xuất bán' },
+  SuaChuaCT: { h: 'SuaChua', so: 'SoHDDT', ten: 'Sửa chữa' },
+  GiaCongCT: { h: 'GiaCong', so: 'SoHDDT', ten: 'Gia công' }
+};
+async function getDongTheoDonVi(env, maHH) {
+  const hh = await first(env, `SELECT * FROM "HangHoa" WHERE "MaHH" = ?1`, maHH);
+  if (!hh) throw loi('KHONG_TIM_THAY_HANG_HOA');
+  const sql = Object.entries(BANG_CT).map(([ct, b]) =>
+    `SELECT '${ct}' AS Bang, c."ID" AS ID, c."IDPhieu" AS IDPhieu, h."Ngay" AS Ngay, h."${b.so}" AS SoHD, c."SoLuong" AS SoLuong,
+       c."DonGia" AS DonGia, c."ThanhTien" AS ThanhTien, c."DVT" AS DVT, c."HeSoQuyDoi" AS HeSoQuyDoi, c."SoLuongQuyDoi" AS SoLuongQuyDoi
+     FROM "${ct}" c JOIN "${b.h}" h ON h."IDPhieu" = c."IDPhieu" WHERE c."MaHH" = ?1`).join(' UNION ALL ') + ' ORDER BY Ngay, ID';
+  const rows = await allRaw(env, sql, maHH);
+  return { hangHoa: chuanHoaDong(hh), dong: rows.map(r => ({ ...chuanHoaDong(r), TenBang: BANG_CT[r.Bang].ten })) };
+}
+async function apDungDonViDongCu(env, maHH, dong) {
+  const hh = await first(env, `SELECT * FROM "HangHoa" WHERE "MaHH" = ?1`, maHH);
+  if (!hh) throw loi('KHONG_TIM_THAY_HANG_HOA');
+  const heSo = Number(hh.HeSoQuyDoi) || 0;
+  if (!hh.DVTNhap || !(heSo > 0)) throw loi('CHUA_KHAI_HE_SO: mặt hàng chưa có "Đơn vị nhập lớn" và hệ số quy đổi — khai trong danh mục rồi lưu trước');
+  if (!Array.isArray(dong) || !dong.length) throw loi('KHONG_CO_DU_LIEU');
+  const nhom = {};
+  for (const d of dong) {
+    if (!BANG_CT[d.Bang]) throw loi('BANG_KHONG_HOP_LE');
+    const id = Number(d.ID); if (!Number.isInteger(id)) throw loi('ID_KHONG_HOP_LE');
+    const k = d.Bang + '|' + (d.DonVi === 'nhap' ? 'nhap' : 'goc');
+    (nhom[k] = nhom[k] || []).push(id);
+  }
+  const lenh = Object.entries(nhom).map(([k, ids]) => {
+    const [bang, dv] = k.split('|');
+    const hs = dv === 'nhap' ? heSo : 1, dvt = dv === 'nhap' ? hh.DVTNhap : (hh.DVT || '');
+    return env.DB.prepare(`UPDATE "${bang}" SET "HeSoQuyDoi" = ?2, "SoLuongQuyDoi" = "SoLuong" * ?2, "DVT" = ?3
+      WHERE "MaHH" = ?1 AND "ID" IN (SELECT value FROM json_each(?4))`).bind(maHH, hs, dvt, JSON.stringify(ids));
+  });
+  lenh.push(lenhTinhLaiTon(env.DB, [maHH]));
+  const kq = await env.DB.batch(lenh);
+  const soDong = kq.slice(0, -1).reduce((t, r) => t + (r.meta.changes || 0), 0);
+  await tinhLaiGiaVon(env, [maHH], { ghiGiaVonXuat: true });
+  const moi = await first(env, `SELECT * FROM "HangHoa" WHERE "MaHH" = ?1`, maHH);
+  return { soDongCapNhat: soDong, hangHoa: chuanHoaDong(moi), tonKhoMoi: Number(moi.TonKho) || 0, giaVonMoi: Number(moi.GiaVonTB) || 0 };
 }
 
 async function deleteRowByField(env, bang, field, value) {
@@ -859,7 +914,7 @@ async function importChiTietBKMVBR(env, invoices, user) {
   const bo = taoBoTimHoacTao(nap);
   const moPhong = {};
   const cacPhieu = [];
-  let daTonTai = 0; const loiDs = [];
+  let daTonTai = 0; const loiDs = []; const canhBaoDonVi = [];
   for (const inv of sorted) {
     if (inv.loai !== 'xuat' && inv.loai !== 'nhap') { loiDs.push({ soHD: inv.soHD, error: 'LOAI_KHONG_HOP_LE: hoá đơn không xác định được là mua vào hay bán ra, đã bỏ qua' }); continue; }
     if (chuanHoaMST(inv.mst) === chuanHoaMST(MST_CONG_TY)) { loiDs.push({ soHD: inv.soHD, error: `MST_TRUNG_CONG_TY: MST đối tác trùng với MST công ty (${MST_CONG_TY}) - dữ liệu có vấn đề, đã bỏ qua` }); continue; }
@@ -869,7 +924,16 @@ async function importChiTietBKMVBR(env, invoices, user) {
     const them = { diaChi: inv.diaChiDoiTac, sdt: inv.sdtDoiTac, email: inv.emailDoiTac };
     const dongVao = inv.items.map(it => {
       const hh = bo.hangHoa(it.tenHang, it.dvt, it.loaiHangHoa, inv.loai === 'xuat' ? it.donGia : undefined, 'Tạo tự động khi nhập chi tiết bảng kê BKMV/BKBR');
-      return { item: { MaHH: hh.MaHH, TenHH: it.tenHang, SoLuong: it.soLuong, DonGia: it.donGia, ThueSuat: it.thueSuat }, hh };
+      // ĐVT trên hoá đơn trùng "Đơn vị nhập lớn" của mặt hàng (VD hoá đơn ghi Cuộn, danh mục 1 Cuộn = 100 Mét)
+      // -> tự nhân hệ số. Trước đây bỏ qua ĐVT hoá đơn nên 1 Cuộn bị ghi thành 1 Mét.
+      const dvtHD = String(it.dvt || '').trim();
+      const coDonViLon = hh.Loai === 'HangHoa' && hh.DVTNhap && Number(hh.HeSoQuyDoi) > 0;
+      const laDonViLon = !!(coDonViLon && dvtHD && chuanHoaTen(dvtHD) === chuanHoaTen(hh.DVTNhap));
+      if (coDonViLon && dvtHD && !laDonViLon && chuanHoaTen(dvtHD) !== chuanHoaTen(hh.DVT)) {
+        canhBaoDonVi.push({ soHD: inv.soHD, tenHH: hh.TenHH, dvtHoaDon: dvtHD, dvt: hh.DVT, dvtNhap: hh.DVTNhap });
+      }
+      return { item: { MaHH: hh.MaHH, TenHH: it.tenHang, SoLuong: it.soLuong, DonGia: it.donGia, ThueSuat: it.thueSuat,
+        DVT: dvtHD, DonViDaChon: laDonViLon ? 'nhap' : 'goc' }, hh };
     });
     const chung = { Ngay: inv.ngay, SoHD: inv.soHD, KyHieu: inv.kyHieu || '', MST: inv.mst, daThanhToanDu: !!inv.daThanhToanDu };
     if (inv.loai === 'xuat') {
@@ -881,7 +945,7 @@ async function importChiTietBKMVBR(env, invoices, user) {
     }
   }
   const maHHs = await ghiLo(env, bo, cacPhieu);
-  return { thanhCong: cacPhieu.length, daTonTai, tongSo: invoices.length, loi: loiDs, canhBaoTonKhoAm: await canhBaoTonAm(env, maHHs) };
+  return { thanhCong: cacPhieu.length, daTonTai, tongSo: invoices.length, loi: loiDs, canhBaoTonKhoAm: await canhBaoTonAm(env, maHHs), canhBaoDonVi };
 }
 
 async function importLichSuTuBangKe(env, items, user) {
@@ -1298,6 +1362,8 @@ async function handleAction(env, params, origin) {
     case 'getHangHoaList': result = await getHangHoaList(env); break;
     case 'saveHangHoa': result = await saveHangHoa(env, params.data); break;
     case 'deleteHangHoa': result = await deleteRowByField(env, 'HangHoa', 'MaHH', params.maHH); break;
+    case 'getDongTheoDonVi': result = await getDongTheoDonVi(env, params.maHH); break;
+    case 'apDungDonViDongCu': result = await apDungDonViDongCu(env, params.maHH, params.dong); break;
     case 'tinhLaiTonKho': { const r = await tinhLaiTonKho(env, params.maHH); delete r._giaMoi; result = r; break; }
 
     case 'getNhaCungCapList': result = await getNhaCungCapList(env); break;
