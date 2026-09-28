@@ -22,7 +22,7 @@ function renderItemsTableInto(containerId, mode) {
   `;
   window['_itemsMode_' + containerId] = mode;
 }
-function addItemRowInto(containerId, mode) {
+function addItemRowInto(containerId, mode, dongCu) {
   const list = document.getElementById(containerId + '_list');
   const row = document.createElement('div');
   row.className = 'itemRow';
@@ -54,6 +54,47 @@ function addItemRowInto(containerId, mode) {
     </div>
   `;
   list.appendChild(row);
+  if (dongCu) dienSanCoDongHang(row, containerId, mode, dongCu);
+}
+
+// Điền sẵn 1 dòng hàng khi mở form "Sửa phiếu" từ dòng chi tiết đã lưu (khác với chọn mới ở ô tìm kiếm) —
+// dùng lại đúng logic của hhComboSelect/doiDonViNhap để ô đơn vị, giá gợi ý, cảnh báo lãi/lỗ... hiện đúng như bình thường.
+function dienSanCoDongHang(row, containerId, mode, it) {
+  const h = (STATE.hangHoaList || []).find(x => x.MaHH === it.MaHH);
+  const wrap = row.querySelector('.itemRowSearch');
+  const hidden = wrap.querySelector('.itemHH');
+  const input = wrap.querySelector('.itemHHSearch');
+  hidden.value = it.MaHH;
+  input.value = it.TenHH || (h ? h.TenHH : '');
+  input.dataset.confirmed = input.value;
+  row.dataset.mahh = it.MaHH;
+  row.dataset.giavon = h ? (h.GiaVonTB || 0) : 0;
+  row.dataset.giaban = h ? (h.GiaBan || 0) : 0;
+  row.dataset.tonkho = h ? (h.TonKho || 0) : 0;
+  row.dataset.dvt = h ? (h.DVT || '') : (it.DVT || '');
+  row.dataset.loai = h ? h.Loai : 'HangHoa';
+  row.dataset.dvtnhap = h ? (h.DVTNhap || '') : '';
+  row.dataset.hesoquydoi = h ? (h.HeSoQuyDoi || '') : '';
+  const heSo = h ? Number(h.HeSoQuyDoi) || 0 : 0;
+  const coDonViLon = !!(h && h.DVTNhap && heSo > 1);
+  // Dòng cũ ghi hệ số quy đổi > 1 -> lúc lưu đã chọn đơn vị lớn (VD Cuộn); nếu không thì đơn vị gốc (VD Mét).
+  const donGoiLon = Number(it.HeSoQuyDoi) > 1;
+  const donViDonViChon = row.querySelector('.itemRowDonVi');
+  const sel = donViDonViChon.querySelector('.itemDonViChon');
+  if (coDonViLon) {
+    donViDonViChon.style.display = 'block';
+    sel.innerHTML = `<option value="nhap">${h.DVTNhap} (1 ${h.DVTNhap} = ${heSo} ${h.DVT})</option><option value="goc">${h.DVT}</option>`;
+    row.dataset.donvidachon = donGoiLon ? 'nhap' : 'goc';
+    sel.value = row.dataset.donvidachon;
+  } else {
+    donViDonViChon.style.display = 'none';
+    row.dataset.donvidachon = 'goc';
+  }
+  row.querySelector('.itemSL').value = fmtSoLuong(it.SoLuong);
+  row.querySelector('.itemGia').value = Math.round(Number(it.DonGia) || 0).toLocaleString('vi-VN');
+  row.querySelector('.itemThueSuat').value = it.ThueSuat || '0';
+  capNhatThongTinDong(row, mode);
+  updateLineTotalGeneric(row.querySelector('.itemGia'), containerId);
 }
 
 /* ---- Ô tìm kiếm hàng hoá có gợi ý kèm tồn kho + giá vốn + giá bán ---- */

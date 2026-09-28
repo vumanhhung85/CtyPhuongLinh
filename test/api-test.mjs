@@ -248,6 +248,7 @@ const adminToken = TOKEN;
 lg = await goi({ action: 'login', tenDangNhap: 'ketoan', password: 'ketoan123' });
 TOKEN = lg.token;
 ok(await apiLoi('xoaPhieuXuat', { idPhieu: xb.idPhieu }) === 'KHONG_CO_QUYEN', 'kế toán không được xoá phiếu');
+ok(await apiLoi('suaPhieuXuat', { idPhieu: xb.idPhieu, data: { items: [] } }) === 'KHONG_CO_QUYEN', 'kế toán không được sửa phiếu xuất bán');
 ok(await apiLoi('exportTable', { table: 'HangHoa' }) === 'KHONG_CO_QUYEN', 'kế toán không được xuất toàn bộ dữ liệu');
 ok(await apiLoi('apDungDonViDongCu', { maHH: 'X', dong: [] }) === 'KHONG_CO_QUYEN', 'kế toán không được sửa đơn vị dòng phiếu cũ');
 ok(Array.isArray(await api('getCongNo').then(r => r.phaiThu)), 'kế toán xem được công nợ');
@@ -323,6 +324,63 @@ ok(/^DANG_DUOC_SU_DUNG/.test(await apiLoi('deleteKhachHang', { maKH: khCoPhieu.M
 const khMoi = await api('saveKhachHang', { data: { TenKH: 'Khách thử xoá', MST: '' } });
 const maKhMoi = khMoi.id;
 ok(maKhMoi && (await api('deleteKhachHang', { maKH: maKhMoi })).deleted, 'khách hàng chưa có phiếu -> xoá được', khMoi);
+console.log('15. Sửa phiếu (Xuất bán/Sửa chữa/Gia công) khi chưa xuất hoá đơn điện tử');
+{
+  const truoc = await api('getHangHoaList');
+  const capTruoc = truoc.find(h => h.MaHH === 'CAP').TonKho;
+  const chuotTruoc = truoc.find(h => h.MaHH === 'CHUOT').TonKho;
+  const xbSua = await api('saveXuatBan', { data: { Ngay: '2026-09-07', TenKH: 'Khách sửa phiếu', items: [
+    { MaHH: 'CAP', SoLuong: 20, DonGia: 10000, ThueSuat: '8', DonViDaChon: 'goc', DVT: 'Mét' },
+    { MaHH: 'CHUOT', SoLuong: 1, DonGia: 150000, ThueSuat: '10', DVT: 'Cái' }
+  ] } });
+  ok(xbSua.phieu.TrangThaiHD === 'ChuaXuat', 'phiếu mới tạo để test sửa: chưa xuất HĐ');
+  let hhSau = await api('getHangHoaList');
+  ok(hhSau.find(h => h.MaHH === 'CAP').TonKho === capTruoc - 20 && hhSau.find(h => h.MaHH === 'CHUOT').TonKho === chuotTruoc - 1,
+    'tồn sau khi tạo phiếu gốc', hhSau.filter(h => ['CAP', 'CHUOT'].includes(h.MaHH)));
+
+  // Sửa: tăng CAP từ 20 lên 35 Mét, bỏ hẳn dòng CHUOT, đổi tên khách
+  const suaXb = await api('suaPhieuXuat', { idPhieu: xbSua.idPhieu, data: { Ngay: '2026-09-07', TenKH: 'Khách sửa phiếu (đã đổi tên)', items: [
+    { MaHH: 'CAP', SoLuong: 35, DonGia: 11000, ThueSuat: '8', DonViDaChon: 'goc', DVT: 'Mét' }
+  ] } });
+  ok(suaXb.phieu.TenKH === 'Khách sửa phiếu (đã đổi tên)' && gan(suaXb.phieu.TongTien, 35 * 11000 * 1.08), 'sửa phiếu xuất: đổi tên khách + tổng tiền tính lại', suaXb.phieu);
+  ok(suaXb.tonKhoCapNhat.CAP.TonKho === capTruoc - 35, 'sửa phiếu xuất: tồn cáp tính lại đúng theo dòng MỚI (không cộng dồn với dòng cũ)', suaXb.tonKhoCapNhat);
+  let ctSua = await api('getXuatBanDetail', { idPhieu: xbSua.idPhieu });
+  ok(ctSua.items.length === 1 && ctSua.items[0].MaHH === 'CAP' && ctSua.items[0].SoLuong === 35, 'sửa phiếu xuất: dòng CHUOT cũ đã bị xoá, chỉ còn dòng CAP mới', ctSua.items);
+  hhSau = await api('getHangHoaList');
+  ok(hhSau.find(h => h.MaHH === 'CHUOT').TonKho === chuotTruoc, 'sửa phiếu xuất: bỏ dòng CHUOT -> tồn chuột hoàn về như trước khi tạo phiếu gốc', hhSau.find(h => h.MaHH === 'CHUOT'));
+
+  // Sửa vượt tồn kho -> phải bị chặn, và QUAN TRỌNG: không được để lại nửa vời (xoá dòng cũ xong mới phát
+  // hiện thiếu tồn) — dòng chi tiết cũ và tồn kho phải giữ NGUYÊN như trước khi thử sửa.
+  const tonCapHienTai = hhSau.find(h => h.MaHH === 'CAP').TonKho;
+  const eSua = await apiLoi('suaPhieuXuat', { idPhieu: xbSua.idPhieu, data: { items: [{ MaHH: 'CAP', SoLuong: tonCapHienTai + 999999, DonGia: 10000, ThueSuat: '8', DVT: 'Mét' }] } });
+  ok(eSua && eSua.startsWith('KHONG_DU_TON_KHO'), 'sửa phiếu vượt tồn kho bị chặn', eSua);
+  const ctSauLoi = await api('getXuatBanDetail', { idPhieu: xbSua.idPhieu });
+  ok(ctSauLoi.items.length === 1 && ctSauLoi.items[0].SoLuong === 35, 'sửa thất bại -> dòng chi tiết CŨ vẫn còn nguyên (không bị xoá mất giữa chừng)', ctSauLoi.items);
+  const hhSauLoi = await api('getHangHoaList');
+  ok(hhSauLoi.find(h => h.MaHH === 'CAP').TonKho === tonCapHienTai, 'sửa thất bại -> tồn kho KHÔNG bị thay đổi gì (ghi 1 giao dịch duy nhất, không kẹt nửa chừng)', hhSauLoi.find(h => h.MaHH === 'CAP'));
+
+  // Đánh dấu đã xuất HĐ rồi thử sửa -> bị chặn DA_XUAT_HOA_DON
+  await api('capNhatHoaDonXuatBan', { idPhieu: xbSua.idPhieu, soHDDT: '0009999', kyHieuHD: '1C26TAB' });
+  const eDaXuat = await apiLoi('suaPhieuXuat', { idPhieu: xbSua.idPhieu, data: { items: [{ MaHH: 'CAP', SoLuong: 1, DonGia: 1000, ThueSuat: '0', DVT: 'Mét' }] } });
+  ok(eDaXuat && eDaXuat.startsWith('DA_XUAT_HOA_DON'), 'phiếu đã xuất HĐĐT -> không sửa được nữa', eDaXuat);
+
+  // Sửa chữa: "sc" (mục 9) đã xuất HĐ -> bị chặn tương tự
+  const eSc = await apiLoi('suaPhieuSuaChua', { idPhieu: sc.idPhieu, data: { ThietBi: 'Đổi tên', items: [] } });
+  ok(eSc && eSc.startsWith('DA_XUAT_HOA_DON'), 'phiếu sửa chữa đã xuất HĐĐT -> không sửa được', eSc);
+
+  // Gia công: "gc" (mục 9, thuê ngoài) chưa xuất HĐ -> sửa được, DaTra đã ghi nhận trước đó giữ nguyên
+  const suaGc = await api('suaPhieuGiaCong', { idPhieu: gc.idPhieu, data: { TenDoiTac: 'Xưởng in (đã đổi)', MoTaCongViec: 'In 800 tờ rơi', SoLuongSanPham: 800, ChiPhiGiaCong: 1500000, ThueSuatGiaCong: '8', items: [] } });
+  ok(suaGc.phieu.TenDoiTac === 'Xưởng in (đã đổi)' && suaGc.phieu.SoLuongSanPham === 800 && gan(suaGc.phieu.ChiPhiGiaCong, 1500000 * 1.08), 'sửa phiếu gia công: đổi mô tả + chi phí tính lại', suaGc.phieu);
+  ok(suaGc.phieu.DaTra === 1080000, 'sửa phiếu gia công: không đụng tới DaTra đã ghi nhận trước đó', suaGc.phieu);
+
+  ok(await apiLoi('suaPhieuXuat', { idPhieu: 'KHONGCO', data: { items: [{ MaHH: 'CAP', SoLuong: 1, DonGia: 1, ThueSuat: '0' }] } }) === 'KHONG_TIM_THAY_PHIEU', 'sửa phiếu không tồn tại -> báo lỗi rõ ràng');
+
+  // Dọn dẹp: xoá phiếu vừa tạo để trả tồn CAP về đúng như trước mục 15 (không làm lệch các test khác dựa vào tồn CAP)
+  await api('xoaPhieuXuat', { idPhieu: xbSua.idPhieu });
+  const hhDonDep = await api('getHangHoaList');
+  ok(hhDonDep.find(h => h.MaHH === 'CAP').TonKho === capTruoc, 'dọn dẹp: xoá phiếu test sửa -> tồn CAP trả về như trước mục 15', hhDonDep.find(h => h.MaHH === 'CAP'));
+}
+
 const cors = await fetch(API + '/', { method: 'POST', body: JSON.stringify({ action: 'pingPhien', token: TOKEN }), headers: { Origin: 'https://trang-la.com' } });
 ok(!cors.headers.get('access-control-allow-origin'), 'trang web lạ không được phép gọi API (CORS)');
 const cors2 = await fetch(API + '/', { method: 'POST', body: '{}', headers: { Origin: 'http://localhost:8000' } });

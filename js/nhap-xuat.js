@@ -141,7 +141,7 @@ function drawXuatBanTable() {
         <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã thu đủ</span>'}</td>
         <td>${x.TrangThaiHD === 'DaXuat' ? '<span class="tag good">Đã xuất HĐ</span>' : '<span class="tag bad">Chưa xuất HĐ</span>'}</td>
         <td class="muted">${x.NguoiTao || ''}</td>
-        <td class="rowActions"><button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('xuat','${x.IDPhieu}')">${ICON_HD}</button><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('xuat','${x.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('xuat','${x.IDPhieu}')">${ICON_XOA}</button></td>
+        <td class="rowActions">${x.TrangThaiHD !== 'DaXuat' ? `<button class="iconBtn" title="Sửa phiếu" onclick="openSuaPhieuXuatForm('${x.IDPhieu}')">${ICON_SUA}</button>` : ''}<button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('xuat','${x.IDPhieu}')">${ICON_HD}</button><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('xuat','${x.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('xuat','${x.IDPhieu}')">${ICON_XOA}</button></td>
       </tr>`; }).join('')}
     </tbody></table>`;
 }
@@ -189,6 +189,65 @@ function submitPhieuXuat() {
       renderXuatBanTable(); renderHangHoaTable();
     }
   }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+// Chỉ cho sửa khi CHƯA xuất hoá đơn điện tử (TrangThaiHD !== 'DaXuat') — hoá đơn đã xuất thì số liệu đã
+// gửi cơ quan thuế, sửa phiếu ở đây sẽ lệch với hoá đơn thật.
+function openSuaPhieuXuatForm(idPhieu) {
+  const phieu = STATE.xuatBanList.find(p => p.IDPhieu === idPhieu);
+  if (!phieu) return;
+  apiCall('getXuatBanDetail', { idPhieu }).then(res => {
+    const items = res.items || [];
+    const doiTacOptions = STATE.khachHangList.map(d => `<option value="${d.MaKH}" data-ten="${d.TenKH}" ${d.MaKH === phieu.MaKH ? 'selected' : ''}>${d.TenKH}</option>`).join('');
+    openModal(`
+      <button class="modalClose" onclick="closeModal()">&times;</button>
+      <h3>Sửa phiếu xuất bán ${idPhieu}</h3>
+      <p class="muted">Chỉ sửa được khi chưa xuất hoá đơn điện tử. Số lượng/giá sửa xong sẽ tính lại tồn kho và giá vốn bình quân theo đúng thứ tự thời gian.</p>
+      <div class="formGrid">
+        <div class="field"><label>Ngày</label><input type="date" id="fNgay" value="${phieu.Ngay}"></div>
+        <div class="field"><label>Khách hàng</label><select id="fDoiTac"><option value="">-- Chọn hoặc để trống (khách lẻ) --</option>${doiTacOptions}</select></div>
+        <div class="field span2"><label>MST khách hàng (nếu xuất hoá đơn)</label><input id="fMSTKhach" value="${phieu.MSTKhachHang || ''}" placeholder="Có thể để trống nếu bán lẻ"></div>
+        <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu" value="${(phieu.GhiChu || '').replace(/"/g, '&quot;')}"></div>
+      </div>
+      <div id="xuatItemsContainer"></div>
+      <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="submitSuaPhieuXuat('${idPhieu}',${phieu.DaThu || 0})">Lưu thay đổi</button></div>
+    `);
+    renderItemsTableInto('xuatItemsContainer', 'gia_ban');
+    if (items.length) items.forEach(it => addItemRowInto('xuatItemsContainer', 'gia_ban', it));
+    else addItemRowInto('xuatItemsContainer', 'gia_ban');
+    recalcGrandTotalGeneric('xuatItemsContainer');
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function submitSuaPhieuXuat(idPhieu, daThuCu) {
+  const items = readItemsFrom('xuatItemsContainer');
+  if (items.length === 0) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
+  if (!xacNhanDonGiaKhong(items)) return;
+  const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
+  const data = {
+    Ngay: document.getElementById('fNgay').value, GhiChu: document.getElementById('fGhiChuPhieu').value,
+    MaKH: doiTacSel.value, TenKH: doiTacOpt ? doiTacOpt.dataset.ten : '',
+    MSTKhachHang: document.getElementById('fMSTKhach').value, items
+  };
+  const tongTienMoi = items.reduce((s, it) => { const t = it.SoLuong * it.DonGia; return s + t + tinhTienThueJS(t, it.ThueSuat); }, 0);
+  if (daThuCu > tongTienMoi + 1) {
+    if (!confirm(`⚠️ Phiếu này đã thu ${fmtMoney(daThuCu)}, nhưng sau khi sửa tổng tiền chỉ còn ${fmtMoney(tongTienMoi)} — sẽ dư ${fmtMoney(daThuCu - tongTienMoi)}.\n\nVẫn muốn lưu? (Anh tự đối chiếu lại với khách sau.)`)) return;
+  }
+  apiCall('suaPhieuXuat', { idPhieu, data }).then(res => {
+    closeModal(); showToast('Đã lưu thay đổi phiếu xuất bán.');
+    if (res && res.phieu) {
+      const i = STATE.xuatBanList.findIndex(p => p.IDPhieu === idPhieu);
+      if (i >= 0) STATE.xuatBanList[i] = res.phieu;
+      mergeTonKhoVaoState(res.tonKhoCapNhat);
+      drawXuatBanTable();
+      drawHangHoaTable();
+    } else {
+      renderXuatBanTable(); renderHangHoaTable();
+    }
+  }).catch(err => {
+    const msg = String(err.message || '');
+    if (msg.startsWith('DA_XUAT_HOA_DON')) { closeModal(); showToast(msg.replace(/^DA_XUAT_HOA_DON:\s*/, '')); renderXuatBanTable(); return; }
+    showToast('Lỗi: ' + msg);
+  });
 }
 
 /* ================= HOÁ ĐƠN DÙNG CHUNG (xuất bán / sửa chữa / gia công) ================= */

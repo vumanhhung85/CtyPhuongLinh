@@ -34,6 +34,7 @@ const ADMIN_ONLY_ACTIONS = new Set([
   'getNguoiDungList', 'saveNguoiDung', 'deleteNguoiDung', 'khoaMoNguoiDung',
   'deleteHangHoa', 'deleteNhaCungCap', 'deleteKhachHang',
   'xoaPhieuNhap', 'xoaPhieuXuat', 'xoaPhieuSuaChua', 'xoaPhieuGiaCong',
+  'suaPhieuXuat', 'suaPhieuSuaChua', 'suaPhieuGiaCong',
   'xoaThuChi', 'capNhatSoDuDauKy', 'getCauHinhThanhToan', 'capNhatCauHinhThanhToan',
   'exportTable', 'apDungDonViDongCu'
 ]);
@@ -43,9 +44,9 @@ const WRITE_ACTIONS = new Set([
   'saveNhaCungCap', 'deleteNhaCungCap',
   'saveKhachHang', 'deleteKhachHang',
   'saveNhapKho', 'capNhatDaTraNCC', 'xoaPhieuNhap',
-  'saveXuatBan', 'capNhatHoaDonXuatBan', 'capNhatDaThuKH', 'xoaPhieuXuat',
-  'saveSuaChua', 'capNhatTrangThaiSuaChua', 'capNhatHoaDonSuaChua', 'capNhatDaThuSuaChua', 'xoaPhieuSuaChua',
-  'saveGiaCong', 'capNhatTrangThaiGiaCong', 'capNhatHoaDonGiaCong', 'capNhatThanhToanGiaCong', 'xoaPhieuGiaCong',
+  'saveXuatBan', 'suaPhieuXuat', 'capNhatHoaDonXuatBan', 'capNhatDaThuKH', 'xoaPhieuXuat',
+  'saveSuaChua', 'suaPhieuSuaChua', 'capNhatTrangThaiSuaChua', 'capNhatHoaDonSuaChua', 'capNhatDaThuSuaChua', 'xoaPhieuSuaChua',
+  'saveGiaCong', 'suaPhieuGiaCong', 'capNhatTrangThaiGiaCong', 'capNhatHoaDonGiaCong', 'capNhatThanhToanGiaCong', 'xoaPhieuGiaCong',
   'saveNguoiDung', 'deleteNguoiDung', 'khoaMoNguoiDung',
   'bulkCapNhatHoaDon', 'importLichSuTuBangKe', 'importChiTietBKMVBR',
   'saveThuChi', 'xoaThuChi', 'capNhatSoDuDauKy', 'capNhatCauHinhThanhToan'
@@ -836,6 +837,113 @@ async function xoaPhieu(env, bang, idPhieu) {
   return { deleted: true, soDongHoanTon: ct.length };
 }
 
+// ================== SỬA PHIẾU (Xuất bán / Sửa chữa / Gia công) KHI CHƯA XUẤT HOÁ ĐƠN ĐIỆN TỬ ==================
+// Chỉ cho sửa khi TrangThaiHD chưa là 'DaXuat' — hoá đơn đã xuất thì số liệu đã gửi cơ quan thuế, sửa ở đây
+// sẽ lệch với hoá đơn thật. Toàn bộ việc xoá dòng cũ + ghi dòng mới + cập nhật phiếu + tính lại tồn phải nằm
+// trong ĐÚNG 1 lệnh batch (1 giao dịch D1) — nếu kiểm tra tồn kho cho dòng mới thất bại thì KHÔNG được xoá
+// dòng cũ trước đó (tách thành 2 batch sẽ có nguy cơ: batch 1 lỡ xoá xong, batch 2 mới báo lỗi tồn kho ->
+// phiếu mất dòng chi tiết mà không sửa được gì, dữ liệu kẹt giữa chừng). Vì vậy kiểm tra tồn kho ở đây làm
+// hoàn toàn trong JS (không đụng DB): coi như đã "hoàn" lại các dòng cũ vào tồn hiện tại rồi mới kiểm tra
+// dòng mới có đủ tồn hay không — chỉ khi qua được bước này mới phát 1 batch duy nhất để ghi thật.
+async function chanNeuDaXuatHD(phieuCu, idPhieu) {
+  if (!phieuCu) throw loi('KHONG_TIM_THAY_PHIEU');
+  if (phieuCu.TrangThaiHD === 'DaXuat') throw loi(`DA_XUAT_HOA_DON: Phiếu ${idPhieu} đã xuất hoá đơn điện tử (số ${phieuCu.SoHDDT || ''}), không thể sửa trực tiếp. Nếu hoá đơn ghi sai, cần huỷ/điều chỉnh hoá đơn điện tử trước, rồi xoá số HĐĐT ở đây mới sửa được phiếu.`);
+}
+async function chuanBiSuaPhieu(env, bangCT, idPhieu, items, choPhepTonKhoAm) {
+  const ctCu = await allRaw(env, `SELECT "MaHH","SoLuongQuyDoi" FROM "${bangCT}" WHERE "IDPhieu" = ?1`, idPhieu);
+  const maHHCu = duyNhat(ctCu.map(r => r.MaHH));
+  const hoanTon = {};
+  ctCu.forEach(r => { hoanTon[r.MaHH] = (hoanTon[r.MaHH] || 0) + (Number(r.SoLuongQuyDoi) || 0); });
+  const hhMap = await layHangHoaMap(env, duyNhat([...maHHCu, ...items.map(i => i.MaHH)]));
+  // Tồn "ảo" = tồn hiện tại (đã bị trừ bởi dòng cũ) + phần vừa hoàn của dòng cũ — CHƯA ghi gì xuống DB.
+  Object.keys(hoanTon).forEach(ma => { if (hhMap[ma]) hhMap[ma] = { ...hhMap[ma], TonKho: (Number(hhMap[ma].TonKho) || 0) + hoanTon[ma] }; });
+  const dong = items.map(it => lapDongCT(it, hhMap[it.MaHH]));
+  kiemTraTon(dong, hhMap, !!choPhepTonKhoAm);
+  return { dong, hhMap, maHHCu };
+}
+
+async function suaPhieuXuat(env, idPhieu, data) {
+  data = data || {};
+  const items = data.items || [];
+  if (!items.length) throw loi('KHONG_CO_HANG_HOA');
+  const phieuCu = await first(env, `SELECT * FROM "XuatBan" WHERE "IDPhieu" = ?1`, idPhieu);
+  await chanNeuDaXuatHD(phieuCu, idPhieu);
+  const { dong: dongTho, hhMap, maHHCu } = await chuanBiSuaPhieu(env, 'XuatBanCT', idPhieu, items, data.choPhepTonKhoAm);
+  const dong = dongTho.map(d => ({ ...d, GiaVon: hhMap[d.MaHH] ? Number(hhMap[d.MaHH].GiaVonTB) || 0 : 0 }));
+  const tongTienTruocThue = tong(dong, d => d.ThanhTien), tongTienThue = tong(dong, d => d.TienThue);
+  const tongTien = tongTienTruocThue + tongTienThue;
+  const maHHHopNhat = duyNhat([...maHHCu, ...dong.map(d => d.MaHH)]);
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM "XuatBanCT" WHERE "IDPhieu" = ?1`).bind(idPhieu),
+    env.DB.prepare(`UPDATE "XuatBan" SET "Ngay"=?2,"MaKH"=?3,"TenKH"=?4,"MSTKhachHang"=?5,"GhiChu"=?6,"TongTienTruocThue"=?7,"TongTienThue"=?8,"TongTien"=?9 WHERE "IDPhieu"=?1`)
+      .bind(idPhieu, data.Ngay || phieuCu.Ngay, data.MaKH || '', data.TenKH || '', data.MSTKhachHang || '', data.GhiChu || '', tongTienTruocThue, tongTienThue, tongTien),
+    ...lenhThem(env.DB, 'XuatBanCT', dong.map(d => ({ ...d, IDPhieu: idPhieu }))),
+    lenhTinhLaiTon(env.DB, maHHHopNhat)
+  ]);
+  const tonKhoCapNhat = await sauKhiGhiKho(env, maHHHopNhat);
+  const phieu = await first(env, `SELECT * FROM "XuatBan" WHERE "IDPhieu" = ?1`, idPhieu);
+  return { idPhieu, phieu, tonKhoCapNhat };
+}
+
+async function suaPhieuSuaChua(env, idPhieu, data) {
+  data = data || {};
+  const items = data.items || [];
+  const phieuCu = await first(env, `SELECT * FROM "SuaChua" WHERE "IDPhieu" = ?1`, idPhieu);
+  await chanNeuDaXuatHD(phieuCu, idPhieu);
+  const { dong, maHHCu } = await chuanBiSuaPhieu(env, 'SuaChuaCT', idPhieu, items, data.choPhepTonKhoAm);
+  const tongTienLinhKien = tong(dong, d => d.ThanhTien), tongTienLinhKienThue = tong(dong, d => d.TienThue);
+  const tienCong = Number(data.TienCong) || 0;
+  const tienCongThue = tinhTienThue(tienCong, data.TienCongThueSuat);
+  const tongTienTruocThue = tienCong + tongTienLinhKien;
+  const tongTienThue = tienCongThue + tongTienLinhKienThue;
+  const tongTien = tongTienTruocThue + tongTienThue;
+  const maHHHopNhat = duyNhat([...maHHCu, ...dong.map(d => d.MaHH)]);
+  const lenh = [
+    env.DB.prepare(`DELETE FROM "SuaChuaCT" WHERE "IDPhieu" = ?1`).bind(idPhieu),
+    env.DB.prepare(`UPDATE "SuaChua" SET "Ngay"=?2,"MaKH"=?3,"TenKH"=?4,"SDT"=?5,"ThietBi"=?6,"TinhTrangTiepNhan"=?7,"PhuKienKemTheo"=?8,
+        "NguoiPhuTrach"=?9,"NgayHenTra"=?10,"BaoHanhNgay"=?11,"TienCong"=?12,"TienCongThueSuat"=?13,"TienCongThue"=?14,
+        "TongTienLinhKien"=?15,"TongTienLinhKienThue"=?16,"TongTienTruocThue"=?17,"TongTienThue"=?18,"TongTien"=?19,"GhiChu"=?20
+      WHERE "IDPhieu"=?1`)
+      .bind(idPhieu, data.Ngay || phieuCu.Ngay, data.MaKH || '', data.TenKH || '', data.SDT || '', data.ThietBi || '',
+        data.TinhTrangTiepNhan || '', data.PhuKienKemTheo || '', data.NguoiPhuTrach || '', data.NgayHenTra || '',
+        Number(data.BaoHanhNgay) || 0, tienCong, data.TienCongThueSuat || '0', tienCongThue,
+        tongTienLinhKien, tongTienLinhKienThue, tongTienTruocThue, tongTienThue, tongTien, data.GhiChu || '')
+  ];
+  if (dong.length) lenh.push(...lenhThem(env.DB, 'SuaChuaCT', dong.map(d => ({ ...d, IDPhieu: idPhieu }))));
+  if (maHHHopNhat.length) lenh.push(lenhTinhLaiTon(env.DB, maHHHopNhat));
+  await env.DB.batch(lenh);
+  const tonKhoCapNhat = maHHHopNhat.length ? await sauKhiGhiKho(env, maHHHopNhat) : {};
+  const phieu = await first(env, `SELECT * FROM "SuaChua" WHERE "IDPhieu" = ?1`, idPhieu);
+  return { idPhieu, phieu, tonKhoCapNhat };
+}
+
+async function suaPhieuGiaCong(env, idPhieu, data) {
+  data = data || {};
+  const items = data.items || [];
+  const phieuCu = await first(env, `SELECT * FROM "GiaCong" WHERE "IDPhieu" = ?1`, idPhieu);
+  await chanNeuDaXuatHD(phieuCu, idPhieu);
+  const { dong, maHHCu } = await chuanBiSuaPhieu(env, 'GiaCongCT', idPhieu, items, data.choPhepTonKhoAm);
+  const chiPhiTruocThue = Number(data.ChiPhiGiaCong) || 0;
+  const tienThueGiaCong = tinhTienThue(chiPhiTruocThue, data.ThueSuatGiaCong);
+  const chiPhiSauThue = chiPhiTruocThue + tienThueGiaCong;
+  const maHHHopNhat = duyNhat([...maHHCu, ...dong.map(d => d.MaHH)]);
+  const lenh = [
+    env.DB.prepare(`DELETE FROM "GiaCongCT" WHERE "IDPhieu" = ?1`).bind(idPhieu),
+    env.DB.prepare(`UPDATE "GiaCong" SET "Ngay"=?2,"MaDoiTac"=?3,"TenDoiTac"=?4,"MoTaCongViec"=?5,"SoLuongSanPham"=?6,"DonViTinh"=?7,
+        "ChiPhiGiaCongTruocThue"=?8,"ThueSuatGiaCong"=?9,"TienThueGiaCong"=?10,"ChiPhiGiaCong"=?11,"NgayHenTra"=?12,"GhiChu"=?13
+      WHERE "IDPhieu"=?1`)
+      .bind(idPhieu, data.Ngay || phieuCu.Ngay, data.MaDoiTac || '', data.TenDoiTac || '', data.MoTaCongViec || '',
+        Number(data.SoLuongSanPham) || 0, data.DonViTinh || '', chiPhiTruocThue, data.ThueSuatGiaCong || '0',
+        tienThueGiaCong, chiPhiSauThue, data.NgayHenTra || '', data.GhiChu || '')
+  ];
+  if (dong.length) lenh.push(...lenhThem(env.DB, 'GiaCongCT', dong.map(d => ({ ...d, IDPhieu: idPhieu }))));
+  if (maHHHopNhat.length) lenh.push(lenhTinhLaiTon(env.DB, maHHHopNhat));
+  await env.DB.batch(lenh);
+  const tonKhoCapNhat = maHHHopNhat.length ? await sauKhiGhiKho(env, maHHHopNhat) : {};
+  const phieu = await first(env, `SELECT * FROM "GiaCong" WHERE "IDPhieu" = ?1`, idPhieu);
+  return { idPhieu, phieu, tonKhoCapNhat };
+}
+
 // ================== NHẬP HÀNG LOẠT TỪ BẢNG KÊ / XML ==================
 // Giữ đúng hành vi Code.gs (tự tìm/tạo đối tác + hàng hoá, bỏ qua hoá đơn đã có, đánh dấu đã thanh toán),
 // nhưng cả 1 lô ghi trong 1 giao dịch, gộp nhiều dòng/câu INSERT để không vượt 50 lệnh D1/request.
@@ -1424,6 +1532,7 @@ async function handleAction(env, params, origin) {
     case 'getXuatBanList': result = await layDanhSachGanDay(env, 'XuatBan', params.gioiHan); break;
     case 'getXuatBanDetail': result = await getPhieuDetail(env, 'XuatBanCT', params.idPhieu); break;
     case 'saveXuatBan': result = await luuPhieuXuat(env, params.data, user); break;
+    case 'suaPhieuXuat': result = await suaPhieuXuat(env, params.idPhieu, params.data); break;
     case 'capNhatHoaDonXuatBan': result = await capNhatHoaDon(env, 'XuatBan', params.idPhieu, params.soHDDT, params.kyHieuHD); break;
     case 'capNhatDaThuKH': result = await capNhatThanhToan(env, 'XuatBan', 'DaThu', params.idPhieu, params.soTien, params.phuongThuc, user.TenDangNhap); break;
     case 'xoaPhieuXuat': result = await xoaPhieu(env, 'XuatBan', params.idPhieu); break;
@@ -1431,6 +1540,7 @@ async function handleAction(env, params, origin) {
     case 'getSuaChuaList': result = await layDanhSachGanDay(env, 'SuaChua', params.gioiHan); break;
     case 'getSuaChuaDetail': result = await getPhieuDetail(env, 'SuaChuaCT', params.idPhieu); break;
     case 'saveSuaChua': result = await luuPhieuSuaChua(env, params.data, user); break;
+    case 'suaPhieuSuaChua': result = await suaPhieuSuaChua(env, params.idPhieu, params.data); break;
     case 'capNhatTrangThaiSuaChua': result = await capNhatTrangThai(env, 'SuaChua', params.idPhieu, params.trangThai, params.ngayHoanThanh); break;
     case 'capNhatHoaDonSuaChua': result = await capNhatHoaDon(env, 'SuaChua', params.idPhieu, params.soHDDT, params.kyHieuHD); break;
     case 'capNhatDaThuSuaChua': result = await capNhatThanhToan(env, 'SuaChua', 'DaThu', params.idPhieu, params.soTien, params.phuongThuc, user.TenDangNhap); break;
@@ -1439,6 +1549,7 @@ async function handleAction(env, params, origin) {
     case 'getGiaCongList': result = await layDanhSachGanDay(env, 'GiaCong', params.gioiHan); break;
     case 'getGiaCongDetail': result = await getPhieuDetail(env, 'GiaCongCT', params.idPhieu); break;
     case 'saveGiaCong': result = await luuPhieuGiaCong(env, params.data, user); break;
+    case 'suaPhieuGiaCong': result = await suaPhieuGiaCong(env, params.idPhieu, params.data); break;
     case 'capNhatTrangThaiGiaCong': result = await capNhatTrangThai(env, 'GiaCong', params.idPhieu, params.trangThai, params.ngayHoanThanh); break;
     case 'capNhatHoaDonGiaCong': result = await capNhatHoaDon(env, 'GiaCong', params.idPhieu, params.soHDDT, params.kyHieuHD); break;
     case 'capNhatThanhToanGiaCong': result = await capNhatThanhToan(env, 'GiaCong', params.loaiTien, params.idPhieu, params.soTien, params.phuongThuc, user.TenDangNhap); break;

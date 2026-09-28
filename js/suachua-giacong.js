@@ -31,6 +31,7 @@ function drawSuaChuaTable() {
         <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã thu đủ</span>'}</td>
         <td>${s.NguoiPhuTrach || ''}</td>
         <td class="rowActions">
+          ${s.TrangThaiHD !== 'DaXuat' ? `<button class="iconBtn" title="Sửa phiếu" onclick="openSuaPhieuSuaChuaForm('${s.IDPhieu}')">${ICON_SUA}</button>` : ''}
           <button class="iconBtn" title="Xem" onclick="viewPhieuSuaChua('${s.IDPhieu}')">${ICON_XEM}</button>
           <button class="iconBtn" title="Cập nhật trạng thái" onclick="openCapNhatTrangThaiSC('${s.IDPhieu}')">${ICON_TRANGTHAI}</button>
           <button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('suachua','${s.IDPhieu}')">${ICON_HD}</button>
@@ -103,6 +104,85 @@ function submitPhieuSuaChua() {
       renderSuaChuaTable(); renderHangHoaTable();
     }
   }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+// Chỉ cho sửa khi CHƯA xuất hoá đơn điện tử — lý do như phiếu xuất bán.
+function openSuaPhieuSuaChuaForm(idPhieu) {
+  const phieu = STATE.suaChuaList.find(p => p.IDPhieu === idPhieu);
+  if (!phieu) return;
+  apiCall('getSuaChuaDetail', { idPhieu }).then(res => {
+    const items = res.items || [];
+    const doiTacOptions = STATE.khachHangList.map(d => `<option value="${d.MaKH}" data-ten="${d.TenKH}" data-sdt="${d.SDT || ''}" ${d.MaKH === phieu.MaKH ? 'selected' : ''}>${d.TenKH}</option>`).join('');
+    openModal(`
+      <button class="modalClose" onclick="closeModal()">&times;</button>
+      <h3>Sửa phiếu sửa chữa ${idPhieu}</h3>
+      <p class="muted">Chỉ sửa được khi chưa xuất hoá đơn điện tử. Trạng thái xử lý (Tiếp nhận/Hoàn thành...) không đổi ở đây — dùng nút "Cập nhật trạng thái".</p>
+      <div class="formGrid">
+        <div class="field"><label>Ngày tiếp nhận</label><input type="date" id="fNgay" value="${phieu.Ngay}"></div>
+        <div class="field"><label>Khách hàng</label><select id="fDoiTac" onchange="autoFillSDT()"><option value="">-- Chọn hoặc nhập tay --</option>${doiTacOptions}</select></div>
+        <div class="field"><label>Tên khách (nếu không có trong danh sách)</label><input id="fTenKhachTay" value="${phieu.MaKH ? '' : (phieu.TenKH || '')}" placeholder="Có thể để trống nếu đã chọn ở trên"></div>
+        <div class="field"><label>Số điện thoại</label><input id="fSDT" value="${phieu.SDT || ''}"></div>
+        <div class="field span2"><label>Thiết bị</label><input id="fThietBi" value="${(phieu.ThietBi || '').replace(/"/g, '&quot;')}"></div>
+        <div class="field span2"><label>Tình trạng khi tiếp nhận / mô tả lỗi</label><textarea id="fTinhTrang">${phieu.TinhTrangTiepNhan || ''}</textarea></div>
+        <div class="field span2"><label>Phụ kiện kèm theo</label><input id="fPhuKien" value="${(phieu.PhuKienKemTheo || '').replace(/"/g, '&quot;')}"></div>
+        <div class="field"><label>Kỹ thuật viên phụ trách</label><input id="fNguoiPhuTrach" value="${(phieu.NguoiPhuTrach || '').replace(/"/g, '&quot;')}"></div>
+        <div class="field"><label>Ngày hẹn trả</label><input type="date" id="fNgayHenTra" value="${phieu.NgayHenTra || ''}"></div>
+        <div class="field"><label>Bảo hành (số ngày)</label><input type="number" id="fBaoHanh" value="${phieu.BaoHanhNgay || 0}"></div>
+        <div class="field"><label>Tiền công sửa chữa (trước thuế)</label><input type="text" inputmode="numeric" class="moneyInput" id="fTienCong" value="${Math.round(phieu.TienCong || 0).toLocaleString('vi-VN')}"></div>
+        <div class="field"><label>Thuế suất tiền công</label><select id="fTienCongThueSuat">${thueSuatOptionsHtml(phieu.TienCongThueSuat || '8')}</select></div>
+        <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu" value="${(phieu.GhiChu || '').replace(/"/g, '&quot;')}"></div>
+      </div>
+      <p class="muted" style="margin:12px 0 4px;">Linh kiện thay thế (nếu có — sẽ tự động trừ tồn kho):</p>
+      <div id="scItemsContainer"></div>
+      <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="submitSuaPhieuSuaChua('${idPhieu}',${phieu.DaThu || 0})">Lưu thay đổi</button></div>
+    `);
+    renderItemsTableInto('scItemsContainer', 'gia_ban');
+    items.forEach(it => addItemRowInto('scItemsContainer', 'gia_ban', it));
+    recalcGrandTotalGeneric('scItemsContainer');
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function submitSuaPhieuSuaChua(idPhieu, daThuCu) {
+  const items = readItemsFrom('scItemsContainer');
+  const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
+  const tenKhachTay = document.getElementById('fTenKhachTay').value.trim();
+  const data = {
+    Ngay: document.getElementById('fNgay').value,
+    MaKH: doiTacSel.value, TenKH: tenKhachTay || (doiTacOpt ? doiTacOpt.dataset.ten : ''),
+    SDT: document.getElementById('fSDT').value.trim(),
+    ThietBi: document.getElementById('fThietBi').value.trim(),
+    TinhTrangTiepNhan: document.getElementById('fTinhTrang').value.trim(),
+    PhuKienKemTheo: document.getElementById('fPhuKien').value.trim(),
+    NguoiPhuTrach: document.getElementById('fNguoiPhuTrach').value.trim(),
+    NgayHenTra: document.getElementById('fNgayHenTra').value,
+    BaoHanhNgay: Number(document.getElementById('fBaoHanh').value) || 0,
+    TienCong: parseSoTien(document.getElementById('fTienCong').value),
+    TienCongThueSuat: document.getElementById('fTienCongThueSuat').value,
+    GhiChu: document.getElementById('fGhiChuPhieu').value.trim(), items
+  };
+  if (!data.ThietBi) { showToast('Vui lòng nhập tên thiết bị.'); return; }
+  if (items.length && !xacNhanDonGiaKhong(items)) return;
+  const tienLinhKien = items.reduce((s, it) => { const t = it.SoLuong * it.DonGia; return s + t + tinhTienThueJS(t, it.ThueSuat); }, 0);
+  const tienCongSauThue = data.TienCong + tinhTienThueJS(data.TienCong, data.TienCongThueSuat);
+  const tongTienMoi = tienLinhKien + tienCongSauThue;
+  if (daThuCu > tongTienMoi + 1) {
+    if (!confirm(`⚠️ Phiếu này đã thu ${fmtMoney(daThuCu)}, nhưng sau khi sửa tổng tiền chỉ còn ${fmtMoney(tongTienMoi)} — sẽ dư ${fmtMoney(daThuCu - tongTienMoi)}.\n\nVẫn muốn lưu? (Anh tự đối chiếu lại với khách sau.)`)) return;
+  }
+  apiCall('suaPhieuSuaChua', { idPhieu, data }).then(res => {
+    closeModal(); showToast('Đã lưu thay đổi phiếu sửa chữa.');
+    if (res && res.phieu) {
+      const i = STATE.suaChuaList.findIndex(p => p.IDPhieu === idPhieu);
+      if (i >= 0) STATE.suaChuaList[i] = res.phieu;
+      mergeTonKhoVaoState(res.tonKhoCapNhat);
+      drawSuaChuaTable();
+      drawHangHoaTable();
+    } else {
+      renderSuaChuaTable(); renderHangHoaTable();
+    }
+  }).catch(err => {
+    const msg = String(err.message || '');
+    if (msg.startsWith('DA_XUAT_HOA_DON')) { closeModal(); showToast(msg.replace(/^DA_XUAT_HOA_DON:\s*/, '')); renderSuaChuaTable(); return; }
+    showToast('Lỗi: ' + msg);
+  });
 }
 
 function viewPhieuSuaChua(idPhieu) {
@@ -207,6 +287,7 @@ function drawGiaCongTable() {
           <td>${trangThaiGCTag(g.TrangThai)}</td><td>${fmtMoney(g.ChiPhiGiaCong)}</td>
           <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã xong</span>'}</td>
           <td class="rowActions">
+            ${g.TrangThaiHD !== 'DaXuat' ? `<button class="iconBtn" title="Sửa phiếu" onclick="openSuaPhieuGiaCongForm('${g.IDPhieu}')">${ICON_SUA}</button>` : ''}
             <button class="iconBtn" title="Xem" onclick="viewPhieuGiaCong('${g.IDPhieu}')">${ICON_XEM}</button>
             <button class="iconBtn" title="Cập nhật trạng thái" onclick="openCapNhatTrangThaiGC('${g.IDPhieu}')">${ICON_TRANGTHAI}</button>
             <button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('giacong','${g.IDPhieu}')">${ICON_HD}</button>
@@ -285,6 +366,81 @@ function submitPhieuGiaCong() {
       renderGiaCongTable(); renderHangHoaTable();
     }
   }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+// Chỉ cho sửa khi CHƯA xuất hoá đơn điện tử — lý do như phiếu xuất bán. Không cho đổi Loại (Nhận GC / Thuê
+// ngoài) khi sửa vì sẽ đổi luôn ý nghĩa DaThu/DaTra — muốn đổi loại thì xoá phiếu rồi tạo lại.
+function openSuaPhieuGiaCongForm(idPhieu) {
+  const phieu = STATE.giaCongList.find(p => p.IDPhieu === idPhieu);
+  if (!phieu) return;
+  const isThu = phieu.Loai === 'NhanGiaCongChoKhach';
+  apiCall('getGiaCongDetail', { idPhieu }).then(res => {
+    const items = res.items || [];
+    const list = isThu ? STATE.khachHangList : STATE.nhaCungCapList;
+    const idField = isThu ? 'MaKH' : 'MaNCC';
+    const tenField = isThu ? 'TenKH' : 'TenNCC';
+    const doiTacOptions = list.map(d => `<option value="${d[idField]}" data-ten="${d[tenField]}" ${d[idField] === phieu.MaDoiTac ? 'selected' : ''}>${d[tenField]}</option>`).join('');
+    const daXongCu = isThu ? (Number(phieu.DaThu) || 0) : (Number(phieu.DaTra) || 0);
+    openModal(`
+      <button class="modalClose" onclick="closeModal()">&times;</button>
+      <h3>Sửa phiếu gia công ${idPhieu}</h3>
+      <p class="muted">${isThu ? 'Nhận gia công cho khách' : 'Thuê ngoài gia công'} · Chỉ sửa được khi chưa xuất hoá đơn điện tử. Không đổi được loại phiếu ở đây.</p>
+      <div class="formGrid">
+        <div class="field"><label>Ngày</label><input type="date" id="fNgay" value="${phieu.Ngay}"></div>
+        <div class="field"><label>${isThu ? 'Khách hàng' : 'Nhà cung cấp gia công'}</label><select id="fDoiTac"><option value="">-- Chọn hoặc để trống --</option>${doiTacOptions}</select></div>
+        <div class="field span2"><label>Mô tả công việc gia công</label><textarea id="fMoTaCongViec">${phieu.MoTaCongViec || ''}</textarea></div>
+        <div class="field"><label>Số lượng sản phẩm</label><input type="number" id="fSoLuongSP" value="${phieu.SoLuongSanPham || 0}"></div>
+        <div class="field"><label>Đơn vị tính</label><input id="fDonViTinh" value="${(phieu.DonViTinh || '').replace(/"/g, '&quot;')}" placeholder="cái, bộ, tờ..."></div>
+        <div class="field"><label>${isThu ? 'Chi phí gia công (thu từ khách, trước thuế)' : 'Chi phí gia công (trả cho bên nhận gia công, trước thuế)'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fChiPhiGC" value="${Math.round(phieu.ChiPhiGiaCongTruocThue || 0).toLocaleString('vi-VN')}"></div>
+        <div class="field"><label>Thuế suất</label><select id="fChiPhiGCThueSuat">${thueSuatOptionsHtml(phieu.ThueSuatGiaCong || '8')}</select></div>
+        <div class="field"><label>Ngày hẹn trả</label><input type="date" id="fNgayHenTra" value="${phieu.NgayHenTra || ''}"></div>
+        <div class="field span2"><label>Ghi chú</label><input id="fGhiChuPhieu" value="${(phieu.GhiChu || '').replace(/"/g, '&quot;')}"></div>
+      </div>
+      <p class="muted" style="margin:12px 0 4px;">Vật tư / nguyên liệu xuất từ kho (nếu có — sẽ tự động trừ tồn kho):</p>
+      <div id="gcItemsContainer"></div>
+      <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Huỷ</button><button class="btn" onclick="submitSuaPhieuGiaCong('${idPhieu}',${daXongCu})">Lưu thay đổi</button></div>
+    `);
+    renderItemsTableInto('gcItemsContainer', 'gia_ban');
+    items.forEach(it => addItemRowInto('gcItemsContainer', 'gia_ban', it));
+    recalcGrandTotalGeneric('gcItemsContainer');
+  }).catch(err => showToast('Lỗi: ' + err.message));
+}
+function submitSuaPhieuGiaCong(idPhieu, daXongCu) {
+  const items = readItemsFrom('gcItemsContainer');
+  const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
+  const data = {
+    Ngay: document.getElementById('fNgay').value,
+    MaDoiTac: doiTacSel.value, TenDoiTac: doiTacOpt ? doiTacOpt.dataset.ten : '',
+    MoTaCongViec: document.getElementById('fMoTaCongViec').value.trim(),
+    SoLuongSanPham: Number(document.getElementById('fSoLuongSP').value) || 0,
+    DonViTinh: document.getElementById('fDonViTinh').value.trim(),
+    ChiPhiGiaCong: parseSoTien(document.getElementById('fChiPhiGC').value),
+    ThueSuatGiaCong: document.getElementById('fChiPhiGCThueSuat').value,
+    NgayHenTra: document.getElementById('fNgayHenTra').value,
+    GhiChu: document.getElementById('fGhiChuPhieu').value.trim(), items
+  };
+  if (!data.MoTaCongViec) { showToast('Vui lòng nhập mô tả công việc.'); return; }
+  if (items.length && !xacNhanDonGiaKhong(items)) return;
+  const chiPhiSauThueMoi = data.ChiPhiGiaCong + tinhTienThueJS(data.ChiPhiGiaCong, data.ThueSuatGiaCong);
+  if (daXongCu > chiPhiSauThueMoi + 1) {
+    if (!confirm(`⚠️ Phiếu này đã ghi nhận ${fmtMoney(daXongCu)}, nhưng sau khi sửa tổng chi phí chỉ còn ${fmtMoney(chiPhiSauThueMoi)} — sẽ dư ${fmtMoney(daXongCu - chiPhiSauThueMoi)}.\n\nVẫn muốn lưu? (Anh tự đối chiếu lại sau.)`)) return;
+  }
+  apiCall('suaPhieuGiaCong', { idPhieu, data }).then(res => {
+    closeModal(); showToast('Đã lưu thay đổi phiếu gia công.');
+    if (res && res.phieu) {
+      const i = STATE.giaCongList.findIndex(p => p.IDPhieu === idPhieu);
+      if (i >= 0) STATE.giaCongList[i] = res.phieu;
+      mergeTonKhoVaoState(res.tonKhoCapNhat);
+      drawGiaCongTable();
+      drawHangHoaTable();
+    } else {
+      renderGiaCongTable(); renderHangHoaTable();
+    }
+  }).catch(err => {
+    const msg = String(err.message || '');
+    if (msg.startsWith('DA_XUAT_HOA_DON')) { closeModal(); showToast(msg.replace(/^DA_XUAT_HOA_DON:\s*/, '')); renderGiaCongTable(); return; }
+    showToast('Lỗi: ' + msg);
+  });
 }
 
 function viewPhieuGiaCong(idPhieu) {
