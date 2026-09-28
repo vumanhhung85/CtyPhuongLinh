@@ -564,6 +564,26 @@ async function apDungDonViDongCu(env, maHH, dong) {
   return { soDongCapNhat: soDong, hangHoa: chuanHoaDong(moi), tonKhoMoi: Number(moi.TonKho) || 0, giaVonMoi: Number(moi.GiaVonTB) || 0 };
 }
 
+// Không cho xoá mặt hàng / đối tác khỏi danh mục khi còn phiếu trỏ tới — trước đây xoá được, phiếu vẫn còn nên
+// hàng "biến mất" khỏi kho nhưng vẫn nằm trong sổ (VD Dây đeo thẻ 28/09/2026). Muốn xoá phải xoá hết phiếu trước.
+const NOI_DUNG_THAM_CHIEU = {
+  HangHoa: [['NhapKhoCT', 'MaHH', 'phiếu nhập'], ['XuatBanCT', 'MaHH', 'phiếu bán'], ['SuaChuaCT', 'MaHH', 'phiếu sửa chữa'],
+    ['GiaCongCT', 'MaHH', 'phiếu gia công'], ['DieuChinhKho', 'MaHH', 'lần điều chỉnh kho']],
+  NhaCungCap: [['NhapKho', 'MaNCC', 'phiếu nhập'], ['GiaCong', 'MaDoiTac', 'phiếu gia công']],
+  KhachHang: [['XuatBan', 'MaKH', 'phiếu bán'], ['SuaChua', 'MaKH', 'phiếu sửa chữa'], ['GiaCong', 'MaDoiTac', 'phiếu gia công']]
+};
+async function xoaDanhMucAnToan(env, bang, field, value) {
+  if (!value) throw loi('KHONG_TIM_THAY');
+  const ds = NOI_DUNG_THAM_CHIEU[bang];
+  const r = await env.DB.batch(ds.map(([b, cot]) => env.DB.prepare(`SELECT COUNT(*) n FROM "${b}" WHERE "${cot}" = ?1`).bind(value)));
+  const conDung = ds.map(([, , ten], i) => ({ ten, n: Number(r[i].results[0].n) || 0 })).filter(x => x.n > 0);
+  if (conDung.length) {
+    const tong = conDung.reduce((s, x) => s + x.n, 0);
+    throw loi(`DANG_DUOC_SU_DUNG: Không xoá được — mục này còn ${tong} ${bang === 'HangHoa' ? 'dòng phiếu' : 'phiếu'} (${conDung.map(x => x.n + ' ' + x.ten).join(', ')}). Xoá hoặc sửa các phiếu đó trước.`);
+  }
+  return deleteRowByField(env, bang, field, value);
+}
+
 async function deleteRowByField(env, bang, field, value) {
   const kq = await run(env, `DELETE FROM "${bang}" WHERE "${field}" = ?1`, value);
   if (!kq.meta.changes) throw loi('KHONG_TIM_THAY');
@@ -1383,17 +1403,17 @@ async function handleAction(env, params, origin) {
     }
     case 'getHangHoaList': result = await getHangHoaList(env); break;
     case 'saveHangHoa': result = await saveHangHoa(env, params.data); break;
-    case 'deleteHangHoa': result = await deleteRowByField(env, 'HangHoa', 'MaHH', params.maHH); break;
+    case 'deleteHangHoa': result = await xoaDanhMucAnToan(env, 'HangHoa', 'MaHH', params.maHH); break;
     case 'getDongTheoDonVi': result = await getDongTheoDonVi(env, params.maHH); break;
     case 'apDungDonViDongCu': result = await apDungDonViDongCu(env, params.maHH, params.dong); break;
     case 'tinhLaiTonKho': { const r = await tinhLaiTonKho(env, params.maHH); delete r._giaMoi; result = r; break; }
 
     case 'getNhaCungCapList': result = await getNhaCungCapList(env); break;
     case 'saveNhaCungCap': result = await saveDoiTac(env, 'NhaCungCap', 'MaNCC', 'NCC', params.data); break;
-    case 'deleteNhaCungCap': result = await deleteRowByField(env, 'NhaCungCap', 'MaNCC', params.maNCC); break;
+    case 'deleteNhaCungCap': result = await xoaDanhMucAnToan(env, 'NhaCungCap', 'MaNCC', params.maNCC); break;
     case 'getKhachHangList': result = await getKhachHangList(env); break;
     case 'saveKhachHang': result = await saveDoiTac(env, 'KhachHang', 'MaKH', 'KH', params.data); break;
-    case 'deleteKhachHang': result = await deleteRowByField(env, 'KhachHang', 'MaKH', params.maKH); break;
+    case 'deleteKhachHang': result = await xoaDanhMucAnToan(env, 'KhachHang', 'MaKH', params.maKH); break;
 
     case 'getNhapKhoList': result = await layDanhSachGanDay(env, 'NhapKho', params.gioiHan); break;
     case 'getNhapKhoDetail': result = await getPhieuDetail(env, 'NhapKhoCT', params.idPhieu); break;

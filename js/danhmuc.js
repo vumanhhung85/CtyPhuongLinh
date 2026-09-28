@@ -96,7 +96,7 @@ function saveHH(maHH) {
 }
 function deleteHH(maHH) {
   if (!confirm('Xoá mục này khỏi danh mục?')) return;
-  apiCall('deleteHangHoa', { maHH }).then(() => { showToast('Đã xoá.'); renderHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+  apiCall('deleteHangHoa', { maHH }).then(() => { showToast('Đã xoá.'); renderHangHoaTable(); }).catch(baoLoiXoaDanhMuc);
 }
 /* ---- Chọn lại đơn vị cho dòng phiếu cũ (áp hệ số quy đổi) ---- */
 let _dongDonVi = null;

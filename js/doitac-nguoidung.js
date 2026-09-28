@@ -66,7 +66,7 @@ function saveDoiTacUI(loai) {
 function deleteDoiTac(loai, id) {
   if (!confirm('Xoá mục này?')) return;
   const isKH = loai === 'kh';
-  apiCall(isKH ? 'deleteKhachHang' : 'deleteNhaCungCap', isKH ? { maKH: id } : { maNCC: id }).then(() => { showToast('Đã xoá.'); if (isKH) renderKhachHangTable(); else renderNhaCungCapTable(); }).catch(err => showToast('Lỗi: ' + err.message));
+  apiCall(isKH ? 'deleteKhachHang' : 'deleteNhaCungCap', isKH ? { maKH: id } : { maNCC: id }).then(() => { showToast('Đã xoá.'); if (isKH) renderKhachHangTable(); else renderNhaCungCapTable(); }).catch(baoLoiXoaDanhMuc);
 }
 
 /* ================= NGƯỜI DÙNG ================= */

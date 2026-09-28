@@ -310,6 +310,19 @@ const sv2 = await api('saveHangHoa', { data: { MaHH: 'CHUOT', TenHH: 'Chuột Lo
 ok(sv2.hangHoa.TonKho === 6, 'đổi lại Hàng hoá -> tồn tính lại từ sổ = 10 - 2 - 1 - 1 = 6', sv2.hangHoa);
 const moi = await api('saveHangHoa', { data: { TenHH: 'Bàn phím', Loai: 'HangHoa', DVT: 'Cái', GiaBan: 300000 } });
 ok(moi.created && moi.hangHoa.TonKho === 0 && moi.hangHoa.MaHH.startsWith('HH'), 'thêm hàng mới');
+
+console.log('14. Không xoá được mặt hàng / đối tác còn phiếu');
+const eXoaHH = await apiLoi('deleteHangHoa', { maHH: 'CHUOT' });
+ok(/^DANG_DUOC_SU_DUNG: .*phiếu nhập.*phiếu bán/.test(eXoaHH || ''), 'mặt hàng còn phiếu -> không xoá, báo rõ số phiếu', eXoaHH);
+ok((await api('getHangHoaList')).some(h => h.MaHH === 'CHUOT'), 'mặt hàng vẫn còn trong danh mục');
+ok((await api('deleteHangHoa', { maHH: moi.hangHoa.MaHH })).deleted, 'mặt hàng chưa có phiếu -> xoá được');
+const nccCoPhieu = (await api('getNhaCungCapList')).find(n => n.MST === '0301234567');
+ok(/^DANG_DUOC_SU_DUNG/.test(await apiLoi('deleteNhaCungCap', { maNCC: nccCoPhieu.MaNCC }) || ''), 'nhà cung cấp còn phiếu nhập -> không xoá');
+const khCoPhieu = (await api('getKhachHangList')).find(k => k.MST === '0399999999');
+ok(/^DANG_DUOC_SU_DUNG/.test(await apiLoi('deleteKhachHang', { maKH: khCoPhieu.MaKH }) || ''), 'khách hàng còn phiếu bán -> không xoá');
+const khMoi = await api('saveKhachHang', { data: { TenKH: 'Khách thử xoá', MST: '' } });
+const maKhMoi = khMoi.id;
+ok(maKhMoi && (await api('deleteKhachHang', { maKH: maKhMoi })).deleted, 'khách hàng chưa có phiếu -> xoá được', khMoi);
 const cors = await fetch(API + '/', { method: 'POST', body: JSON.stringify({ action: 'pingPhien', token: TOKEN }), headers: { Origin: 'https://trang-la.com' } });
 ok(!cors.headers.get('access-control-allow-origin'), 'trang web lạ không được phép gọi API (CORS)');
 const cors2 = await fetch(API + '/', { method: 'POST', body: '{}', headers: { Origin: 'http://localhost:8000' } });

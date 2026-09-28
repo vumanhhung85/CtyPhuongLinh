@@ -133,6 +133,12 @@ function tonKhoKep(h, ton) {
   return s;
 }
 // Hỏi lại khi phiếu có dòng đơn giá 0 đ (nhập giá 0 làm sai giá vốn; bán giá 0 làm sai doanh thu/thuế).
+// Xoá mặt hàng/đối tác còn phiếu -> server báo DANG_DUOC_SU_DUNG kèm lý do; hiện hộp thoại rõ ràng thay vì mã lỗi.
+function baoLoiXoaDanhMuc(err) {
+  const msg = String((err && err.message) || '');
+  if (msg.startsWith('DANG_DUOC_SU_DUNG')) { alert(msg.replace(/^DANG_DUOC_SU_DUNG:\s*/, '')); return; }
+  showToast('Lỗi: ' + msg);
+}
 function xacNhanDonGiaKhong(items) {
   const ds = (items || []).filter(it => !(Number(it.DonGia) > 0));
   if (!ds.length) return true;
