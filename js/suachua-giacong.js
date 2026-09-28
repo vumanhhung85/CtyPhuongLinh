@@ -118,8 +118,8 @@ function viewPhieuSuaChua(idPhieu) {
       <p><b>Tình trạng tiếp nhận:</b> ${phieu.TinhTrangTiepNhan || ''}</p>
       <p><b>Phụ kiện kèm theo:</b> ${phieu.PhuKienKemTheo || '—'}</p>
       <p><b>Kỹ thuật viên:</b> ${phieu.NguoiPhuTrach || '—'} &nbsp;|&nbsp; <b>Bảo hành:</b> ${phieu.BaoHanhNgay || 0} ngày</p>
-      ${items.length ? `<div class="tableWrap"><table class="itemsTable"><thead><tr><th>Linh kiện</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num" data-label="SL">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num" data-label="Đơn giá">${fmtMoney(it.DonGia)}</td><td class="num" data-label="Thuế">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num" data-label="Thành tiền">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Không có linh kiện thay thế.</p>'}
+      ${items.length ? `<div class="tableWrap"><table class="itemsTable ctPhieu"><thead><tr><th>Linh kiện</th><th class="num">SL</th><th>ĐVT</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num" data-label="SL">${fmtSoLuong(it.SoLuong)}</td><td data-label="ĐVT">${it.DVT || ''}</td><td class="num" data-label="Đơn giá">${fmtMoney(it.DonGia)}</td><td class="num" data-label="Thuế">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num" data-label="Thành tiền">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Không có linh kiện thay thế.</p>'}
       <p>Tiền công (trước thuế): ${fmtMoney(phieu.TienCong)} — thuế ${thueSuatLabel(phieu.TienCongThueSuat || '0')} &nbsp;|&nbsp; Tiền linh kiện (trước thuế): ${fmtMoney(phieu.TongTienLinhKien)}</p>
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Tạm tính (trước thuế): <b>${fmtMoney(phieu.TongTienTruocThue != null ? phieu.TongTienTruocThue : phieu.TongTien)}</b><br>
@@ -300,8 +300,8 @@ function viewPhieuGiaCong(idPhieu) {
       <p class="muted">${loaiGCLabel(phieu.Loai)} · Ngày: ${fmtDate(phieu.Ngay)} · Đối tác: ${phieu.TenDoiTac || '—'} · Trạng thái: ${trangThaiGCTag(phieu.TrangThai)}</p>
       <p><b>Mô tả công việc:</b> ${phieu.MoTaCongViec || ''}</p>
       <p><b>Số lượng sản phẩm:</b> ${phieu.SoLuongSanPham || 0} ${phieu.DonViTinh || ''}</p>
-      ${items.length ? `<div class="tableWrap"><table class="itemsTable"><thead><tr><th>Vật tư</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num" data-label="SL">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num" data-label="Đơn giá">${fmtMoney(it.DonGia)}</td><td class="num" data-label="Thuế">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num" data-label="Thành tiền">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${items.length ? `<div class="tableWrap"><table class="itemsTable ctPhieu"><thead><tr><th>Vật tư</th><th class="num">SL</th><th>ĐVT</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num" data-label="SL">${fmtSoLuong(it.SoLuong)}</td><td data-label="ĐVT">${it.DVT || ''}</td><td class="num" data-label="Đơn giá">${fmtMoney(it.DonGia)}</td><td class="num" data-label="Thuế">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num" data-label="Thành tiền">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>` : ''}
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Chi phí gia công (trước thuế): <b>${fmtMoney(phieu.ChiPhiGiaCongTruocThue != null ? phieu.ChiPhiGiaCongTruocThue : phieu.ChiPhiGiaCong)}</b> — thuế ${thueSuatLabel(phieu.ThueSuatGiaCong || '0')}<br>
         Tiền thuế GTGT: <b>${fmtMoney(phieu.TienThueGiaCong || 0)}</b><br>

@@ -91,7 +91,8 @@ ok(!(await page.isVisible('#modalBg.active')), 'lưu phiếu xuất');
 const hangDau = await page.textContent('#xuatTableWrap tbody tr:first-child');
 ok(hangDau.includes('1.296.000'), 'phiếu mới nằm đầu danh sách, tổng 100 x 12.000 + 8% = 1.296.000', hangDau);
 await page.click('#xuatTableWrap tbody tr:first-child button[title="Xem"]'); await page.waitForSelector('#modalBg.active');
-ok((await page.textContent('#modalCard')).includes('100 Mét'), 'popup chi tiết hiện 100 Mét');
+const dongChiTiet = await page.textContent('#modalCard .itemsTable tbody tr:first-child');
+ok(/100/.test(dongChiTiet) && /Mét/.test(dongChiTiet), 'popup chi tiết hiện SL 100 và cột ĐVT riêng "Mét"', dongChiTiet);
 await page.click('#modalCard button:has-text("Đóng")'); await cho(300);
 
 console.log('C2. Bố cục mới: thẻ số liệu, bảng, bộ lọc, tab phụ, thu gọn menu');

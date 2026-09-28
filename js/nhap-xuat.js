@@ -226,8 +226,8 @@ function viewPhieuNhapXuat(loai, idPhieu) {
       <button class="modalClose" onclick="closeModal()">&times;</button>
       <h3>Chi tiết phiếu ${idPhieu}</h3>
       <p class="muted">Ngày: ${fmtDate(phieu.Ngay)} &nbsp;|&nbsp; ${loai === 'nhap' ? 'NCC: ' + (phieu.TenNCC || '—') : 'Khách: ' + (phieu.TenKH || 'Khách lẻ')}</p>
-      <div class="tableWrap"><table class="itemsTable"><thead><tr><th>Hàng hoá/dịch vụ</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
-      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num" data-label="SL">${it.SoLuong}${it.DVT ? ' ' + it.DVT : ''}</td><td class="num" data-label="Đơn giá">${fmtMoney(it.DonGia)}</td><td class="num" data-label="Thuế">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num" data-label="Thành tiền">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="tableWrap"><table class="itemsTable ctPhieu"><thead><tr><th>Hàng hoá/dịch vụ</th><th class="num">SL</th><th>ĐVT</th><th class="num">Đơn giá</th><th class="num">Thuế</th><th class="num">Thành tiền</th></tr></thead>
+      <tbody>${items.map(it => `<tr><td>${it.TenHH}</td><td class="num" data-label="SL">${fmtSoLuong(it.SoLuong)}</td><td data-label="ĐVT">${it.DVT || ''}</td><td class="num" data-label="Đơn giá">${fmtMoney(it.DonGia)}</td><td class="num" data-label="Thuế">${thueSuatLabel(it.ThueSuat || '0')}</td><td class="num" data-label="Thành tiền">${fmtMoney(it.ThanhTienSauThue != null ? it.ThanhTienSauThue : it.ThanhTien)}</td></tr>`).join('')}</tbody></table></div>
       <div class="grandTotal" style="font-size:13px;font-weight:400;text-align:right;line-height:1.8;">
         Tạm tính (trước thuế): <b>${fmtMoney(phieu.TongTienTruocThue != null ? phieu.TongTienTruocThue : phieu.TongTien)}</b><br>
         Tiền thuế GTGT: <b>${fmtMoney(phieu.TongTienThue || 0)}</b><br>
