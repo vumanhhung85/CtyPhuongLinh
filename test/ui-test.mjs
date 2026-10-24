@@ -54,7 +54,7 @@ ok((await page.textContent('#dashCards')).includes('Công nợ phải thu'), 'da
 ok((await page.textContent('#companyNameLabel')).includes('PHƯƠNG LINH'), 'tên công ty từ Config');
 await page.screenshot({ path: SHOT + '/1-dashboard.png', fullPage: true });
 
-const tabs = ['danhmuc', 'nhapkho', 'xuatban', 'suachua', 'giacong', 'congno', 'soquy', 'baocao', 'doitac', 'dongbohd', 'nguoidung', 'caidat', 'dashboard'];
+const tabs = ['danhmuc', 'baogia', 'nhapkho', 'kiemke', 'xuatban', 'suachua', 'giacong', 'congno', 'soquy', 'baocao', 'doitac', 'dongbohd', 'nguoidung', 'caidat', 'dashboard'];
 for (const t of tabs) {
   await moTab(page, t); await cho(700);
   ok(await page.isVisible('#view-' + t), 'mở tab ' + t);
@@ -128,7 +128,7 @@ ok((await page.textContent('#ketQuaKetNoi')).includes('Kết nối tốt'), 'nú
 const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), page.click('#btnXuatExcel')]);
 const duongDan = SHOT + '/xuat.xlsx'; await dl.saveAs(duongDan);
 const wb = XLSX.readFile(duongDan);
-ok(wb.SheetNames.includes('HangHoa') && wb.SheetNames.includes('XuatBanCT') && wb.SheetNames.length === 17, 'file Excel đủ 17 sheet đúng tên cũ', wb.SheetNames);
+ok(wb.SheetNames.includes('HangHoa') && wb.SheetNames.includes('XuatBanCT') && ['BaoGia', 'BaoGiaCT', 'KiemKe', 'KiemKeCT'].every(t => wb.SheetNames.includes(t)) && wb.SheetNames.length === 21, 'file Excel đủ 21 sheet (17 sheet tên cũ + 4 bảng báo giá/kiểm kê)', wb.SheetNames);
 const kh = XLSX.utils.sheet_to_json(wb.Sheets.KhachHang);
 const o = wb.Sheets.KhachHang; const oMST = Object.keys(o).find(k => o[k].v === '0312345678');
 ok(oMST && o[oMST].t === 's', 'MST xuất ra Excel là ô CHỮ, giữ số 0 đầu', kh[0]);

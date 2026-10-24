@@ -238,7 +238,7 @@ const tc = await api('saveThuChi', { data: { Loai: 'Chi', Ngay: '2026-09-06', Nh
 ok(tc.phieu.NhomMuc === 'Luong', 'ghi chi lương');
 ok(await apiLoi('xoaThuChi', { idPhieu: tt.banGhiQuy.IDPhieu }) === 'CHI_XOA_DUOC_KHOAN_TU_DO', 'không xoá được khoản tự sinh từ phiếu');
 await api('xoaThuChi', { idPhieu: tc.idPhieu });
-const lq = await api('getSoQuyList', { tuNgay: '2026-09-01', denNgay: '2026-09-30', loai: 'Thu', phuongThuc: '' });
+const lq = await api('getSoQuyList', { tuNgay: '2026-01-01', denNgay: '2099-12-31', loai: 'Thu', phuongThuc: '' }); // khoản thu tự sinh mang ngày chạy test -> không lọc cứng 1 tháng
 ok(lq.every(r => r.Loai === 'Thu') && lq.length >= 3, 'lọc sổ quỹ', lq.length);
 const nd = await api('saveNguoiDung', { data: { HoTen: 'Kế toán', TenDangNhap: 'ketoan', VaiTro: 'KeToan', MatKhauMoi: 'ketoan123' } });
 ok(nd.created, 'tạo người dùng');
@@ -379,6 +379,116 @@ console.log('15. Sửa phiếu (Xuất bán/Sửa chữa/Gia công) khi chưa xu
   await api('xoaPhieuXuat', { idPhieu: xbSua.idPhieu });
   const hhDonDep = await api('getHangHoaList');
   ok(hhDonDep.find(h => h.MaHH === 'CAP').TonKho === capTruoc, 'dọn dẹp: xoá phiếu test sửa -> tồn CAP trả về như trước mục 15', hhDonDep.find(h => h.MaHH === 'CAP'));
+}
+
+console.log('16. Thông tin công ty, báo giá -> chốt thành phiếu xuất, kiểm kê / tồn đầu kỳ (tự dọn, không làm lệch ui-test)');
+{
+  const hhTruoc = await api('getHangHoaList');
+  const tonChuotTruoc = hhTruoc.find(h => h.MaHH === 'CHUOT').TonKho;
+  const giaChuotTruoc = hhTruoc.find(h => h.MaHH === 'CHUOT').GiaVonTB;
+  const tonCapTruoc = hhTruoc.find(h => h.MaHH === 'CAP').TonKho;
+
+  // --- Thông tin công ty ---
+  const ct0 = await api('getThongTinCongTy');
+  ok(ct0.MST === '0317838601' && ct0.Ten.includes('PHƯƠNG LINH') && ct0.DieuKhoanBaoGia.length > 10 && ct0.NganHang.bankBin === '970426', 'thông tin công ty mặc định + kèm ngân hàng', ct0);
+  const ct1 = await api('capNhatThongTinCongTy', { data: { SDT: '0983.642.606', DaiDien: 'Vũ Mạnh Hưng', TenNganHang: 'MSB' } });
+  ok(ct1.SDT === '0983.642.606' && ct1.DaiDien === 'Vũ Mạnh Hưng' && ct1.MST === '0317838601' && ct1.NganHang.tenNganHang === 'MSB', 'lưu thông tin công ty, phần không sửa giữ mặc định', ct1);
+
+  // --- Báo giá ---
+  const bg = await api('saveBaoGia', { data: { Ngay: '2026-10-20', HieuLucDen: '2026-11-19', MaKH: 'KH1', TenKH: 'Trạm Y tế Linh Xuân', TieuDe: 'Báo giá chuột', items: [
+    { MaHH: 'CHUOT', TenHH: 'Chuột Logitech', SoLuong: 2, DonGia: 150000, ThueSuat: '8', DVT: 'Cái' },
+    { MaHH: 'DV1', TenHH: 'Công cài đặt', SoLuong: 1, DonGia: 200000, ThueSuat: '8', DVT: 'lần' }] } });
+  ok(bg.created && /^BG26-\d{4}$/.test(bg.phieu.SoBaoGia) && bg.phieu.TrangThai === 'Nhap', 'tạo báo giá, số báo giá dạng BG26-0001', bg.phieu);
+  ok(gan(bg.phieu.TongTienTruocThue, 500000) && gan(bg.phieu.TongTienThue, 40000) && gan(bg.phieu.TongTien, 540000), 'báo giá tính đúng tiền + thuế', bg.phieu);
+  const bg2 = await api('saveBaoGia', { data: { Ngay: '2026-10-21', TenKH: 'Khách chưa có trong danh mục', items: [{ MaHH: 'CHUOT', SoLuong: 1, DonGia: 160000, ThueSuat: '10' }] } });
+  ok(Number(bg2.phieu.SoBaoGia.slice(5)) === Number(bg.phieu.SoBaoGia.slice(5)) + 1, 'số báo giá tăng dần', [bg.phieu.SoBaoGia, bg2.phieu.SoBaoGia]);
+  const hhSauBG = await api('getHangHoaList');
+  ok(hhSauBG.find(h => h.MaHH === 'CHUOT').TonKho === tonChuotTruoc, 'báo giá KHÔNG trừ tồn kho');
+  const suaBg = await api('saveBaoGia', { data: { IDPhieu: bg.idPhieu, Ngay: '2026-10-20', MaKH: 'KH1', TenKH: 'Trạm Y tế Linh Xuân', TieuDe: 'Báo giá chuột (sửa)', items: [
+    { MaHH: 'CHUOT', TenHH: 'Chuột Logitech', SoLuong: 3, DonGia: 150000, ThueSuat: '8', DVT: 'Cái' }] } });
+  ok(suaBg.updated && suaBg.phieu.SoBaoGia === bg.phieu.SoBaoGia && gan(suaBg.phieu.TongTien, 486000), 'sửa báo giá giữ nguyên số, tính lại tiền', suaBg.phieu);
+  ok((await api('getBaoGiaDetail', { idPhieu: bg.idPhieu })).items.length === 1, 'sửa báo giá thay toàn bộ dòng cũ');
+  await api('capNhatTrangThaiBaoGia', { idPhieu: bg.idPhieu, trangThai: 'DaGui' });
+  ok(await apiLoi('capNhatTrangThaiBaoGia', { idPhieu: bg.idPhieu, trangThai: 'DaChot' }) === 'TRANG_THAI_KHONG_HOP_LE', 'không tự đặt "Đã chốt" bằng tay (phải tạo phiếu xuất)');
+  ok(await apiLoi('saveBaoGia', { data: { items: [] } }) === 'KHONG_CO_HANG_HOA', 'báo giá trống bị chặn');
+  ok((await apiLoi('saveBaoGia', { data: { items: [{ MaHH: 'KHONGCO', SoLuong: 1, DonGia: 1 }] } }) || '').startsWith('KHONG_TIM_THAY_HANG_HOA'), 'báo giá có mặt hàng không tồn tại bị chặn');
+  // Chốt: tạo phiếu xuất kèm IDBaoGia
+  const xbBG = await api('saveXuatBan', { data: { Ngay: '2026-10-22', MaKH: 'KH1', TenKH: 'Trạm Y tế Linh Xuân', IDBaoGia: bg.idPhieu, items: [{ MaHH: 'CHUOT', TenHH: 'Chuột Logitech', SoLuong: 3, DonGia: 150000, ThueSuat: '8', DVT: 'Cái' }] } });
+  let dsBG = await api('getBaoGiaList', { gioiHan: 200 });
+  let bgSau = dsBG.find(b => b.IDPhieu === bg.idPhieu);
+  ok(bgSau.TrangThai === 'DaChot' && bgSau.IDPhieuXuat === xbBG.idPhieu, 'tạo phiếu xuất từ báo giá -> báo giá "Đã chốt" + gắn mã phiếu xuất', bgSau);
+  ok((await apiLoi('saveXuatBan', { data: { IDBaoGia: bg.idPhieu, items: [{ MaHH: 'CHUOT', SoLuong: 1, DonGia: 150000, ThueSuat: '8' }] } }) || '').startsWith('BAO_GIA_DA_CHOT'), 'không chốt 1 báo giá 2 lần (tránh trừ kho 2 lần)');
+  ok((await apiLoi('saveBaoGia', { data: { IDPhieu: bg.idPhieu, items: [{ MaHH: 'CHUOT', SoLuong: 1, DonGia: 1 }] } }) || '').startsWith('BAO_GIA_DA_CHOT'), 'báo giá đã chốt không sửa được');
+  ok((await apiLoi('saveXuatBan', { data: { IDBaoGia: 'KHONGCO', items: [{ MaHH: 'CHUOT', SoLuong: 1, DonGia: 1, ThueSuat: '0' }] } })) === 'KHONG_TIM_THAY_BAO_GIA', 'phiếu xuất trỏ tới báo giá không tồn tại bị chặn');
+  const hhSauChot = await api('getHangHoaList');
+  ok(hhSauChot.find(h => h.MaHH === 'CHUOT').TonKho === tonChuotTruoc - 3, 'chốt báo giá trừ kho đúng 1 lần');
+  await api('xoaPhieuXuat', { idPhieu: xbBG.idPhieu });
+  dsBG = await api('getBaoGiaList', { gioiHan: 200 });
+  bgSau = dsBG.find(b => b.IDPhieu === bg.idPhieu);
+  ok(bgSau.TrangThai === 'DaGui' && !bgSau.IDPhieuXuat, 'xoá phiếu xuất -> báo giá mở lại "Đã gửi"', bgSau);
+  ok((await api('getHangHoaList')).find(h => h.MaHH === 'CHUOT').TonKho === tonChuotTruoc, 'xoá phiếu xuất -> tồn chuột về như cũ');
+  ok((await apiLoi('deleteHangHoa', { maHH: 'CHUOT' }) || '').includes('dòng báo giá'), 'không xoá được mặt hàng đang có trong báo giá');
+
+  // --- Kiểm kê ---
+  const kk = await api('saveKiemKe', { data: { Loai: 'KiemKe', Ngay: '2026-10-23', GhiChu: 'Kiểm kê cuối tháng', items: [{ MaHH: 'CHUOT', SoLuong: tonChuotTruoc - 1, LyDo: 'Mất 1 cái' }, { MaHH: 'CAP', SoLuong: tonCapTruoc }] } });
+  const hhSauKK = await api('getHangHoaList');
+  ok(hhSauKK.find(h => h.MaHH === 'CHUOT').TonKho === tonChuotTruoc - 1 && hhSauKK.find(h => h.MaHH === 'CAP').TonKho === tonCapTruoc, 'kiểm kê: thiếu 1 cái -> tồn giảm 1, mặt hàng khớp không đổi', hhSauKK.filter(h => ['CHUOT', 'CAP'].includes(h.MaHH)));
+  ok(hhSauKK.find(h => h.MaHH === 'CHUOT').GiaVonTB === giaChuotTruoc, 'kiểm kê thiếu không làm đổi giá vốn');
+  ok(kk.soDongDieuChinh === 1 && kk.phieu.SoMatHang === 2 && kk.phieu.GiaTriChenhLech === -giaChuotTruoc, 'chỉ ghi điều chỉnh cho dòng lệch; giá trị chênh = −1 × giá vốn', kk);
+  const kkCT = (await api('getKiemKeDetail', { idPhieu: kk.idPhieu })).items;
+  const dongChuot = kkCT.find(x => x.MaHH === 'CHUOT');
+  ok(dongChuot.TonSo === tonChuotTruoc && dongChuot.ThucTe === tonChuotTruoc - 1 && dongChuot.ChenhLech === -1 && dongChuot.LyDo === 'Mất 1 cái', 'chi tiết kiểm kê lưu số sổ / thực tế / chênh lệch', dongChuot);
+  const exDC = await api('exportTable', { table: 'DieuChinhKho' });
+  ok(exDC.cols.includes('IDPhieu') && exDC.rows.some(r => r.IDPhieu === kk.idPhieu && r.SoLuongQuyDoi === -1), 'dòng điều chỉnh kho gắn mã phiếu kiểm kê', exDC.rows.slice(-2));
+  const kkThua = await api('saveKiemKe', { data: { Loai: 'KiemKe', items: [{ MaHH: 'CHUOT', SoLuong: tonChuotTruoc + 1 }] } });
+  ok((await api('getHangHoaList')).find(h => h.MaHH === 'CHUOT').GiaVonTB === giaChuotTruoc, 'kiểm kê thừa ghi theo giá vốn hiện tại -> giá vốn không đổi');
+  await api('xoaKiemKe', { idPhieu: kkThua.idPhieu });
+  await api('xoaKiemKe', { idPhieu: kk.idPhieu });
+  const hhSauXoaKK = await api('getHangHoaList');
+  ok(hhSauXoaKK.find(h => h.MaHH === 'CHUOT').TonKho === tonChuotTruoc && hhSauXoaKK.find(h => h.MaHH === 'CHUOT').GiaVonTB === giaChuotTruoc, 'xoá phiếu kiểm kê -> tồn + giá vốn về như cũ');
+  ok((await api('getKiemKeList')).every(p => p.IDPhieu !== kk.idPhieu), 'phiếu kiểm kê đã xoá không còn trong danh sách');
+  ok(!(await api('exportTable', { table: 'DieuChinhKho' })).rows.some(r => r.IDPhieu === kk.idPhieu), 'xoá phiếu kiểm kê gỡ hết dòng điều chỉnh của phiếu');
+  ok((await apiLoi('saveKiemKe', { data: { Loai: 'KiemKe', items: [{ MaHH: 'DV1', SoLuong: 1 }] } }) || '').startsWith('KHONG_PHAI_HANG_HOA'), 'kiểm kê dịch vụ bị chặn');
+  ok((await apiLoi('saveKiemKe', { data: { Loai: 'KiemKe', items: [{ MaHH: 'CHUOT', SoLuong: 1 }, { MaHH: 'CHUOT', SoLuong: 2 }] } }) || '').startsWith('TRUNG_MAT_HANG'), 'trùng mặt hàng trong 1 phiếu bị chặn');
+  ok((await apiLoi('saveKiemKe', { data: { Loai: 'KiemKe', items: [{ MaHH: 'CHUOT', SoLuong: -1 }] } }) || '').startsWith('SO_LUONG_KHONG_HOP_LE'), 'số thực tế âm bị chặn');
+  ok((await apiLoi('saveKiemKe', { data: { Loai: 'Khac', items: [{ MaHH: 'CHUOT', SoLuong: 1 }] } })) === 'LOAI_KHONG_HOP_LE', 'loại phiếu lạ bị chặn');
+  ok((await apiLoi('saveKiemKe', { data: { Loai: 'KiemKe', items: Array.from({ length: 151 }, (_, i) => ({ MaHH: 'X' + i, SoLuong: 1 })) } }) || '').startsWith('QUA_NHIEU_DONG'), 'quá 150 mặt hàng/phiếu bị chặn');
+
+  // --- Tồn đầu kỳ cho hàng mua ngoài (tồn 0 -> nhập số lượng + giá vốn -> bán được) ---
+  const cam = await api('saveHangHoa', { data: { TenHH: 'Camera Yoose 2 mắt (test)', Loai: 'HangHoa', DVT: 'Cái', GiaBan: 880000, TonKhoToiThieu: 1 } });
+  ok(await apiLoi('saveXuatBan', { data: { items: [{ MaHH: cam.maHH, SoLuong: 1, DonGia: 880000, ThueSuat: '8' }] } }) !== null, 'tồn 0 -> chưa bán được');
+  ok((await apiLoi('saveKiemKe', { data: { Loai: 'TonDauKy', items: [{ MaHH: cam.maHH, SoLuong: 0, DonGia: 1 }] } }) || '').startsWith('SO_LUONG_KHONG_HOP_LE'), 'tồn đầu kỳ số lượng 0 bị chặn');
+  const tdk = await api('saveKiemKe', { data: { Loai: 'TonDauKy', Ngay: '2026-10-01', items: [{ MaHH: cam.maHH, SoLuong: 3, DonGia: 500000, LyDo: 'Mua ngoài không hoá đơn' }] } });
+  let camHH = (await api('getHangHoaList')).find(h => h.MaHH === cam.maHH);
+  ok(camHH.TonKho === 3 && camHH.GiaVonTB === 500000 && tdk.phieu.GiaTriChenhLech === 1500000, 'tồn đầu kỳ: tồn 3, giá vốn 500.000', camHH);
+  const xbCam = await api('saveXuatBan', { data: { Ngay: '2026-10-05', items: [{ MaHH: cam.maHH, SoLuong: 1, DonGia: 880000, ThueSuat: '8' }] } });
+  const ctCam = (await api('getXuatBanDetail', { idPhieu: xbCam.idPhieu })).items[0];
+  ok(ctCam.GiaVon === 500000 && xbCam.tonKhoCapNhat[cam.maHH].TonKho === 2, 'bán được sau khi nhập tồn đầu kỳ, giá vốn dòng bán = 500.000', [ctCam.GiaVon, xbCam.tonKhoCapNhat]);
+  ok((await apiLoi('xoaKiemKe', { idPhieu: 'KHONGCO' })) === 'KHONG_TIM_THAY_PHIEU', 'xoá phiếu kiểm kê không tồn tại báo lỗi');
+
+  // --- Phân quyền ---
+  const ndKT = await api('saveNguoiDung', { data: { HoTen: 'Kế toán 2', TenDangNhap: 'ketoan2', VaiTro: 'KeToan', MatKhauMoi: 'ketoan456' } });
+  const tokAdmin = TOKEN;
+  TOKEN = (await goi({ action: 'login', tenDangNhap: 'ketoan2', password: 'ketoan456' })).token;
+  ok((await api('getThongTinCongTy')).MST === '0317838601', 'nhân viên đọc được thông tin công ty (để in chứng từ)');
+  ok(await apiLoi('capNhatThongTinCongTy', { data: { SDT: 'x' } }) === 'KHONG_CO_QUYEN', 'nhân viên không sửa được thông tin công ty');
+  ok(await apiLoi('saveKiemKe', { data: { Loai: 'KiemKe', items: [{ MaHH: 'CHUOT', SoLuong: 0 }] } }) === 'KHONG_CO_QUYEN', 'nhân viên không lập được phiếu kiểm kê (chỉnh tồn kho)');
+  ok(await apiLoi('xoaBaoGia', { idPhieu: bg2.idPhieu }) === 'KHONG_CO_QUYEN', 'nhân viên không xoá được báo giá');
+  const bgNV = await api('saveBaoGia', { data: { TenKH: 'Khách NV', items: [{ MaHH: 'DV1', SoLuong: 1, DonGia: 200000, ThueSuat: '8' }] } });
+  ok(bgNV.created, 'nhân viên tạo được báo giá');
+  TOKEN = tokAdmin;
+  await api('deleteNguoiDung', { maNV: ndKT.maNV });
+
+  // --- Dọn dẹp ---
+  await api('xoaPhieuXuat', { idPhieu: xbCam.idPhieu });
+  await api('xoaKiemKe', { idPhieu: tdk.idPhieu });
+  camHH = (await api('getHangHoaList')).find(h => h.MaHH === cam.maHH);
+  ok(camHH.TonKho === 0, 'dọn dẹp: tồn camera test về 0', camHH);
+  await api('deleteHangHoa', { maHH: cam.maHH });
+  for (const id of [bg.idPhieu, bg2.idPhieu, bgNV.idPhieu]) await api('xoaBaoGia', { idPhieu: id });
+  ok(!(await api('getBaoGiaList', { gioiHan: 0 })).length, 'dọn dẹp: xoá hết báo giá test');
+  const hhCuoi = await api('getHangHoaList');
+  ok(hhCuoi.find(h => h.MaHH === 'CHUOT').TonKho === tonChuotTruoc && hhCuoi.find(h => h.MaHH === 'CAP').TonKho === tonCapTruoc, 'dọn dẹp: tồn CHUOT/CAP đúng như trước mục 16');
 }
 
 const cors = await fetch(API + '/', { method: 'POST', body: JSON.stringify({ action: 'pingPhien', token: TOKEN }), headers: { Origin: 'https://trang-la.com' } });

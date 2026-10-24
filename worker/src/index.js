@@ -36,7 +36,8 @@ const ADMIN_ONLY_ACTIONS = new Set([
   'xoaPhieuNhap', 'xoaPhieuXuat', 'xoaPhieuSuaChua', 'xoaPhieuGiaCong',
   'suaPhieuXuat', 'suaPhieuSuaChua', 'suaPhieuGiaCong',
   'xoaThuChi', 'capNhatSoDuDauKy', 'getCauHinhThanhToan', 'capNhatCauHinhThanhToan',
-  'exportTable', 'apDungDonViDongCu'
+  'exportTable', 'apDungDonViDongCu',
+  'capNhatThongTinCongTy', 'xoaBaoGia', 'saveKiemKe', 'xoaKiemKe'
 ]);
 
 const WRITE_ACTIONS = new Set([
@@ -49,7 +50,8 @@ const WRITE_ACTIONS = new Set([
   'saveGiaCong', 'suaPhieuGiaCong', 'capNhatTrangThaiGiaCong', 'capNhatHoaDonGiaCong', 'capNhatThanhToanGiaCong', 'xoaPhieuGiaCong',
   'saveNguoiDung', 'deleteNguoiDung', 'khoaMoNguoiDung',
   'bulkCapNhatHoaDon', 'importLichSuTuBangKe', 'importChiTietBKMVBR',
-  'saveThuChi', 'xoaThuChi', 'capNhatSoDuDauKy', 'capNhatCauHinhThanhToan'
+  'saveThuChi', 'xoaThuChi', 'capNhatSoDuDauKy', 'capNhatCauHinhThanhToan',
+  'capNhatThongTinCongTy', 'saveBaoGia', 'capNhatTrangThaiBaoGia', 'xoaBaoGia', 'saveKiemKe', 'xoaKiemKe'
 ]);
 
 // ================== CẤU TRÚC DỮ LIỆU (NGUỒN DUY NHẤT — schema.sql sinh ra từ đây) ==================
@@ -89,7 +91,23 @@ const SCHEMA = {
   NhatKyHoatDong: { auto: 'ID', cols: { Timestamp: T, NguoiDung: T, HanhDong: T, ChiTiet: T } },
   // Mới: dòng điều chỉnh tồn (hiện chỉ sinh khi chuyển dữ liệu, để giữ đúng số tồn thực tế trên Sheet cũ).
   // Được cộng vào sổ kho như mọi phiếu khác. DonGiaQuyDoi (nếu có) là giá vốn/đơn vị chính của phần tăng thêm.
-  DieuChinhKho: { auto: 'ID', cols: { MaHH: T, Ngay: T, SoLuongQuyDoi: R, DonGiaQuyDoi: R, LyDo: T, NguoiTao: T, Timestamp: T } },
+  // IDPhieu (thêm 10/2026): dòng sinh từ phiếu Kiểm kê / Tồn đầu kỳ ghi mã phiếu KiemKe để xoá phiếu là gỡ đúng các dòng
+  // đó; dòng sinh khi chuyển dữ liệu từ Sheet để trống. CSDL đang chạy được tự thêm cột này (damBaoCauTruc).
+  DieuChinhKho: { auto: 'ID', cols: { MaHH: T, Ngay: T, SoLuongQuyDoi: R, DonGiaQuyDoi: R, LyDo: T, NguoiTao: T, Timestamp: T, IDPhieu: T } },
+  // Báo giá (thêm 10/2026): KHÔNG đụng tới tồn kho/giá vốn (không nằm trong SQL_TON_THEO_SO). Chốt báo giá = tạo phiếu
+  // xuất bán từ báo giá -> TrangThai 'DaChot' + IDPhieuXuat ghi trong CÙNG giao dịch với phiếu xuất.
+  BaoGia: {
+    pk: 'IDPhieu', cols: {
+      IDPhieu: T, SoBaoGia: T, Ngay: T, HieuLucDen: T, MaKH: T, TenKH: T, MSTKhachHang: T, DiaChiKH: T, NguoiLienHe: T,
+      TieuDe: T, DieuKhoan: T, GhiChu: T, TongTienTruocThue: R, TongTienThue: R, TongTien: R,
+      TrangThai: T, IDPhieuXuat: T, NguoiTao: T, Timestamp: T
+    }
+  },
+  BaoGiaCT: { auto: 'ID', cols: CT_COLS },
+  // Phiếu kiểm kê / nhập tồn đầu kỳ (thêm 10/2026). Phần làm thay đổi tồn kho nằm ở DieuChinhKho (cùng IDPhieu);
+  // KiemKeCT chỉ lưu lại số sổ sách / thực tế / chênh lệch lúc lập để xem lại và in biên bản.
+  KiemKe: { pk: 'IDPhieu', cols: { IDPhieu: T, Ngay: T, Loai: T, GhiChu: T, SoMatHang: R, GiaTriChenhLech: R, NguoiTao: T, Timestamp: T } },
+  KiemKeCT: { auto: 'ID', cols: { IDPhieu: T, MaHH: T, TenHH: T, DVT: T, TonSo: R, ThucTe: R, ChenhLech: R, DonGia: R, LyDo: T } },
   // Mới: mỗi giao dịch SePay đã xử lý 1 dòng, MaGiaoDich là khoá chính -> chặn xử lý trùng.
   SePayGiaoDich: { pk: 'MaGiaoDich', cols: { MaGiaoDich: T, ThoiGian: T, SoTien: R, NoiDung: T, IDPhieu: T, KetQua: T, Timestamp: T } }
 };
@@ -109,8 +127,47 @@ const INDEXES = [
   ['ix_giacongct_phieu', 'GiaCongCT', ['IDPhieu']], ['ix_giacongct_mahh', 'GiaCongCT', ['MaHH']],
   ['ix_soquy_ngay', 'SoQuy', ['Ngay']], ['ix_soquy_nguongoc', 'SoQuy', ['NguonGoc']], ['ix_soquy_ts', 'SoQuy', ['Timestamp']],
   ['ix_nhatky_ts', 'NhatKyHoatDong', ['Timestamp']],
-  ['ix_dieuchinh_mahh', 'DieuChinhKho', ['MaHH']]
+  ['ix_dieuchinh_mahh', 'DieuChinhKho', ['MaHH']], ['ix_dieuchinh_phieu', 'DieuChinhKho', ['IDPhieu']],
+  ['ix_baogia_ngay', 'BaoGia', ['Ngay']], ['ix_baogia_ts', 'BaoGia', ['Timestamp']], ['ix_baogia_so', 'BaoGia', ['SoBaoGia']],
+  ['ix_baogia_xuat', 'BaoGia', ['IDPhieuXuat']], ['ix_baogiact_phieu', 'BaoGiaCT', ['IDPhieu']], ['ix_baogiact_mahh', 'BaoGiaCT', ['MaHH']],
+  ['ix_kiemke_ts', 'KiemKe', ['Timestamp']], ['ix_kiemkect_phieu', 'KiemKeCT', ['IDPhieu']]
 ];
+
+// ===== TỰ NÂNG CẤP CẤU TRÚC CSDL ĐANG CHẠY THẬT =====
+// CSDL thật đã có dữ liệu nhiều tháng, không tạo lại được. Khi bản mới thêm BẢNG hoặc CỘT, Worker tự bổ sung ngay lần
+// đầu chạy (mỗi lần Cloudflare khởi động lại Worker kiểm 1 lần, ~3-4 lượt gọi D1):
+//   (1) bảng HangHoa chưa có -> CSDL trống, KHÔNG tự tạo (vẫn khởi tạo qua migrate.html như cũ);
+//   (2) với mỗi cột thêm SAU khi CSDL đã chạy (khai trong COT_THEM_SAU): thử SELECT cột đó, báo "no such column" thì
+//       ALTER TABLE ADD COLUMN (chỉ THÊM cột, dữ liệu cũ giữ nguyên);
+//   (3) CREATE TABLE / INDEX IF NOT EXISTS cho mọi bảng (bảng mới như BaoGia, KiemKe được tạo ở đây).
+// Không dùng PRAGMA (D1 bản thật có thể chặn). Lỗi ở bước này KHÔNG chặn app: ghi log, 60 giây sau thử lại.
+// THÊM CỘT MỚI VÀO BẢNG CŨ VỀ SAU: khai vào SCHEMA + thêm 1 dòng [bảng, cột] vào COT_THEM_SAU.
+const COT_THEM_SAU = [['DieuChinhKho', 'IDPhieu']];
+let _cauTruc = { xong: false, henThuLai: 0, dangChay: null };
+async function damBaoCauTruc(env) {
+  if (_cauTruc.xong) return;
+  if (_cauTruc.dangChay) return _cauTruc.dangChay;
+  if (Date.now() < _cauTruc.henThuLai) return;
+  _cauTruc.dangChay = (async () => {
+    const db = env.DB;
+    const coLoi = async sql => { try { await db.prepare(sql).all(); return ''; } catch (e) { return String((e && e.message) || e); } };
+    const loiHH = await coLoi(`SELECT 1 FROM "HangHoa" LIMIT 0`);
+    if (/no such table/i.test(loiHH)) return; // CSDL trống -> để migrate.initSchema tạo (lần sau kiểm lại)
+    if (loiHH) throw new Error(loiHH);
+    for (const [bang, cot] of COT_THEM_SAU) {
+      // Dùng [tên] chứ KHÔNG dùng "tên": SQLite coi "tên-cột-không-tồn-tại" là CHUỖI chữ -> SELECT vẫn chạy, không phát hiện thiếu cột.
+      const l = await coLoi(`SELECT [${cot}] FROM "${bang}" LIMIT 0`);
+      if (/no such column/i.test(l)) {
+        try { await db.prepare(`ALTER TABLE "${bang}" ADD COLUMN "${cot}" ${SCHEMA[bang].cols[cot]}`).run(); }
+        catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } // 2 Worker cùng thêm 1 lúc
+      } else if (l && !/no such table/i.test(l)) throw new Error(l);
+    }
+    await db.batch(schemaStatements().map(s => db.prepare(s)));
+    _cauTruc.xong = true;
+  })().catch(e => { _cauTruc.henThuLai = Date.now() + 60000; console.error('[phuonglinh-erp] damBaoCauTruc', String((e && e.message) || e)); })
+    .finally(() => { _cauTruc.dangChay = null; });
+  return _cauTruc.dangChay;
+}
 
 function schemaStatements() {
   const out = [];
@@ -569,9 +626,9 @@ async function apDungDonViDongCu(env, maHH, dong) {
 // hàng "biến mất" khỏi kho nhưng vẫn nằm trong sổ (VD Dây đeo thẻ 28/09/2026). Muốn xoá phải xoá hết phiếu trước.
 const NOI_DUNG_THAM_CHIEU = {
   HangHoa: [['NhapKhoCT', 'MaHH', 'phiếu nhập'], ['XuatBanCT', 'MaHH', 'phiếu bán'], ['SuaChuaCT', 'MaHH', 'phiếu sửa chữa'],
-    ['GiaCongCT', 'MaHH', 'phiếu gia công'], ['DieuChinhKho', 'MaHH', 'lần điều chỉnh kho']],
+    ['GiaCongCT', 'MaHH', 'phiếu gia công'], ['DieuChinhKho', 'MaHH', 'lần điều chỉnh kho'], ['BaoGiaCT', 'MaHH', 'dòng báo giá']],
   NhaCungCap: [['NhapKho', 'MaNCC', 'phiếu nhập'], ['GiaCong', 'MaDoiTac', 'phiếu gia công']],
-  KhachHang: [['XuatBan', 'MaKH', 'phiếu bán'], ['SuaChua', 'MaKH', 'phiếu sửa chữa'], ['GiaCong', 'MaDoiTac', 'phiếu gia công']]
+  KhachHang: [['XuatBan', 'MaKH', 'phiếu bán'], ['SuaChua', 'MaKH', 'phiếu sửa chữa'], ['GiaCong', 'MaDoiTac', 'phiếu gia công'], ['BaoGia', 'MaKH', 'báo giá']]
 };
 async function xoaDanhMucAnToan(env, bang, field, value) {
   if (!value) throw loi('KHONG_TIM_THAY');
@@ -670,6 +727,13 @@ async function luuPhieuXuat(env, data, user) {
   const hhMap = await layHangHoaMap(env, items.map(i => i.MaHH));
   const dong = items.map(it => ({ ...lapDongCT(it, hhMap[it.MaHH]), GiaVon: hhMap[it.MaHH] ? Number(hhMap[it.MaHH].GiaVonTB) || 0 : 0 }));
   kiemTraTon(dong, hhMap, !!data.choPhepTonKhoAm);
+  // Tạo phiếu xuất TỪ BÁO GIÁ: chặn chốt 2 lần (2 phiếu xuất cho cùng 1 báo giá -> trừ kho 2 lần).
+  const idBaoGia = data.IDBaoGia ? String(data.IDBaoGia) : '';
+  if (idBaoGia) {
+    const bg = await first(env, `SELECT "TrangThai","IDPhieuXuat" FROM "BaoGia" WHERE "IDPhieu" = ?1`, idBaoGia);
+    if (!bg) throw loi('KHONG_TIM_THAY_BAO_GIA');
+    if (bg.TrangThai === 'DaChot') throw loi(`BAO_GIA_DA_CHOT: báo giá này đã được chốt thành phiếu xuất ${bg.IDPhieuXuat || ''} — không tạo thêm phiếu xuất lần 2.`);
+  }
   const tongTienTruocThue = tong(dong, d => d.ThanhTien), tongTienThue = tong(dong, d => d.TienThue);
   const tongTien = tongTienTruocThue + tongTienThue;
   const idPhieu = taoId('XB');
@@ -680,13 +744,15 @@ async function luuPhieuXuat(env, data, user) {
     DaThu: 0, TrangThaiHD: data.SoHDDT ? 'DaXuat' : 'ChuaXuat', NguoiTao: user.TenDangNhap, Timestamp: bayGio()
   };
   const maHHs = duyNhat(dong.map(d => d.MaHH));
-  await env.DB.batch([
+  const lenh = [
     ...lenhThem(env.DB, 'XuatBan', [phieu]),
     ...lenhThem(env.DB, 'XuatBanCT', dong.map(d => ({ ...d, IDPhieu: idPhieu }))),
     lenhTinhLaiTon(env.DB, maHHs)
-  ]);
+  ];
+  if (idBaoGia) lenh.push(env.DB.prepare(`UPDATE "BaoGia" SET "TrangThai" = 'DaChot', "IDPhieuXuat" = ?2 WHERE "IDPhieu" = ?1`).bind(idBaoGia, idPhieu));
+  await env.DB.batch(lenh);
   const tonKhoCapNhat = await sauKhiGhiKho(env, maHHs);
-  return { idPhieu, tongTien, tongTienTruocThue, tongTienThue, phieu, tonKhoCapNhat };
+  return { idPhieu, tongTien, tongTienTruocThue, tongTienThue, phieu, tonKhoCapNhat, idBaoGia: idBaoGia || undefined };
 }
 
 async function luuPhieuSuaChua(env, data, user) {
@@ -832,6 +898,8 @@ async function xoaPhieu(env, bang, idPhieu) {
     env.DB.prepare(`DELETE FROM "${bang}" WHERE "IDPhieu" = ?1`).bind(idPhieu)
   ];
   if (maHHs.length) lenh.push(lenhTinhLaiTon(env.DB, maHHs));
+  // Xoá phiếu xuất được tạo từ báo giá -> báo giá mở lại (về "Đã gửi khách") để chốt lại được, không treo trạng thái "Đã chốt".
+  if (bang === 'XuatBan') lenh.push(env.DB.prepare(`UPDATE "BaoGia" SET "TrangThai" = 'DaGui', "IDPhieuXuat" = '' WHERE "IDPhieuXuat" = ?1`).bind(idPhieu));
   await env.DB.batch(lenh);
   if (maHHs.length) await tinhLaiGiaVon(env, maHHs);
   return { deleted: true, soDongHoanTon: ct.length };
@@ -1256,6 +1324,199 @@ async function getCongNoTheoDoiTac(env) {
   return { phaiThuTheoKH: gomNhom(phaiThu), phaiTraTheoNCC: gomNhom(phaiTra) };
 }
 
+// ================== THÔNG TIN CÔNG TY (in trên chứng từ) ==================
+// Lưu trong bảng Config (khoá tiền tố CongTy_). Chưa khai thì dùng mặc định theo đăng ký kinh doanh đang dùng trên
+// các bộ chứng từ hiện có — Admin sửa ở tab Cài đặt.
+const THONG_TIN_CONG_TY_MAC_DINH = {
+  Ten: 'CÔNG TY TNHH DỊCH VỤ CÔNG NGHỆ PHƯƠNG LINH',
+  DiaChi: 'Số 6, Đường 5, phường Hiệp Bình, TP. Hồ Chí Minh',
+  MST: MST_CONG_TY, SDT: '', Email: '', Website: '',
+  DaiDien: '', ChucVu: 'Giám đốc', NoiLap: 'TP. Hồ Chí Minh',
+  DieuKhoanBaoGia: '- Hàng mới 100%, bảo hành theo tiêu chuẩn của nhà sản xuất.\n- Đơn giá đã bao gồm chi phí giao hàng trong nội thành TP. Hồ Chí Minh.\n- Thanh toán bằng chuyển khoản sau khi giao hàng và nhận hoá đơn GTGT.',
+  HieuLucBaoGiaNgay: '30'
+};
+const KHOA_CONG_TY = Object.keys(THONG_TIN_CONG_TY_MAC_DINH);
+async function getThongTinCongTy(env) {
+  const c = await docConfig(env);
+  const o = {};
+  KHOA_CONG_TY.forEach(k => { const v = c['CongTy_' + k]; o[k] = (v === undefined || v === null || v === '') ? THONG_TIN_CONG_TY_MAC_DINH[k] : v; });
+  o.NganHang = { bankBin: c.BankBin || '', bankAccountNumber: c.BankAccountNumber || '', bankAccountName: c.BankAccountName || '', tenNganHang: c.CongTy_TenNganHang || '' };
+  return o;
+}
+async function capNhatThongTinCongTy(env, data) {
+  data = data || {};
+  const lenh = [];
+  KHOA_CONG_TY.forEach(k => { if (data[k] != null) lenh.push(lenhGhiConfig(env, 'CongTy_' + k, String(data[k]).trim())); });
+  if (data.TenNganHang != null) lenh.push(lenhGhiConfig(env, 'CongTy_TenNganHang', String(data.TenNganHang).trim()));
+  if (data.Ten != null) lenh.push(lenhGhiConfig(env, 'CompanyName', String(data.Ten).trim())); // tên hiện trên thanh đầu trang
+  if (lenh.length) await env.DB.batch(lenh);
+  return getThongTinCongTy(env);
+}
+
+// ================== BÁO GIÁ ==================
+// Không đụng tồn kho. Dòng báo giá dùng lại lapDongCT (cùng cách tính thuế/thành tiền với phiếu xuất) để khi chốt sang
+// phiếu xuất số tiền khớp tuyệt đối với báo giá đã gửi khách.
+const TRANG_THAI_BAO_GIA = ['Nhap', 'DaGui', 'DaChot', 'Huy'];
+const GIOI_HAN_DONG_BAO_GIA = 80;
+async function getBaoGiaList(env, gioiHan) {
+  const n = Number(gioiHan) || 0;
+  if (!n) return all(env, `SELECT * FROM "BaoGia" ORDER BY "Timestamp" DESC, rowid DESC`);
+  return all(env, `SELECT * FROM "BaoGia" WHERE "IDPhieu" IN (SELECT "IDPhieu" FROM "BaoGia" ORDER BY "Timestamp" DESC, rowid DESC LIMIT ?1)
+    OR COALESCE("TrangThai",'') IN ('Nhap','DaGui') ORDER BY "Timestamp" DESC, rowid DESC`, n);
+}
+// Số báo giá dễ đọc theo năm: BG26-0001, BG26-0002... (lấy số lớn nhất đã có + 1, xoá báo giá không làm trùng số).
+async function taoSoBaoGia(env, ngay) {
+  const nam = String(ngay || homNayVN()).slice(2, 4);
+  const tienTo = `BG${nam}-`;
+  const r = await first(env, `SELECT MAX(CAST(substr("SoBaoGia", ?2) AS INTEGER)) n FROM "BaoGia" WHERE "SoBaoGia" LIKE ?1`, tienTo + '%', tienTo.length + 1);
+  return tienTo + String((Number(r && r.n) || 0) + 1).padStart(4, '0');
+}
+function dauPhieuBaoGia(data, dong) {
+  const tongTienTruocThue = tong(dong, d => d.ThanhTien), tongTienThue = tong(dong, d => d.TienThue);
+  return {
+    Ngay: data.Ngay || homNayVN(), HieuLucDen: data.HieuLucDen || '', MaKH: data.MaKH || '', TenKH: data.TenKH || '',
+    MSTKhachHang: String(data.MSTKhachHang || ''), DiaChiKH: data.DiaChiKH || '', NguoiLienHe: data.NguoiLienHe || '',
+    TieuDe: data.TieuDe || '', DieuKhoan: data.DieuKhoan || '', GhiChu: data.GhiChu || '',
+    TongTienTruocThue: tongTienTruocThue, TongTienThue: tongTienThue, TongTien: tongTienTruocThue + tongTienThue
+  };
+}
+async function saveBaoGia(env, data, user) {
+  data = data || {};
+  const items = (data.items || []).filter(it => it && it.MaHH && Number(it.SoLuong) > 0);
+  if (!items.length) throw loi('KHONG_CO_HANG_HOA');
+  if (items.length > GIOI_HAN_DONG_BAO_GIA) throw loi(`QUA_NHIEU_DONG: 1 báo giá tối đa ${GIOI_HAN_DONG_BAO_GIA} dòng hàng`);
+  const hhMap = await layHangHoaMap(env, items.map(i => i.MaHH));
+  const thieu = items.find(it => !hhMap[it.MaHH]);
+  if (thieu) throw loi(`KHONG_TIM_THAY_HANG_HOA: ${thieu.TenHH || thieu.MaHH}`);
+  const dong = items.map(it => lapDongCT(it, hhMap[it.MaHH]));
+  const dau = dauPhieuBaoGia(data, dong);
+  if (data.IDPhieu) {
+    const cu = await first(env, `SELECT "TrangThai","SoBaoGia" FROM "BaoGia" WHERE "IDPhieu" = ?1`, data.IDPhieu);
+    if (!cu) throw loi('KHONG_TIM_THAY_BAO_GIA');
+    if (cu.TrangThai === 'DaChot') throw loi('BAO_GIA_DA_CHOT: báo giá đã chốt thành phiếu xuất — muốn đổi thì tạo bản sao rồi sửa bản sao.');
+    const idPhieu = data.IDPhieu;
+    const cols = Object.keys(dau);
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM "BaoGiaCT" WHERE "IDPhieu" = ?1`).bind(idPhieu),
+      env.DB.prepare(`UPDATE "BaoGia" SET ${cols.map((c, i) => `"${c}" = ?${i + 2}`).join(', ')} WHERE "IDPhieu" = ?1`)
+        .bind(idPhieu, ...cols.map(c => giaTriCot('BaoGia', c, dau[c]))),
+      ...lenhThem(env.DB, 'BaoGiaCT', dong.map(d => ({ ...d, IDPhieu: idPhieu })))
+    ]);
+    return { updated: true, idPhieu, phieu: chuanHoaDong(await first(env, `SELECT * FROM "BaoGia" WHERE "IDPhieu" = ?1`, idPhieu)) };
+  }
+  const idPhieu = taoId('BG');
+  const phieu = { IDPhieu: idPhieu, SoBaoGia: await taoSoBaoGia(env, dau.Ngay), ...dau, TrangThai: 'Nhap', IDPhieuXuat: '', NguoiTao: user.TenDangNhap, Timestamp: bayGio() };
+  await env.DB.batch([
+    ...lenhThem(env.DB, 'BaoGia', [phieu]),
+    ...lenhThem(env.DB, 'BaoGiaCT', dong.map(d => ({ ...d, IDPhieu: idPhieu })))
+  ]);
+  return { created: true, idPhieu, phieu: chuanHoaDong(phieu) };
+}
+async function capNhatTrangThaiBaoGia(env, idPhieu, trangThai) {
+  // 'DaChot' chỉ đặt được bằng cách tạo phiếu xuất từ báo giá (để luôn có phiếu xuất đi kèm).
+  if (!['Nhap', 'DaGui', 'Huy'].includes(trangThai)) throw loi('TRANG_THAI_KHONG_HOP_LE');
+  const cu = await first(env, `SELECT "TrangThai" FROM "BaoGia" WHERE "IDPhieu" = ?1`, idPhieu);
+  if (!cu) throw loi('KHONG_TIM_THAY_BAO_GIA');
+  if (cu.TrangThai === 'DaChot') throw loi('BAO_GIA_DA_CHOT: báo giá đã chốt thành phiếu xuất — muốn mở lại thì xoá phiếu xuất đó.');
+  await run(env, `UPDATE "BaoGia" SET "TrangThai" = ?2 WHERE "IDPhieu" = ?1`, idPhieu, trangThai);
+  return { updated: true };
+}
+async function xoaBaoGia(env, idPhieu) {
+  const kq = await env.DB.batch([
+    env.DB.prepare(`DELETE FROM "BaoGia" WHERE "IDPhieu" = ?1`).bind(idPhieu),
+    env.DB.prepare(`DELETE FROM "BaoGiaCT" WHERE "IDPhieu" = ?1`).bind(idPhieu)
+  ]);
+  if (!kq[0].meta.changes) throw loi('KHONG_TIM_THAY_BAO_GIA');
+  return { deleted: true };
+}
+
+// ================== KIỂM KÊ KHO / NHẬP TỒN ĐẦU KỲ ==================
+// Loai 'KiemKe': nhập SỐ ĐẾM THỰC TẾ, app tự tính chênh lệch so với sổ và ghi 1 dòng DieuChinhKho (+ thừa / − thiếu).
+//   Phần thừa ghi theo giá vốn bình quân hiện tại -> không làm đổi giá vốn; phần thiếu chỉ giảm số lượng.
+// Loai 'TonDauKy': hàng đã có sẵn trước khi dùng app / mua ngoài không hoá đơn — nhập SỐ LƯỢNG CỘNG THÊM + GIÁ VỐN.
+//   (Hàng mua có hoá đơn, cần theo dõi nợ nhà cung cấp thì dùng phiếu Nhập kho, không dùng phiếu này.)
+// Toàn bộ kiểm tra làm trong JS trước, ghi DB bằng ĐÚNG 1 batch (đầu phiếu + chi tiết + điều chỉnh + tính lại tồn).
+const LOAI_KIEM_KE = ['KiemKe', 'TonDauKy'];
+const GIOI_HAN_DONG_KIEM_KE = 150;
+const lamTron4 = n => Math.round((Number(n) || 0) * 10000) / 10000;
+async function getKiemKeList(env) {
+  return all(env, `SELECT * FROM "KiemKe" ORDER BY "Timestamp" DESC, rowid DESC LIMIT 300`);
+}
+async function getKiemKeDetail(env, idPhieu) {
+  return { items: await all(env, `SELECT * FROM "KiemKeCT" WHERE "IDPhieu" = ?1 ORDER BY "ID"`, idPhieu) };
+}
+async function saveKiemKe(env, data, user) {
+  data = data || {};
+  const loai = data.Loai;
+  if (!LOAI_KIEM_KE.includes(loai)) throw loi('LOAI_KHONG_HOP_LE');
+  const items = (data.items || []).filter(it => it && it.MaHH);
+  if (!items.length) throw loi('KHONG_CO_HANG_HOA');
+  if (items.length > GIOI_HAN_DONG_KIEM_KE) throw loi(`QUA_NHIEU_DONG: 1 phiếu tối đa ${GIOI_HAN_DONG_KIEM_KE} mặt hàng — chia thành nhiều phiếu`);
+  const daCo = new Set();
+  for (const it of items) {
+    if (daCo.has(it.MaHH)) throw loi(`TRUNG_MAT_HANG: ${it.TenHH || it.MaHH} có 2 dòng trong cùng 1 phiếu`);
+    daCo.add(it.MaHH);
+    const sl = Number(it.SoLuong);
+    if (!Number.isFinite(sl) || sl < 0 || (loai === 'TonDauKy' && sl <= 0)) throw loi(`SO_LUONG_KHONG_HOP_LE: ${it.TenHH || it.MaHH}`);
+    if (loai === 'TonDauKy' && !(Number(it.DonGia) >= 0)) throw loi(`DON_GIA_KHONG_HOP_LE: ${it.TenHH || it.MaHH}`);
+  }
+  const hhMap = await layHangHoaMap(env, items.map(i => i.MaHH));
+  for (const it of items) {
+    const hh = hhMap[it.MaHH];
+    if (!hh) throw loi(`KHONG_TIM_THAY_HANG_HOA: ${it.TenHH || it.MaHH}`);
+    if (hh.Loai !== 'HangHoa') throw loi(`KHONG_PHAI_HANG_HOA: "${hh.TenHH}" là dịch vụ, không có tồn kho`);
+  }
+  const idPhieu = taoId('KK');
+  const ngay = data.Ngay || homNayVN();
+  const ts = bayGio();
+  const nhanPhieu = loai === 'KiemKe' ? 'Kiểm kê' : 'Tồn đầu kỳ';
+  const ct = [], dc = [];
+  let giaTri = 0;
+  for (const it of items) {
+    const hh = hhMap[it.MaHH];
+    const tonSo = lamTron4(hh.TonKho);
+    const giaVon = Number(hh.GiaVonTB) || 0;
+    let thucTe, chenh, donGia;
+    if (loai === 'KiemKe') {
+      thucTe = lamTron4(it.SoLuong); chenh = lamTron4(thucTe - tonSo); donGia = giaVon;
+    } else {
+      chenh = lamTron4(it.SoLuong); thucTe = lamTron4(tonSo + chenh); donGia = Number(it.DonGia) || 0;
+    }
+    const lyDo = String(it.LyDo || '').trim().slice(0, 200);
+    ct.push({ IDPhieu: idPhieu, MaHH: hh.MaHH, TenHH: hh.TenHH, DVT: hh.DVT || '', TonSo: tonSo, ThucTe: thucTe, ChenhLech: chenh, DonGia: donGia, LyDo: lyDo });
+    if (Math.abs(chenh) > 1e-9) {
+      giaTri += Math.round(chenh * donGia);
+      dc.push({
+        MaHH: hh.MaHH, Ngay: ngay, SoLuongQuyDoi: chenh,
+        // Chỉ dòng TĂNG có giá mới tham gia tính giá vốn bình quân; giá 0 coi như không có giá (không kéo giá vốn về 0).
+        DonGiaQuyDoi: chenh > 0 && donGia > 0 ? donGia : null,
+        LyDo: `${nhanPhieu} ${idPhieu}${lyDo ? ': ' + lyDo : ''}`.slice(0, 250), NguoiTao: user.TenDangNhap, Timestamp: ts, IDPhieu: idPhieu
+      });
+    }
+  }
+  const phieu = { IDPhieu: idPhieu, Ngay: ngay, Loai: loai, GhiChu: String(data.GhiChu || '').slice(0, 300), SoMatHang: ct.length, GiaTriChenhLech: giaTri, NguoiTao: user.TenDangNhap, Timestamp: ts };
+  const maHHs = duyNhat(dc.map(d => d.MaHH));
+  const lenh = [...lenhThem(env.DB, 'KiemKe', [phieu]), ...lenhThem(env.DB, 'KiemKeCT', ct)];
+  if (dc.length) lenh.push(...lenhThem(env.DB, 'DieuChinhKho', dc), lenhTinhLaiTon(env.DB, maHHs));
+  await env.DB.batch(lenh);
+  const tonKhoCapNhat = maHHs.length ? await sauKhiGhiKho(env, maHHs) : {};
+  return { idPhieu, phieu: chuanHoaDong(phieu), soDongDieuChinh: dc.length, tonKhoCapNhat };
+}
+async function xoaKiemKe(env, idPhieu) {
+  const found = await first(env, `SELECT "IDPhieu" FROM "KiemKe" WHERE "IDPhieu" = ?1`, idPhieu);
+  if (!found) throw loi('KHONG_TIM_THAY_PHIEU');
+  const maHHs = duyNhat((await allRaw(env, `SELECT "MaHH" FROM "DieuChinhKho" WHERE "IDPhieu" = ?1`, idPhieu)).map(r => r.MaHH));
+  const lenh = [
+    env.DB.prepare(`DELETE FROM "DieuChinhKho" WHERE "IDPhieu" = ?1`).bind(idPhieu),
+    env.DB.prepare(`DELETE FROM "KiemKeCT" WHERE "IDPhieu" = ?1`).bind(idPhieu),
+    env.DB.prepare(`DELETE FROM "KiemKe" WHERE "IDPhieu" = ?1`).bind(idPhieu)
+  ];
+  if (maHHs.length) lenh.push(lenhTinhLaiTon(env.DB, maHHs));
+  await env.DB.batch(lenh);
+  const tonKhoCapNhat = maHHs.length ? await sauKhiGhiKho(env, maHHs) : {};
+  return { deleted: true, tonKhoCapNhat };
+}
+
 // ================== SỔ QUỸ ==================
 const NHOM_MUC_THU = ['BanHang', 'SuaChua', 'GiaCong', 'ThuKhac'];
 const NHOM_MUC_CHI = ['MuaHang', 'Luong', 'ThueMatBang', 'DienNuoc', 'HoaHong', 'ChiKhac'];
@@ -1377,7 +1638,8 @@ async function xuLyWebhookSePay(env, request, url, body) {
 
 // ================== XUẤT EXCEL (thay cho việc mở Google Sheet xem) ==================
 const BANG_XUAT = ['Config', 'NguoiDung', 'HangHoa', 'NhaCungCap', 'KhachHang', 'NhapKho', 'NhapKhoCT', 'XuatBan', 'XuatBanCT',
-  'SuaChua', 'SuaChuaCT', 'GiaCong', 'GiaCongCT', 'SoQuy', 'NhatKyHoatDong', 'DieuChinhKho', 'SePayGiaoDich'];
+  'SuaChua', 'SuaChuaCT', 'GiaCong', 'GiaCongCT', 'SoQuy', 'NhatKyHoatDong', 'DieuChinhKho', 'SePayGiaoDich',
+  'BaoGia', 'BaoGiaCT', 'KiemKe', 'KiemKeCT'];
 async function exportTable(env, bang, offset) {
   if (!BANG_XUAT.includes(bang)) throw loi('BANG_KHONG_HOP_LE');
   const def = SCHEMA[bang];
@@ -1391,7 +1653,7 @@ async function exportTable(env, bang, offset) {
 // ================== CHUYỂN DỮ LIỆU TỪ GOOGLE SHEET (chỉ bật khi có biến bí mật MIGRATE_KEY) ==================
 const BANG_CHUYEN = ['Config', 'NguoiDung', 'HangHoa', 'NhaCungCap', 'KhachHang', 'NhapKho', 'NhapKhoCT', 'XuatBan', 'XuatBanCT',
   'SuaChua', 'SuaChuaCT', 'GiaCong', 'GiaCongCT', 'SoQuy', 'NhatKyHoatDong'];
-const BANG_DU_LIEU = [...BANG_CHUYEN, 'DieuChinhKho', 'SePayGiaoDich', 'Phien'];
+const BANG_DU_LIEU = [...BANG_CHUYEN, 'DieuChinhKho', 'SePayGiaoDich', 'Phien', 'BaoGia', 'BaoGiaCT', 'KiemKe', 'KiemKeCT'];
 
 async function xuLyChuyenDuLieu(env, action, p) {
   const khoa = env.MIGRATE_KEY || '';
@@ -1578,6 +1840,20 @@ async function handleAction(env, params, origin) {
 
     case 'exportTable': result = await exportTable(env, params.table, params.offset); break;
 
+    case 'getThongTinCongTy': result = await getThongTinCongTy(env); break;
+    case 'capNhatThongTinCongTy': result = await capNhatThongTinCongTy(env, params.data); break;
+
+    case 'getBaoGiaList': result = await getBaoGiaList(env, params.gioiHan); break;
+    case 'getBaoGiaDetail': result = await getPhieuDetail(env, 'BaoGiaCT', params.idPhieu); break;
+    case 'saveBaoGia': result = await saveBaoGia(env, params.data, user); break;
+    case 'capNhatTrangThaiBaoGia': result = await capNhatTrangThaiBaoGia(env, params.idPhieu, params.trangThai); break;
+    case 'xoaBaoGia': result = await xoaBaoGia(env, params.idPhieu); break;
+
+    case 'getKiemKeList': result = await getKiemKeList(env); break;
+    case 'getKiemKeDetail': result = await getKiemKeDetail(env, params.idPhieu); break;
+    case 'saveKiemKe': result = await saveKiemKe(env, params.data, user); break;
+    case 'xoaKiemKe': result = await xoaKiemKe(env, params.idPhieu); break;
+
     default: throw loi('UNKNOWN_ACTION: ' + action + ' (có thể Worker đang chạy bản cũ — kiểm tra lại lần deploy gần nhất)');
   }
 
@@ -1617,6 +1893,9 @@ export default {
         const r = await xuLyWebhookSePay(env, request, url, params);
         return traJson(r.body, r.status, cors);
       }
+      // Bổ sung bảng/cột mới cho CSDL đang chạy (1 lần mỗi lần Worker khởi động) trước khi xử lý lệnh.
+      // Bỏ qua lúc khởi tạo cấu trúc lần đầu (migrate.initSchema tự tạo đủ).
+      if (params.action !== 'migrate.initSchema') await damBaoCauTruc(env);
       if (typeof params.action === 'string' && params.action.startsWith('migrate.')) {
         return traJson({ success: true, data: await xuLyChuyenDuLieu(env, params.action, params) }, 200, cors);
       }
@@ -1631,4 +1910,4 @@ export default {
 };
 
 // Dùng cho bộ test và công cụ sinh schema.sql (không ảnh hưởng Worker khi chạy thật)
-export const _test = { SCHEMA, schemaStatements, lapDongCT, tinhTienThue, chuanHoaMST, kiemMatKhau, bamMatKhau };
+export const _test = { SCHEMA, schemaStatements, lapDongCT, tinhTienThue, chuanHoaMST, kiemMatKhau, bamMatKhau, THONG_TIN_CONG_TY_MAC_DINH };
