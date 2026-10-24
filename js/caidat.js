@@ -13,7 +13,8 @@ document.getElementById('btnKiemTraKetNoi').addEventListener('click', () => {
    Mỗi bảng = 1 sheet, đúng tên sheet của Google Sheet cũ. Ô chữ (MST, SĐT, số hoá đơn...) giữ nguyên dạng chữ,
    không mất số 0 đầu. Dùng làm bản sao lưu định kỳ luôn được. */
 const BANG_XUAT_EXCEL = ['HangHoa', 'KhachHang', 'NhaCungCap', 'NhapKho', 'NhapKhoCT', 'XuatBan', 'XuatBanCT',
-  'SuaChua', 'SuaChuaCT', 'GiaCong', 'GiaCongCT', 'SoQuy', 'NguoiDung', 'Config', 'NhatKyHoatDong', 'DieuChinhKho', 'SePayGiaoDich'];
+  'SuaChua', 'SuaChuaCT', 'GiaCong', 'GiaCongCT', 'SoQuy', 'NguoiDung', 'Config', 'NhatKyHoatDong', 'DieuChinhKho', 'SePayGiaoDich',
+  'BaoGia', 'BaoGiaCT', 'KiemKe', 'KiemKeCT'];
 document.getElementById('btnXuatExcel').addEventListener('click', async () => {
   const btn = document.getElementById('btnXuatExcel');
   const trangThai = document.getElementById('xuatExcelTrangThai');
@@ -74,7 +75,28 @@ document.getElementById('tabbar').addEventListener('click', e => {
       document.getElementById('fWebhookUrl').value = c.webhookUrl;
       STATE.cauHinhThanhToan = c; // dùng lại khi hiển thị QR trên các phiếu, khỏi gọi mạng lại mỗi lần mở 1 phiếu
     }).catch(() => {});
+    layThongTinCongTy(true).then(dienFormThongTinCongTy).catch(() => {});
   }
+});
+
+/* ---- Thông tin công ty in trên chứng từ (báo giá, biên bản, phiếu thu chi...) ---- */
+const O_CONG_TY = { Ten: 'fCtTen', DiaChi: 'fCtDiaChi', MST: 'fCtMST', SDT: 'fCtSDT', Email: 'fCtEmail', Website: 'fCtWebsite',
+  DaiDien: 'fCtDaiDien', ChucVu: 'fCtChucVu', NoiLap: 'fCtNoiLap', HieuLucBaoGiaNgay: 'fCtHieuLuc', DieuKhoanBaoGia: 'fCtDieuKhoan' };
+function dienFormThongTinCongTy(ct) {
+  Object.keys(O_CONG_TY).forEach(k => { const el = document.getElementById(O_CONG_TY[k]); if (el) el.value = ct[k] || ''; });
+  const nh = document.getElementById('fCtTenNganHang'); if (nh) nh.value = (ct.NganHang && ct.NganHang.tenNganHang) || '';
+}
+document.getElementById('btnLuuThongTinCongTy').addEventListener('click', () => {
+  const data = {};
+  Object.keys(O_CONG_TY).forEach(k => { data[k] = document.getElementById(O_CONG_TY[k]).value.trim(); });
+  data.TenNganHang = document.getElementById('fCtTenNganHang').value.trim();
+  if (!data.Ten || !data.MST) { showToast('Tên công ty và mã số thuế không được để trống.'); return; }
+  apiCall('capNhatThongTinCongTy', { data }).then(ct => {
+    _ttCongTyPromise = Promise.resolve(ct);
+    dienFormThongTinCongTy(ct);
+    document.getElementById('companyNameLabel').textContent = ct.Ten;
+    showToast('Đã lưu thông tin công ty — các mẫu in dùng thông tin mới.');
+  }).catch(err => showToast('Lỗi: ' + err.message));
 });
 document.getElementById('btnXemNhatKy').addEventListener('click', () => {
   apiCall('getNhatKy').then(list => {

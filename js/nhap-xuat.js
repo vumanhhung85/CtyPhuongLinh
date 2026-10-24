@@ -44,7 +44,7 @@ function drawNhapKhoTable() {
         <td>${fmtMoney(n.TongTien)}</td><td>${fmtMoney(n.DaTra)}</td>
         <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã trả đủ</span>'}</td>
         <td class="muted">${n.NguoiTao || ''}</td>
-        <td class="rowActions"><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('nhap','${n.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('nhap','${n.IDPhieu}')">${ICON_XOA}</button></td>
+        <td class="rowActions"><button class="iconBtn" title="In phiếu nhập kho" onclick="inPhieuNhapKho('${n.IDPhieu}')">${ICON_IN}</button><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('nhap','${n.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('nhap','${n.IDPhieu}')">${ICON_XOA}</button></td>
       </tr>`; }).join('')}
     </tbody></table>`;
 }
@@ -141,7 +141,7 @@ function drawXuatBanTable() {
         <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã thu đủ</span>'}</td>
         <td>${x.TrangThaiHD === 'DaXuat' ? '<span class="tag good">Đã xuất HĐ</span>' : '<span class="tag bad">Chưa xuất HĐ</span>'}</td>
         <td class="muted">${x.NguoiTao || ''}</td>
-        <td class="rowActions">${x.TrangThaiHD !== 'DaXuat' ? `<button class="iconBtn" title="Sửa phiếu" onclick="openSuaPhieuXuatForm('${x.IDPhieu}')">${ICON_SUA}</button>` : ''}<button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('xuat','${x.IDPhieu}')">${ICON_HD}</button><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('xuat','${x.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('xuat','${x.IDPhieu}')">${ICON_XOA}</button></td>
+        <td class="rowActions">${x.TrangThaiHD !== 'DaXuat' ? `<button class="iconBtn" title="Sửa phiếu" onclick="openSuaPhieuXuatForm('${x.IDPhieu}')">${ICON_SUA}</button>` : ''}<button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('xuat','${x.IDPhieu}')">${ICON_HD}</button><button class="iconBtn" title="In biên bản giao nhận" onclick="inBienBanGiaoNhan('${x.IDPhieu}')">${ICON_IN}</button><button class="iconBtn" title="Xem" onclick="viewPhieuNhapXuat('xuat','${x.IDPhieu}')">${ICON_XEM}</button><button class="iconBtn iconDanger" title="Xoá" onclick="xoaPhieuUI('xuat','${x.IDPhieu}')">${ICON_XOA}</button></td>
       </tr>`; }).join('')}
     </tbody></table>`;
 }
@@ -151,7 +151,9 @@ document.getElementById('locXuat').addEventListener('change', drawXuatBanTable);
 document.getElementById('timNhap').addEventListener('input', drawNhapKhoTable);
 document.getElementById('locNhap').addEventListener('change', drawNhapKhoTable);
 
+let _baoGiaDangChuyen = null; // IDPhieu báo giá đang được chuyển thành phiếu xuất (xem js/baogia.js)
 function openPhieuXuatForm() {
+  _baoGiaDangChuyen = null;
   const doiTacOptions = STATE.khachHangList.map(d => `<option value="${d.MaKH}" data-ten="${d.TenKH}">${d.TenKH}</option>`).join('');
   openModal(`
     <button class="modalClose" onclick="closeModal()">&times;</button>
@@ -178,8 +180,11 @@ function submitPhieuXuat() {
     MaKH: doiTacSel.value, TenKH: doiTacOpt ? doiTacOpt.dataset.ten : '',
     MSTKhachHang: document.getElementById('fMSTKhach').value, items
   };
+  if (_baoGiaDangChuyen) data.IDBaoGia = _baoGiaDangChuyen;
   apiCall('saveXuatBan', { data }).then(res => {
-    closeModal(); showToast('Đã lưu phiếu xuất bán.');
+    closeModal(); showToast(res && res.idBaoGia ? 'Đã lưu phiếu xuất bán — báo giá chuyển sang "Đã chốt".' : 'Đã lưu phiếu xuất bán.');
+    if (res && res.idBaoGia) daChotBaoGiaTrongState(res.idBaoGia, res.idPhieu);
+    _baoGiaDangChuyen = null;
     if (res && res.phieu) {
       STATE.xuatBanList.unshift(res.phieu);
       mergeTonKhoVaoState(res.tonKhoCapNhat);
@@ -281,6 +286,9 @@ function viewPhieuNhapXuat(loai, idPhieu) {
   apiCall(action, { idPhieu }).then(res => {
     const items = res.items || [];
     const conNo = (Number(phieu.TongTien) || 0) - (Number(loai === 'nhap' ? phieu.DaTra : phieu.DaThu) || 0);
+    const nutIn = loai === 'nhap'
+      ? `<button class="btn secondary" onclick="inPhieuNhapKho('${idPhieu}')">${ICON_IN} In phiếu nhập kho</button>`
+      : `<button class="btn secondary" onclick="inBienBanGiaoNhan('${idPhieu}')">${ICON_IN} In biên bản giao nhận</button>`;
     openModal(`
       <button class="modalClose" onclick="closeModal()">&times;</button>
       <h3>Chi tiết phiếu ${idPhieu}</h3>
@@ -299,8 +307,8 @@ function viewPhieuNhapXuat(loai, idPhieu) {
           <div class="field span2"><label>${loai === 'nhap' ? 'Ghi nhận thanh toán cho NCC' : 'Ghi nhận thu tiền từ khách'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div>
           <div class="field span2"><label>Phương thức</label><select id="fPhuongThucTT"><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
         </div>
-        <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanNX('${loai}','${idPhieu}')">Ghi nhận thanh toán</button></div>
-      ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
+        <div class="modalActions">${nutIn}<button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanNX('${loai}','${idPhieu}')">Ghi nhận thanh toán</button></div>
+      ` : `<div class="modalActions">${nutIn}<button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
   }).catch(err => showToast('Lỗi: ' + err.message));
 }

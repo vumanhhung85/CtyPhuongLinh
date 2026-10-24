@@ -75,6 +75,7 @@ function renderSoQuy() {
     loai: document.getElementById('quyLocLoai').value,
     phuongThuc: document.getElementById('quyLocPT').value
   })]).then(([soDu, list]) => {
+    STATE.soQuyList = list; // dùng khi in phiếu thu/chi
     veKpi('soQuyCards', [
       { label: 'Số dư tiền mặt', val: fmtMoney(soDu.tienMat.soDu), mau: soDu.tienMat.soDu < 0 ? 'red' : 'blue' },
       { label: 'Số dư chuyển khoản', val: fmtMoney(soDu.chuyenKhoan.soDu), mau: soDu.chuyenKhoan.soDu < 0 ? 'red' : 'navy' },
@@ -94,7 +95,7 @@ function renderSoQuy() {
         <td>${phuongThucLabel(r.PhuongThuc)}</td>
         <td>${nguonGocLabel(r.NguonGoc)}</td>
         <td class="muted">${r.MoTa || ''}</td>
-        <td class="rowActions">${r.NguonGoc === 'TuDo' ? `<button class="iconBtn iconDanger" title="Xoá" onclick="xoaThuChiUI('${r.IDPhieu}')">${ICON_XOA}</button>` : ''}</td>
+        <td class="rowActions"><button class="iconBtn" title="In phiếu ${r.Loai === 'Thu' ? 'thu' : 'chi'}" onclick="inPhieuThuChi('${r.IDPhieu}')">${ICON_IN}</button>${r.NguonGoc === 'TuDo' ? `<button class="iconBtn iconDanger" title="Xoá" onclick="xoaThuChiUI('${r.IDPhieu}')">${ICON_XOA}</button>` : ''}</td>
       </tr>`).join('')}
     </tbody></table>`;
   }).catch(err => showToast('Lỗi: ' + err.message));

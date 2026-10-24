@@ -19,7 +19,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QL Phương Linh">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="css/app.css?v=20260928h">
+<link rel="stylesheet" href="css/app.css?v=20261024a">
 <!-- xlsx / pdf.js / tesseract.js tải khi cần (caiThuVien) — không nạp sẵn ở đây để app mở nhanh. -->
 </head>
 <body>
@@ -56,8 +56,10 @@
     <nav class="sbNav" id="tabbar">
       <button data-tab="dashboard" class="active"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Tổng quan</span></button>
       <div class="sbGroup">Nghiệp vụ</div>
+      <button data-tab="baogia"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 11v6M14.5 12.2c-.4-.7-1.3-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.7 0 2.4 5 1.3 5 3.7 0 1-1.1 1.7-2.5 1.7-1.2 0-2.1-.5-2.5-1.2"/></svg><span>Báo giá</span></button>
       <button data-tab="xuatban"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 11.4a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.5L21 7H6"/></svg><span>Bán hàng</span></button>
       <button data-tab="nhapkho"><svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><span>Nhập kho</span></button>
+      <button data-tab="kiemke"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9z"/><path d="M8.5 12l2 2 4.5-4.5M8.5 17.5h7"/></svg><span>Kiểm kê kho</span></button>
       <button data-tab="suachua"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.6-.6-.6-2.6z"/></svg><span>Sửa chữa</span></button>
       <button data-tab="giacong"><svg viewBox="0 0 24 24"><path d="M12 2l9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Gia công</span></button>
       <div class="sbGroup">Tài chính</div>
@@ -140,6 +142,39 @@
             <select id="locNhap"><option value="">Tất cả phiếu</option><option value="conNo">Còn nợ nhà cung cấp</option><option value="chuaHD">Chưa có số HĐ mua vào</option></select>
           </div>
           <div class="tableWrap" id="nhapTableWrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- BÁO GIÁ ---------- -->
+      <section class="view" id="view-baogia">
+        <div class="subhead">
+          <h2 class="viewTitle">Báo giá</h2>
+          <button class="btn" id="btnAddBaoGia">+ Tạo báo giá</button>
+        </div>
+        <div class="cardGrid kpiRow" id="kpiBaoGia"></div>
+        <div class="khung">
+          <div class="toolbar">
+            <input type="text" id="timBaoGia" class="oTim" placeholder="Tìm số báo giá, khách hàng, nội dung...">
+            <select id="locBaoGia"><option value="">Tất cả trạng thái</option><option value="Nhap">Mới tạo</option><option value="DaGui">Đã gửi khách</option><option value="DaChot">Đã chốt</option><option value="Huy">Khách không lấy</option></select>
+          </div>
+          <div class="tableWrap" id="baoGiaTableWrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- KIỂM KÊ KHO / TỒN ĐẦU KỲ ---------- -->
+      <section class="view" id="view-kiemke">
+        <div class="subhead">
+          <h2 class="viewTitle">Kiểm kê kho</h2>
+          <div class="nhomNut">
+            <button class="btn" id="btnKiemKe">+ Kiểm kê kho</button>
+            <button class="btn secondary" id="btnTonDauKy">+ Nhập tồn đầu kỳ</button>
+          </div>
+        </div>
+        <div class="panel">
+          <p class="muted" style="margin:0;"><b>Kiểm kê kho</b>: đếm hàng thực tế rồi gõ số đếm được — app tự tính thừa/thiếu và điều chỉnh tồn kho. <b>Nhập tồn đầu kỳ</b>: cộng tồn cho hàng đã có sẵn trước khi dùng app hoặc hàng mua ngoài không có hoá đơn (hàng mua có hoá đơn dùng phiếu Nhập kho). Xoá phiếu là gỡ đúng phần điều chỉnh của phiếu đó.</p>
+        </div>
+        <div class="khung">
+          <div class="tableWrap" id="kiemKeTableWrap"></div>
         </div>
       </section>
 
@@ -441,6 +476,25 @@
             <div class="muted" id="xuatExcelTrangThai" style="margin-top:8px;"></div>
           </div>
         </div>
+        <div class="panel" id="panelThongTinCongTy">
+          <h3>Thông tin công ty in trên chứng từ</h3>
+          <p class="muted">Dùng cho mọi mẫu in: báo giá, biên bản giao nhận, phiếu nhập kho, phiếu thu/chi, phiếu sửa chữa, biên bản kiểm kê. Số tài khoản ngân hàng lấy ở mục "QR chuyển khoản" bên dưới.</p>
+          <div class="formGrid">
+            <div class="field span2"><label>Tên công ty</label><input id="fCtTen"></div>
+            <div class="field span2"><label>Địa chỉ</label><input id="fCtDiaChi"></div>
+            <div class="field"><label>Mã số thuế</label><input id="fCtMST" type="tel"></div>
+            <div class="field"><label>Điện thoại</label><input id="fCtSDT" type="tel"></div>
+            <div class="field"><label>Email</label><input id="fCtEmail" type="email"></div>
+            <div class="field"><label>Website</label><input id="fCtWebsite"></div>
+            <div class="field"><label>Người đại diện (ký báo giá, biên bản)</label><input id="fCtDaiDien" placeholder="VD: Nguyễn Văn A"></div>
+            <div class="field"><label>Chức vụ người đại diện</label><input id="fCtChucVu" placeholder="VD: Giám đốc"></div>
+            <div class="field"><label>Nơi lập (in trước ngày tháng)</label><input id="fCtNoiLap" placeholder="VD: TP. Hồ Chí Minh"></div>
+            <div class="field"><label>Tên ngân hàng (in trên báo giá)</label><input id="fCtTenNganHang" placeholder="VD: MSB – CN Thủ Đức"></div>
+            <div class="field"><label>Hiệu lực báo giá mặc định (số ngày)</label><input id="fCtHieuLuc" type="number" min="1"></div>
+            <div class="field span2"><label>Điều khoản báo giá mặc định (mỗi dòng 1 ý)</label><textarea id="fCtDieuKhoan" rows="4"></textarea></div>
+          </div>
+          <button class="btn" style="margin-top:12px;" id="btnLuuThongTinCongTy">Lưu thông tin công ty</button>
+        </div>
         <div class="panel" id="panelSoDuDauKy">
           <h3>Số dư đầu kỳ Sổ quỹ</h3>
           <p class="muted">Chỉ nhập 1 lần khi bắt đầu dùng Sổ quỹ (số tiền mặt/tài khoản đang có trước đó). Các khoản Thu/Chi về sau tự cộng trừ tiếp từ đây — sửa lại số này bất cứ lúc nào nếu cần đối chiếu lại thực tế.</p>
@@ -489,17 +543,20 @@
 <div class="toast" id="toast"></div>
 
 <!-- Thứ tự nạp quan trọng: config -> core (hàm dùng chung) -> shell (đăng nhập, chuyển tab) -> các nghiệp vụ. -->
-<script src="js/config.js?v=20260928h"></script>
-<script src="js/core.js?v=20260928h"></script>
-<script src="js/shell.js?v=20260928h"></script>
-<script src="js/danhmuc.js?v=20260928h"></script>
-<script src="js/phieu-form.js?v=20260928h"></script>
-<script src="js/nhap-xuat.js?v=20260928h"></script>
-<script src="js/suachua-giacong.js?v=20260928h"></script>
-<script src="js/congno-soquy.js?v=20260928h"></script>
-<script src="js/baocao.js?v=20260928h"></script>
-<script src="js/doitac-nguoidung.js?v=20260928h"></script>
-<script src="js/dongbo-hd.js?v=20260928h"></script>
-<script src="js/caidat.js?v=20260928h"></script>
+<script src="js/config.js?v=20261024a"></script>
+<script src="js/core.js?v=20261024a"></script>
+<script src="js/shell.js?v=20261024a"></script>
+<script src="js/danhmuc.js?v=20261024a"></script>
+<script src="js/phieu-form.js?v=20261024a"></script>
+<script src="js/in-an.js?v=20261024a"></script>
+<script src="js/nhap-xuat.js?v=20261024a"></script>
+<script src="js/baogia.js?v=20261024a"></script>
+<script src="js/kiemke.js?v=20261024a"></script>
+<script src="js/suachua-giacong.js?v=20261024a"></script>
+<script src="js/congno-soquy.js?v=20261024a"></script>
+<script src="js/baocao.js?v=20261024a"></script>
+<script src="js/doitac-nguoidung.js?v=20261024a"></script>
+<script src="js/dongbo-hd.js?v=20261024a"></script>
+<script src="js/caidat.js?v=20261024a"></script>
 </body>
 </html>

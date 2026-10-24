@@ -93,6 +93,8 @@ function applyRoleVisibility() {
   if (panelQR) panelQR.style.display = isAdmin ? '' : 'none';
   const panelExcel = document.getElementById('panelXuatExcel');
   if (panelExcel) panelExcel.style.display = isAdmin ? '' : 'none';
+  const panelCT = document.getElementById('panelThongTinCongTy');
+  if (panelCT) panelCT.style.display = isAdmin ? '' : 'none';
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -150,6 +152,7 @@ function switchTab(tab) {
     dashboard: renderDashboard, danhmuc: renderHangHoaTable, nhapkho: renderNhapKhoTable,
     xuatban: renderXuatBanTable, suachua: renderSuaChuaTable, giacong: renderGiaCongTable,
     congno: renderCongNo, doitac: () => { renderKhachHangTable(); renderNhaCungCapTable(); },
+    baogia: renderBaoGiaTable, kiemke: renderKiemKeTable,
     nguoidung: renderNguoiDungTable, soquy: renderSoQuy,
     baocao: () => { renderSoSanhThang(); renderCongNoTheoDoiTac(); }
   };

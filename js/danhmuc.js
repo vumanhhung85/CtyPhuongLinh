@@ -56,6 +56,11 @@ function openEditHH(maHH) {
       <div class="field span2"><label>1 [Đơn vị nhập lớn] = ? [Đơn vị tính bán lẻ] <span class="muted">(VD: 1 Cuộn = 300 Mét — để trống hoặc 0 nếu không dùng đơn vị nhập lớn)</span></label><input id="fHeSoQuyDoi" type="number" min="0" step="0.01" value="${item ? item.HeSoQuyDoi || '' : ''}"></div>
       <div class="field span2"><label>Ghi chú</label><input id="fGhiChu" value="${item ? item.GhiChu || '' : ''}"></div>
     </div>
+    ${item && item.Loai === 'HangHoa' ? `
+    <div class="panel" style="margin:14px 0 0;background:#f3fbf1;border-color:#cfe9c8;">
+      <p class="muted" style="margin:0 0 8px;">Tồn kho hiện tại: <b>${tonKhoKep(item)}</b>. Số lượng tồn không gõ trực tiếp ở đây — tồn kho luôn tính từ các phiếu. Muốn có hàng để bán: hàng mua có hoá đơn dùng <b>phiếu Nhập kho</b>; hàng có sẵn / mua ngoài không hoá đơn dùng <b>Nhập tồn đầu kỳ</b>.</p>
+      <button class="btn secondary small" type="button" onclick="moTonDauKyChoHang('${item.MaHH}')">📦 Nhập tồn đầu kỳ cho mặt hàng này</button>
+    </div>` : ''}
     ${item ? `
     <div class="panel" style="margin:14px 0 0;background:#f4f7ff;border-color:var(--brand-soft);">
       <p class="muted" style="margin:0 0 8px;">Nếu vừa đổi Loại (Hàng hoá ↔ Dịch vụ) hoặc nghi ngờ tồn kho sai — bấm nút này để quét lại toàn bộ lịch sử phiếu Nhập/Xuất/Sửa chữa/Gia công và tính lại đúng tồn kho + giá vốn từ đầu.</p>

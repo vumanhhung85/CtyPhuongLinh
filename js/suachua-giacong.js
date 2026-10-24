@@ -32,6 +32,7 @@ function drawSuaChuaTable() {
         <td>${s.NguoiPhuTrach || ''}</td>
         <td class="rowActions">
           ${s.TrangThaiHD !== 'DaXuat' ? `<button class="iconBtn" title="Sửa phiếu" onclick="openSuaPhieuSuaChuaForm('${s.IDPhieu}')">${ICON_SUA}</button>` : ''}
+          <button class="iconBtn" title="In phiếu sửa chữa" onclick="inPhieuSuaChua('${s.IDPhieu}')">${ICON_IN}</button>
           <button class="iconBtn" title="Xem" onclick="viewPhieuSuaChua('${s.IDPhieu}')">${ICON_XEM}</button>
           <button class="iconBtn" title="Cập nhật trạng thái" onclick="openCapNhatTrangThaiSC('${s.IDPhieu}')">${ICON_TRANGTHAI}</button>
           <button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('suachua','${s.IDPhieu}')">${ICON_HD}</button>
@@ -213,8 +214,8 @@ function viewPhieuSuaChua(idPhieu) {
           <div class="field span2"><label>Ghi nhận thu tiền từ khách</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div>
           <div class="field span2"><label>Phương thức</label><select id="fPhuongThucTT"><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
         </div>
-        <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThuSuaChua('${idPhieu}')">Ghi nhận thanh toán</button></div>
-      ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
+        <div class="modalActions"><button class="btn secondary" onclick="inPhieuSuaChua('${idPhieu}')">${ICON_IN} In phiếu</button><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThuSuaChua('${idPhieu}')">Ghi nhận thanh toán</button></div>
+      ` : `<div class="modalActions"><button class="btn secondary" onclick="inPhieuSuaChua('${idPhieu}')">${ICON_IN} In phiếu</button><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
@@ -288,6 +289,7 @@ function drawGiaCongTable() {
           <td>${conNo > 0 ? `<span class="tag warn">${fmtMoney(conNo)}</span>` : '<span class="tag good">Đã xong</span>'}</td>
           <td class="rowActions">
             ${g.TrangThaiHD !== 'DaXuat' ? `<button class="iconBtn" title="Sửa phiếu" onclick="openSuaPhieuGiaCongForm('${g.IDPhieu}')">${ICON_SUA}</button>` : ''}
+            <button class="iconBtn" title="In biên bản nghiệm thu" onclick="inBienBanGiaCong('${g.IDPhieu}')">${ICON_IN}</button>
             <button class="iconBtn" title="Xem" onclick="viewPhieuGiaCong('${g.IDPhieu}')">${ICON_XEM}</button>
             <button class="iconBtn" title="Cập nhật trạng thái" onclick="openCapNhatTrangThaiGC('${g.IDPhieu}')">${ICON_TRANGTHAI}</button>
             <button class="iconBtn iconPrimary" title="Cập nhật hoá đơn" onclick="openCapNhatHD('giacong','${g.IDPhieu}')">${ICON_HD}</button>
@@ -470,8 +472,8 @@ function viewPhieuGiaCong(idPhieu) {
           <div class="field span2"><label>${isThu ? 'Ghi nhận thu tiền từ khách' : 'Ghi nhận trả tiền cho bên gia công'}</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTienTT" placeholder="Số tiền" value="${Math.round(conNo).toLocaleString('vi-VN')}"></div>
           <div class="field span2"><label>Phương thức</label><select id="fPhuongThucTT"><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
         </div>
-        <div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanGC('${idPhieu}','${isThu ? 'DaThu' : 'DaTra'}')">Ghi nhận</button></div>
-      ` : `<div class="modalActions"><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
+        <div class="modalActions"><button class="btn secondary" onclick="inBienBanGiaCong('${idPhieu}')">${ICON_IN} In biên bản</button><button class="btn secondary" onclick="closeModal()">Đóng</button><button class="btn" onclick="ghiNhanThanhToanGC('${idPhieu}','${isThu ? 'DaThu' : 'DaTra'}')">Ghi nhận</button></div>
+      ` : `<div class="modalActions"><button class="btn secondary" onclick="inBienBanGiaCong('${idPhieu}')">${ICON_IN} In biên bản</button><button class="btn secondary" onclick="closeModal()">Đóng</button></div>`}
     `);
   }).catch(err => showToast('Lỗi: ' + err.message));
 }

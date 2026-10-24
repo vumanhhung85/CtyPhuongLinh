@@ -144,8 +144,9 @@ function xacNhanDonGiaKhong(items) {
   if (!ds.length) return true;
   return confirm(`Có ${ds.length} dòng đơn giá = 0 đ:\n- ${ds.slice(0, 5).map(i => i.TenHH || i.MaHH).join('\n- ')}${ds.length > 5 ? '\n...' : ''}\n\nĐơn giá 0 làm sai giá vốn/doanh thu. Vẫn lưu phiếu?`);
 }
-function openModal(html) { document.getElementById('modalCard').innerHTML = html; document.getElementById('modalBg').classList.add('active'); }
-function closeModal() { document.getElementById('modalBg').classList.remove('active'); }
+// className đặt lại 'modalCard' mỗi lần mở: popup xem trước bản in thêm class 'modalIn' (rộng hơn) không dính sang popup sau.
+function openModal(html) { const c = document.getElementById('modalCard'); c.className = 'modalCard'; c.innerHTML = html; document.getElementById('modalBg').classList.add('active'); }
+function closeModal() { document.getElementById('modalBg').classList.remove('active'); document.getElementById('modalCard').classList.remove('modalIn'); }
 // Chỉ đóng modal khi CẢ mousedown lẫn click đều nhắm đúng vào nền mờ (không phải bôi đen text
 // trong ô rồi lỡ thả chuột ra ngoài — trường hợp đó click.target cũng là modalBg nhưng không phải ý định đóng).
 let _modalMouseDownOnBg = false;

@@ -133,7 +133,8 @@ function hhComboFilter(input) {
         ? (daDungDongKhac > 0 ? `Còn lại: ${tonKhoKep(h, tonThucTe)} (đã dùng ${fmtSoLuong(daDungDongKhac)} ở dòng khác)` : `Tồn: ${tonKhoKep(h)}`)
         : 'Dịch vụ';
       const dongKhacTag = daDungDongKhac > 0 ? `<span class="hhComboBadge hhComboTonThap">Đã có trong phiếu (SL: ${daDungDongKhac})</span>` : '';
-      // Chỉ chặn chọn khi ĐANG XUẤT/DÙNG hàng (gia_ban) và hết tồn thực tế — Nhập kho (gia_von) vẫn chọn được vì đang mua thêm
+      // Chỉ chặn chọn khi ĐANG XUẤT/DÙNG hàng (gia_ban) và hết tồn thực tế — Nhập kho (gia_von) vẫn chọn được vì đang mua thêm,
+      // Báo giá (bao_gia) cũng chọn được vì chưa trừ kho (giá gợi ý = giá bán như gia_ban).
       const khongChoChon = mode === 'gia_ban' && tonHet;
       const disabledAttr = khongChoChon ? 'data-khongchochon="1"' : '';
       const disabledCls = khongChoChon ? 'hhComboDisabled' : '';
@@ -251,7 +252,7 @@ function capNhatThongTinDong(row, mode) {
   if (dangChonDonViLon) {
     html += ` &nbsp;·&nbsp; <span class="muted">(1 ${row.dataset.dvtnhap} = ${row.dataset.hesoquydoi} ${dvt} — giá gợi ý tự quy đổi tuyến tính, sửa lại nếu giá thực tế theo ${row.dataset.dvtnhap} khác)</span>`;
   }
-  if (mode === 'gia_ban' && giavonTheoDonVi > 0 && donGiaNhap > 0) {
+  if ((mode === 'gia_ban' || mode === 'bao_gia') && giavonTheoDonVi > 0 && donGiaNhap > 0) {
     if (donGiaNhap < giavonTheoDonVi) html += ` &nbsp;— <span class="warnGia">⚠ Đang bán thấp hơn giá vốn (lỗ ${fmtMoney(giavonTheoDonVi - donGiaNhap)}/${donViHienThi})!</span>`;
     else html += ` &nbsp;— <span class="okGia">✓ Lãi ${fmtMoney(donGiaNhap - giavonTheoDonVi)}/${donViHienThi}</span>`;
   }
