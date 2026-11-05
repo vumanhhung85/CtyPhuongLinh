@@ -208,7 +208,9 @@ function lamDepBang(table) {
     if (coSo && !khongSo) { th.classList.add('soCot'); rows.forEach(tr => tr.children[i] && tr.children[i].classList.add('soCot')); }
   });
   const thCuoi = ths[ths.length - 1];
-  if (!thCuoi.textContent.trim() && rows.some(tr => tr.lastElementChild && tr.lastElementChild.classList.contains('rowActions'))) thCuoi.textContent = 'Chức năng';
+  const coCotNut = rows.some(tr => tr.lastElementChild && tr.lastElementChild.classList.contains('rowActions'));
+  if (coCotNut) table.classList.add('coCotThaoTac'); // CSS giữ cột này dính mép phải khi phải kéo ngang
+  if (!thCuoi.textContent.trim() && coCotNut) thCuoi.textContent = 'Chức năng';
   const wrap = table.parentElement;
   if (wrap && wrap.classList.contains('tableWrap') && !wrap.querySelector(':scope > .chanBang')) {
     const chan = document.createElement('div');

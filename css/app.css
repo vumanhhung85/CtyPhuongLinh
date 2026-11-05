@@ -197,6 +197,15 @@ h2.viewTitle{font-size:24px;font-weight:700;margin:0;letter-spacing:-.2px;}
 /* ================= BẢNG ================= */
 .tableWrap{overflow-x:auto;overflow-y:auto;border:1px solid var(--line);border-radius:4px;background:var(--card);}
 .khung>.tableWrap,.panel>.tableWrap,.pane>.tableWrap{border-radius:4px;}
+/* Bảng ở trang chính: khung bảng không cao quá màn hình, để THANH KÉO NGANG (nằm ở đáy khung) luôn nhìn thấy được
+   mà không phải cuộn trang xuống tận cuối danh sách (màn không cảm ứng không vuốt ngang được). Khung tự cuộn dọc bên trong. */
+main .tableWrap{max-height:max(340px,calc(100vh - 270px));scrollbar-gutter:stable;}
+/* Cột "Chức năng" (nút sửa/xoá/in) luôn dính mép phải khi bảng rộng hơn màn hình -> không phải kéo ngang mới thấy nút.
+   Chỉ gắn cho bảng có cột nút ở cuối (lamDepBang trong core.js thêm class coCotThaoTac). Không đụng tới tiêu đề dính dọc (đã bỏ, xem ghi chú dưới). */
+table.coCotThaoTac thead th:last-child,table.coCotThaoTac tbody td.rowActions:last-child{position:sticky;right:0;z-index:2;box-shadow:-8px 0 8px -8px rgba(0,0,0,.22);}
+table.coCotThaoTac thead th:last-child{background:#f4f5f8;}
+table.coCotThaoTac tbody td.rowActions:last-child{background:var(--card);}
+table.coCotThaoTac tbody tr:hover td.rowActions:last-child{background:#f1f8ff;}
 table{width:100%;border-collapse:collapse;font-size:14px;min-width:640px;}
 /* Tiêu đề bảng KHÔNG dính khi cuộn — đã bỏ hẳn position:sticky 18/8/2026 (lỗi chồng/đè tái diễn). Không thêm lại. */
 thead th{background:#f4f5f8;color:#343a40;text-align:left;padding:11px 12px;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.2px;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
