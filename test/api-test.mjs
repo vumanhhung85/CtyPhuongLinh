@@ -158,6 +158,9 @@ ok(cntd.phaiThuTheoKH[0].ten === 'Khách lẻ' && cntd.phaiThuTheoKH[0].tongNo =
 const db = await api('getDashboard');
 ok(typeof db.doanhThuThangNay === 'number' && db.congNoPhaiThu === 165000 && db.soLuongHangHoa === 2 && db.soLuongDichVu === 1 && db.suaChuaDangXuLy === 0, 'dashboard', db);
 ok(db.hangSapHet.length === 0, 'không có hàng dưới mức tối thiểu');
+ok(Array.isArray(db.chuoi12Thang) && db.chuoi12Thang.length === 12 && db.chuoi12Thang.every(m => /^\d{4}-\d{2}$/.test(m.thang) && ['doanhThu', 'loiNhuan', 'nhapKho'].every(k => typeof m[k] === 'number')), 'dashboard: chuỗi 12 tháng đủ 12 điểm, đủ trường', db.chuoi12Thang);
+ok(db.chuoi12Thang[11].thang === db.chuoi12Thang[11].thang && db.chuoi12Thang.map(m => m.thang).join() === [...db.chuoi12Thang.map(m => m.thang)].sort().join(), 'dashboard: các tháng xếp tăng dần');
+ok(typeof db.doanhThuNam === 'number' && Number(db.namHienTai) >= 2026 && db.noQuaHan && typeof db.noQuaHan.so === 'number' && db.baoGiaCho && typeof db.baoGiaCho.so === 'number' && typeof db.tienChuaXuatHD === 'number', 'dashboard: doanh thu năm, nợ quá hạn, báo giá chờ, tiền chưa xuất HĐ', { dtn: db.doanhThuNam, nam: db.namHienTai, q: db.noQuaHan, b: db.baoGiaCho, t: db.tienChuaXuatHD });
 const init = await api('getInitData');
 ok(init.hangHoaList.length === 3 && init.xuatBanList.length === 2 && init.nhapKhoList.length === 1 && init.suaChuaList.length === 1 && init.giaCongList.length === 1, 'getInitData', Object.fromEntries(Object.entries(init).map(([k, v]) => [k, v.length])));
 ok(init.xuatBanList.every(x => x.GhiChu === '' || typeof x.GhiChu === 'string'), 'ô trống trả về chuỗi rỗng như Google Sheet (không phải null)');

@@ -1,19 +1,21 @@
 /* ================= ĐỐI TÁC (KH / NCC) ================= */
 function renderKhachHangTable() {
+  hienDangTai('khTableWrap');
   apiCall('getKhachHangList').then(list => {
     STATE.khachHangList = list;
     const wrap = document.getElementById('khTableWrap');
-    if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có khách hàng nào.</div>'; return; }
+    if (!list.length) { wrap.innerHTML = trangThaiRong({ bieuTuong: 'nguoi', tieuDe: 'Chưa có khách hàng nào', moTa: 'Khách hàng được tự thêm khi nhập hoá đơn từ file XML, hoặc thêm tay ở đây.', nhan: '+ Thêm khách hàng', hanhDong: "document.getElementById('btnAddKH').click()" }); return; }
     wrap.innerHTML = `<table><thead><tr><th>Tên</th><th>MST</th><th>SĐT</th><th>Địa chỉ</th><th></th></tr></thead><tbody>
       ${list.map(k => `<tr><td>${k.TenKH}</td><td>${k.MST || ''}</td><td>${k.SDT || ''}</td><td>${k.DiaChi || ''}</td><td class="rowActions"><button class="iconBtn iconDanger" title="Xoá" onclick="deleteDoiTac('kh','${k.MaKH}')">${ICON_XOA}</button></td></tr>`).join('')}
     </tbody></table>`;
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function renderNhaCungCapTable() {
+  hienDangTai('nccTableWrap');
   apiCall('getNhaCungCapList').then(list => {
     STATE.nhaCungCapList = list;
     const wrap = document.getElementById('nccTableWrap');
-    if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có nhà cung cấp nào.</div>'; return; }
+    if (!list.length) { wrap.innerHTML = trangThaiRong({ bieuTuong: 'nguoi', tieuDe: 'Chưa có nhà cung cấp nào', moTa: 'Nhà cung cấp được tự thêm khi nhập hoá đơn mua vào, hoặc thêm tay ở đây.', nhan: '+ Thêm nhà cung cấp', hanhDong: "document.getElementById('btnAddNCC').click()" }); return; }
     wrap.innerHTML = `<table><thead><tr><th>Tên</th><th>MST</th><th>SĐT</th><th>Địa chỉ</th><th></th></tr></thead><tbody>
       ${list.map(n => `<tr><td>${n.TenNCC}</td><td>${n.MST || ''}</td><td>${n.SDT || ''}</td><td>${n.DiaChi || ''}</td><td class="rowActions"><button class="iconBtn iconDanger" title="Xoá" onclick="deleteDoiTac('ncc','${n.MaNCC}')">${ICON_XOA}</button></td></tr>`).join('')}
     </tbody></table>`;
@@ -58,19 +60,22 @@ function traCuuMST() {
 }
 function saveDoiTacUI(loai) {
   const isKH = loai === 'kh'; const ten = document.getElementById('fTenDT').value.trim();
-  if (!ten) { showToast('Vui lòng nhập tên.'); return; }
+  if (baoLoiForm(!ten ? [{ el: 'fTenDT', msg: isKH ? 'Nhập tên khách hàng' : 'Nhập tên nhà cung cấp' }] : [])) return;
   const data = { MST: document.getElementById('fMSTDT').value.trim(), SDT: document.getElementById('fSDTDT').value.trim(), DiaChi: document.getElementById('fDiaChiDT').value.trim(), GhiChu: document.getElementById('fGhiChuDT').value.trim() };
   if (isKH) data.TenKH = ten; else data.TenNCC = ten;
   apiCall(isKH ? 'saveKhachHang' : 'saveNhaCungCap', { data }).then(() => { closeModal(); showToast('Đã lưu.'); if (isKH) renderKhachHangTable(); else renderNhaCungCapTable(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function deleteDoiTac(loai, id) {
-  if (!confirm('Xoá mục này?')) return;
+async function deleteDoiTac(loai, id) {
   const isKH = loai === 'kh';
+  const d = (isKH ? STATE.khachHangList : STATE.nhaCungCapList).find(x => (isKH ? x.MaKH : x.MaNCC) === id);
+  if (!(await xacNhan({ tieuDe: isKH ? 'Xoá khách hàng?' : 'Xoá nhà cung cấp?', kieu: 'nguyHiem',
+    noiDung: `${d ? (isKH ? d.TenKH : d.TenNCC) + (d.MST ? ' — MST ' + d.MST : '') + '\n\n' : ''}Chỉ xoá được khi chưa có phiếu nào của ${isKH ? 'khách' : 'nhà cung cấp'} này. Mục đã xoá không khôi phục được.`, nhanDongY: 'Xoá' }))) return;
   apiCall(isKH ? 'deleteKhachHang' : 'deleteNhaCungCap', isKH ? { maKH: id } : { maNCC: id }).then(() => { showToast('Đã xoá.'); if (isKH) renderKhachHangTable(); else renderNhaCungCapTable(); }).catch(baoLoiXoaDanhMuc);
 }
 
 /* ================= NGƯỜI DÙNG ================= */
 function renderNguoiDungTable() {
+  hienDangTai('nguoiDungTableWrap', 3);
   apiCall('getNguoiDungList').then(list => {
     const wrap = document.getElementById('nguoiDungTableWrap');
     wrap.innerHTML = `<table><thead><tr><th>Họ tên</th><th>Tên đăng nhập</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr></thead><tbody>
@@ -112,7 +117,11 @@ function saveNguoiDungUI(maNV) {
     TenDangNhap: document.getElementById('fTenDangNhap').value.trim(), VaiTro: document.getElementById('fVaiTro').value,
     MatKhauMoi: document.getElementById('fMatKhauMoiND').value
   };
-  if (!data.HoTen || !data.TenDangNhap) { showToast('Vui lòng nhập đủ họ tên và tên đăng nhập.'); return; }
+  const loi = [];
+  if (!data.HoTen) loi.push({ el: 'fHoTen', msg: 'Nhập họ tên' });
+  if (!data.TenDangNhap) loi.push({ el: 'fTenDangNhap', msg: 'Nhập tên đăng nhập' });
+  if ((!maNV || data.MatKhauMoi) && data.MatKhauMoi.length < 6) loi.push({ el: 'fMatKhauMoiND', msg: 'Mật khẩu tối thiểu 6 ký tự' });
+  if (baoLoiForm(loi)) return;
   apiCall('saveNguoiDung', { data }).then(() => { closeModal(); showToast('Đã lưu.'); renderNguoiDungTable(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function toggleKhoaNguoiDung(maNV, trangThai) {
@@ -121,7 +130,10 @@ function toggleKhoaNguoiDung(maNV, trangThai) {
 document.getElementById('btnDoiMatKhau').addEventListener('click', () => {
   const matKhauCu = document.getElementById('fMatKhauCu').value;
   const matKhauMoi = document.getElementById('fMatKhauMoi').value;
-  if (!matKhauCu || !matKhauMoi) { showToast('Nhập đủ mật khẩu hiện tại và mật khẩu mới.'); return; }
+  const loi = [];
+  if (!matKhauCu) loi.push({ el: 'fMatKhauCu', msg: 'Nhập mật khẩu hiện tại' });
+  if (!matKhauMoi) loi.push({ el: 'fMatKhauMoi', msg: 'Nhập mật khẩu mới' });
+  if (baoLoiForm(loi)) return;
   apiCall('doiMatKhau', { matKhauCu, matKhauMoi }).then(() => {
     showToast('Đã đổi mật khẩu.'); document.getElementById('fMatKhauCu').value = ''; document.getElementById('fMatKhauMoi').value = '';
   }).catch(err => showToast('Lỗi: ' + err.message));

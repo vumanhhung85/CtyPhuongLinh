@@ -211,14 +211,12 @@ function loadAllData() {
 
 /* ================= DASHBOARD ================= */
 function renderDashboard() {
+  // Lần đầu (chưa có số liệu): khung chờ thay vì để trống
+  if (!document.querySelector('#dashCards .statCard')) document.getElementById('dashCards').innerHTML = [0, 1, 2, 3].map(() => '<div class="kpi kpiXam"><i></i><i></i></div>').join('');
+  const bd = document.getElementById('dashChart'); if (bd && !bd.firstChild) bd.innerHTML = khungXam(4);
   apiCall('getDashboard').then(d => {
     STATE.dash = d;
-    veKpi('dashCards', [
-      { label: 'Doanh thu tháng này (trước thuế)', val: fmtMoney(d.doanhThuThangNay), mau: 'blue' },
-      { label: 'Nhập kho tháng này (trước thuế)', val: fmtMoney(d.nhapKhoThangNay), mau: 'navy' },
-      { label: 'Công nợ phải thu', val: fmtMoney(d.congNoPhaiThu), mau: 'orange' },
-      { label: 'Công nợ phải trả', val: fmtMoney(d.congNoPhaiTra), mau: 'gray' }
-    ]);
+    veTongQuan(d);
     const demSo = [
       { label: 'Phiếu xuất bán tháng này', val: d.soPhieuXuatThangNay, den: 'xuatban' },
       { label: 'Sửa chữa đang xử lý', val: d.suaChuaDangXuLy, cls: d.suaChuaDangXuLy > 0 ? 'warn' : '', den: 'suachua' },
@@ -230,7 +228,7 @@ function renderDashboard() {
     document.getElementById('dashDemSo').innerHTML = demSo.map(c => `<div class="miniStat ${c.cls || ''}" ${c.den ? `data-den="${c.den}" title="Mở trang"` : ''}><span class="ms-label">${c.label}</span><span class="ms-val">${c.val}</span></div>`).join('');
     const lowStockWrap = document.getElementById('dashLowStock');
     if (!d.hangSapHet || d.hangSapHet.length === 0) {
-      lowStockWrap.innerHTML = '<div class="empty">Không có hàng nào dưới mức tồn tối thiểu.</div>';
+      lowStockWrap.innerHTML = trangThaiRong({ bieuTuong: 'tick', tieuDe: 'Tồn kho ổn', moTa: 'Không có mặt hàng nào dưới mức tồn tối thiểu.' });
     } else {
       lowStockWrap.innerHTML = `<table><thead><tr><th>Mã</th><th>Tên hàng</th><th>Tồn kho</th><th>Tồn tối thiểu</th></tr></thead><tbody>
         ${d.hangSapHet.map(h => `<tr><td>${h.MaHH}</td><td>${h.TenHH}</td><td>${tonKhoKep(h)}</td><td>${h.TonKhoToiThieu}</td></tr>`).join('')}

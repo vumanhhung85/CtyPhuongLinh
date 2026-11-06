@@ -1,5 +1,6 @@
 /* ================= SỬA CHỮA ================= */
 function renderSuaChuaTable() {
+  hienDangTai('suaChuaTableWrap');
   apiCall('getSuaChuaList', { gioiHan: STATE_DA_TAI_HET.suachua ? null : GIOI_HAN_MAC_DINH }).then(list => {
     STATE.suaChuaList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
     drawSuaChuaTable();
@@ -21,7 +22,8 @@ function drawSuaChuaTable() {
     const filterTT = document.getElementById('filterTrangThaiSC').value;
     const filtered = filterTT ? STATE.suaChuaList.filter(x => x.TrangThai === filterTT) : STATE.suaChuaList;
     const wrap = document.getElementById('suaChuaTableWrap');
-    if (filtered.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu sửa chữa nào.</div>'; return; }
+    veChipLoc('filterTrangThaiSC', STATE.suaChuaList, demTheoTruong('filterTrangThaiSC', 'TrangThai'));
+    if (filtered.length === 0) { wrap.innerHTML = STATE.suaChuaList.length ? trangThaiKhongKhop('', 'filterTrangThaiSC') : trangThaiRong({ bieuTuong: 'cle', tieuDe: 'Chưa có phiếu sửa chữa nào', moTa: 'Tiếp nhận máy của khách để theo dõi tình trạng, linh kiện và công nợ.', nhan: '+ Tiếp nhận sửa chữa', hanhDong: "document.getElementById('btnAddSuaChua').click()" }); return; }
     const goiYXemThem = !STATE_DA_TAI_HET.suachua ? `<p class="muted" style="margin:8px 0;">Đang hiện ${STATE.suaChuaList.length} phiếu gần đây (+ các phiếu chưa xong dù cũ). <a href="#" onclick="xemToanBoLichSu('suachua');return false;">Xem toàn bộ lịch sử</a></p>` : '';
     wrap.innerHTML = `${goiYXemThem}<table><thead><tr><th>Ngày</th><th>Khách hàng</th><th>Thiết bị</th><th>Trạng thái</th><th>Tổng thanh toán</th><th>Còn nợ</th><th>Kỹ thuật viên</th><th></th></tr></thead><tbody>
       ${filtered.map(s => { const conNo = (Number(s.TongTien) || 0) - (Number(s.DaThu) || 0); return `<tr>
@@ -93,7 +95,7 @@ function submitPhieuSuaChua() {
     GhiChu: document.getElementById('fGhiChuPhieu').value.trim(),
     TrangThai: 'TiepNhan', items
   };
-  if (!data.ThietBi) { showToast('Vui lòng nhập tên thiết bị.'); return; }
+  if (baoLoiForm([...(!data.ThietBi ? [{ el: 'fThietBi', msg: 'Nhập tên thiết bị nhận sửa' }] : []), ...loiDongHang('scItemsContainer', true)])) return;
   apiCall('saveSuaChua', { data }).then(res => {
     closeModal(); showToast('Đã lưu phiếu tiếp nhận sửa chữa.');
     if (res && res.phieu) {
@@ -101,6 +103,7 @@ function submitPhieuSuaChua() {
       mergeTonKhoVaoState(res.tonKhoCapNhat);
       drawSuaChuaTable();
       drawHangHoaTable();
+      nhayDong(res.phieu.IDPhieu);
     } else {
       renderSuaChuaTable(); renderHangHoaTable();
     }
@@ -142,7 +145,7 @@ function openSuaPhieuSuaChuaForm(idPhieu) {
     recalcGrandTotalGeneric('scItemsContainer');
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function submitSuaPhieuSuaChua(idPhieu, daThuCu) {
+async function submitSuaPhieuSuaChua(idPhieu, daThuCu) {
   const items = readItemsFrom('scItemsContainer');
   const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
   const tenKhachTay = document.getElementById('fTenKhachTay').value.trim();
@@ -160,13 +163,14 @@ function submitSuaPhieuSuaChua(idPhieu, daThuCu) {
     TienCongThueSuat: document.getElementById('fTienCongThueSuat').value,
     GhiChu: document.getElementById('fGhiChuPhieu').value.trim(), items
   };
-  if (!data.ThietBi) { showToast('Vui lòng nhập tên thiết bị.'); return; }
-  if (items.length && !xacNhanDonGiaKhong(items)) return;
+  if (baoLoiForm([...(!data.ThietBi ? [{ el: 'fThietBi', msg: 'Nhập tên thiết bị nhận sửa' }] : []), ...loiDongHang('scItemsContainer', true)])) return;
+  if (items.length && !(await xacNhanDonGiaKhong(items))) return;
   const tienLinhKien = items.reduce((s, it) => { const t = it.SoLuong * it.DonGia; return s + t + tinhTienThueJS(t, it.ThueSuat); }, 0);
   const tienCongSauThue = data.TienCong + tinhTienThueJS(data.TienCong, data.TienCongThueSuat);
   const tongTienMoi = tienLinhKien + tienCongSauThue;
   if (daThuCu > tongTienMoi + 1) {
-    if (!confirm(`⚠️ Phiếu này đã thu ${fmtMoney(daThuCu)}, nhưng sau khi sửa tổng tiền chỉ còn ${fmtMoney(tongTienMoi)} — sẽ dư ${fmtMoney(daThuCu - tongTienMoi)}.\n\nVẫn muốn lưu? (Anh tự đối chiếu lại với khách sau.)`)) return;
+    if (!(await xacNhan({ tieuDe: 'Số đã thu lớn hơn tổng tiền mới', kieu: 'canhBao',
+      noiDung: `Phiếu này đã thu ${vnd(daThuCu)}, nhưng sau khi sửa tổng tiền chỉ còn ${vnd(tongTienMoi)} — dư ${vnd(daThuCu - tongTienMoi)}.\n\nVẫn lưu? Anh tự đối chiếu lại với khách sau.`, nhanDongY: 'Vẫn lưu', nhanHuy: 'Quay lại sửa' }))) return;
   }
   apiCall('suaPhieuSuaChua', { idPhieu, data }).then(res => {
     closeModal(); showToast('Đã lưu thay đổi phiếu sửa chữa.');
@@ -221,7 +225,7 @@ function viewPhieuSuaChua(idPhieu) {
 }
 function ghiNhanThuSuaChua(idPhieu) {
   const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
-  if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  if (baoLoiForm(soTien <= 0 ? [{ el: 'fSoTienTT', msg: 'Nhập số tiền lớn hơn 0' }] : [])) return;
   const phuongThuc = document.getElementById('fPhuongThucTT').value;
   apiCall('capNhatDaThuSuaChua', { idPhieu, soTien, phuongThuc }).then(() => { closeModal(); showToast('Đã ghi nhận thanh toán.'); renderSuaChuaTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
@@ -251,6 +255,7 @@ function trangThaiGCLabel(v) { return { TiepNhan: 'Tiếp nhận', DangGiaCong: 
 function trangThaiGCTag(v) { const map = { TiepNhan: 'info', DangGiaCong: 'warn', HoanThanh: 'good', DaGiao: 'good' }; return `<span class="tag ${map[v] || 'info'}">${trangThaiGCLabel(v)}</span>`; }
 
 function renderGiaCongTable() {
+  hienDangTai('giaCongTableWrap');
   apiCall('getGiaCongList', { gioiHan: STATE_DA_TAI_HET.giacong ? null : GIOI_HAN_MAC_DINH }).then(list => {
     STATE.giaCongList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
     drawGiaCongTable();
@@ -274,7 +279,8 @@ function drawGiaCongTable() {
     const filterLoai = document.getElementById('filterLoaiGC').value;
     const filtered = filterLoai ? STATE.giaCongList.filter(g => g.Loai === filterLoai) : STATE.giaCongList;
     const wrap = document.getElementById('giaCongTableWrap');
-    if (filtered.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu gia công nào.</div>'; return; }
+    veChipLoc('filterLoaiGC', STATE.giaCongList, demTheoTruong('filterLoaiGC', 'Loai'));
+    if (filtered.length === 0) { wrap.innerHTML = STATE.giaCongList.length ? trangThaiKhongKhop('', 'filterLoaiGC') : trangThaiRong({ bieuTuong: 'hop', tieuDe: 'Chưa có phiếu gia công nào', moTa: 'Ghi nhận việc nhận gia công cho khách hoặc thuê gia công bên ngoài.', nhan: '+ Tạo phiếu gia công', hanhDong: "document.getElementById('btnAddGiaCong').click()" }); return; }
     const goiYXemThem = !STATE_DA_TAI_HET.giacong ? `<p class="muted" style="margin:8px 0;">Đang hiện ${STATE.giaCongList.length} phiếu gần đây (+ các phiếu chưa xong dù cũ). <a href="#" onclick="xemToanBoLichSu('giacong');return false;">Xem toàn bộ lịch sử</a></p>` : '';
     wrap.innerHTML = `${goiYXemThem}<table><thead><tr><th>Ngày</th><th>Loại</th><th>Đối tác</th><th>Công việc</th><th>Trạng thái</th><th>Chi phí (sau thuế)</th><th>Còn nợ</th><th></th></tr></thead><tbody>
       ${filtered.map(g => {
@@ -356,7 +362,7 @@ function submitPhieuGiaCong() {
     GhiChu: document.getElementById('fGhiChuPhieu').value.trim(),
     TrangThai: 'TiepNhan', items
   };
-  if (!data.MoTaCongViec) { showToast('Vui lòng nhập mô tả công việc.'); return; }
+  if (baoLoiForm([...(!data.MoTaCongViec ? [{ el: 'fMoTaCongViec', msg: 'Nhập mô tả công việc gia công' }] : []), ...loiDongHang('gcItemsContainer', true)])) return;
   apiCall('saveGiaCong', { data }).then(res => {
     closeModal(); showToast('Đã lưu phiếu gia công.');
     if (res && res.phieu) {
@@ -364,6 +370,7 @@ function submitPhieuGiaCong() {
       mergeTonKhoVaoState(res.tonKhoCapNhat);
       drawGiaCongTable();
       drawHangHoaTable();
+      nhayDong(res.phieu.IDPhieu);
     } else {
       renderGiaCongTable(); renderHangHoaTable();
     }
@@ -407,7 +414,7 @@ function openSuaPhieuGiaCongForm(idPhieu) {
     recalcGrandTotalGeneric('gcItemsContainer');
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function submitSuaPhieuGiaCong(idPhieu, daXongCu) {
+async function submitSuaPhieuGiaCong(idPhieu, daXongCu) {
   const items = readItemsFrom('gcItemsContainer');
   const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
   const data = {
@@ -421,11 +428,12 @@ function submitSuaPhieuGiaCong(idPhieu, daXongCu) {
     NgayHenTra: document.getElementById('fNgayHenTra').value,
     GhiChu: document.getElementById('fGhiChuPhieu').value.trim(), items
   };
-  if (!data.MoTaCongViec) { showToast('Vui lòng nhập mô tả công việc.'); return; }
-  if (items.length && !xacNhanDonGiaKhong(items)) return;
+  if (baoLoiForm([...(!data.MoTaCongViec ? [{ el: 'fMoTaCongViec', msg: 'Nhập mô tả công việc gia công' }] : []), ...loiDongHang('gcItemsContainer', true)])) return;
+  if (items.length && !(await xacNhanDonGiaKhong(items))) return;
   const chiPhiSauThueMoi = data.ChiPhiGiaCong + tinhTienThueJS(data.ChiPhiGiaCong, data.ThueSuatGiaCong);
   if (daXongCu > chiPhiSauThueMoi + 1) {
-    if (!confirm(`⚠️ Phiếu này đã ghi nhận ${fmtMoney(daXongCu)}, nhưng sau khi sửa tổng chi phí chỉ còn ${fmtMoney(chiPhiSauThueMoi)} — sẽ dư ${fmtMoney(daXongCu - chiPhiSauThueMoi)}.\n\nVẫn muốn lưu? (Anh tự đối chiếu lại sau.)`)) return;
+    if (!(await xacNhan({ tieuDe: 'Số đã ghi nhận lớn hơn tổng chi phí mới', kieu: 'canhBao',
+      noiDung: `Phiếu này đã ghi nhận ${vnd(daXongCu)}, nhưng sau khi sửa tổng chi phí chỉ còn ${vnd(chiPhiSauThueMoi)} — dư ${vnd(daXongCu - chiPhiSauThueMoi)}.\n\nVẫn lưu? Anh tự đối chiếu lại sau.`, nhanDongY: 'Vẫn lưu', nhanHuy: 'Quay lại sửa' }))) return;
   }
   apiCall('suaPhieuGiaCong', { idPhieu, data }).then(res => {
     closeModal(); showToast('Đã lưu thay đổi phiếu gia công.');
@@ -479,7 +487,7 @@ function viewPhieuGiaCong(idPhieu) {
 }
 function ghiNhanThanhToanGC(idPhieu, loaiTien) {
   const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
-  if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  if (baoLoiForm(soTien <= 0 ? [{ el: 'fSoTienTT', msg: 'Nhập số tiền lớn hơn 0' }] : [])) return;
   const phuongThuc = document.getElementById('fPhuongThucTT').value;
   apiCall('capNhatThanhToanGiaCong', { idPhieu, loaiTien, soTien, phuongThuc }).then(() => { closeModal(); showToast('Đã ghi nhận.'); renderGiaCongTable(); renderCongNo(); }).catch(err => showToast('Lỗi: ' + err.message));
 }

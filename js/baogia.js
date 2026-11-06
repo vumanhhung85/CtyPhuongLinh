@@ -30,9 +30,10 @@ function drawBaoGiaTable() {
   veKpiBaoGia();
   const wrap = document.getElementById('baoGiaTableWrap');
   const list = STATE.baoGiaList || [];
-  if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có báo giá nào. Bấm "+ Tạo báo giá" để lập báo giá đầu tiên.</div>'; return; }
+  veChipLoc('locBaoGia', list, demTheoTruong('locBaoGia', 'TrangThai'));
+  if (!list.length) { wrap.innerHTML = trangThaiRong({ bieuTuong: 'giay', tieuDe: 'Chưa có báo giá nào', moTa: 'Lập báo giá gửi khách, khi khách đồng ý chỉ cần bấm Chốt là ra phiếu xuất bán.', nhan: '+ Tạo báo giá đầu tiên', hanhDong: "document.getElementById('btnAddBaoGia').click()" }); return; }
   const hienThi = locDanhSach(list, 'timBaoGia', 'locBaoGia', x => [x.SoBaoGia, x.TenKH, x.TieuDe, x.GhiChu].join(' '), (x, loc) => x.TrangThai === loc);
-  if (!hienThi.length) { wrap.innerHTML = '<div class="empty">Không có báo giá nào khớp bộ lọc.</div>'; return; }
+  if (!hienThi.length) { wrap.innerHTML = trangThaiKhongKhop('timBaoGia', 'locBaoGia'); return; }
   const goiY = !STATE_DA_TAI_HET.baogia ? `<p class="muted" style="margin:8px 0;">Đang hiện ${list.length} báo giá gần đây (+ mọi báo giá đang chờ). <a href="#" onclick="STATE_DA_TAI_HET.baogia=true;renderBaoGiaTable();return false;">Xem toàn bộ</a></p>` : '';
   wrap.innerHTML = `${goiY}<table><thead><tr><th>Số báo giá</th><th>Ngày</th><th>Khách hàng</th><th>Nội dung</th><th>Tổng tiền</th><th>Hiệu lực đến</th><th>Trạng thái</th><th></th></tr></thead><tbody>
     ${hienThi.map(x => {
@@ -108,13 +109,16 @@ function dienKhachBaoGia() {
   document.getElementById('fDiaChiKH').value = kh.DiaChi || '';
   document.getElementById('fMSTKhach').value = kh.MST || '';
 }
-function submitBaoGia(idPhieu) {
-  const items = readItemsFrom('bgItemsContainer');
-  if (!items.length) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
-  if (!xacNhanDonGiaKhong(items)) return;
+async function submitBaoGia(idPhieu) {
   const sel = document.getElementById('fDoiTac');
   const kh = timKhachHang(sel.value);
   const tenTay = document.getElementById('fTenKhachTay').value.trim();
+  const loi = loiDongHang('bgItemsContainer');
+  if (!document.getElementById('fNgay').value) loi.unshift({ el: 'fNgay', msg: 'Chọn ngày lập báo giá' });
+  if (!kh && !tenTay) loi.unshift({ el: 'fDoiTac', msg: 'Chọn khách hàng, hoặc gõ tên khách vào ô “nhập tay” bên dưới' });
+  if (baoLoiForm(loi)) return;
+  const items = readItemsFrom('bgItemsContainer');
+  if (!(await xacNhanDonGiaKhong(items))) return;
   const data = {
     IDPhieu: idPhieu || undefined,
     Ngay: document.getElementById('fNgay').value, HieuLucDen: document.getElementById('fHieuLuc').value,
@@ -123,14 +127,16 @@ function submitBaoGia(idPhieu) {
     NguoiLienHe: document.getElementById('fNguoiLienHe').value.trim(), TieuDe: document.getElementById('fTieuDe').value.trim(),
     DieuKhoan: document.getElementById('fDieuKhoan').value.trim(), GhiChu: document.getElementById('fGhiChuPhieu').value.trim(), items
   };
-  if (!data.TenKH) { showToast('Chọn khách hàng hoặc gõ tên khách.'); return; }
   apiCall('saveBaoGia', { data }).then(res => {
     closeModal();
-    showToast(idPhieu ? 'Đã lưu thay đổi báo giá.' : `Đã tạo báo giá ${res.phieu.SoBaoGia}.`);
+    const laAdmin = STATE.user && STATE.user.vaiTro === 'Admin'; // xoá báo giá chỉ Admin được làm -> chỉ Admin có nút Hoàn tác
+    showToast(idPhieu ? 'Đã lưu thay đổi báo giá.' : `Đã tạo báo giá ${res.phieu.SoBaoGia}.`,
+      !idPhieu && laAdmin ? { nhan: 'Hoàn tác', ms: 9000, fn: () => hoanTacTaoBaoGia(res.idPhieu) } : undefined);
     STATE.baoGiaList = STATE.baoGiaList || [];
     const i = STATE.baoGiaList.findIndex(x => x.IDPhieu === res.idPhieu);
     if (i >= 0) STATE.baoGiaList[i] = res.phieu; else STATE.baoGiaList.unshift(res.phieu);
     drawBaoGiaTable();
+    nhayDong(res.idPhieu);
     if (!idPhieu) setTimeout(() => inBaoGia(res.idPhieu), 300); // tạo xong mở luôn bản in để gửi khách
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
@@ -155,9 +161,21 @@ function luuTrangThaiBaoGia(idPhieu) {
     drawBaoGiaTable();
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function xoaBaoGiaUI(idPhieu) {
+function hoanTacTaoBaoGia(idPhieu) {
+  apiCall('xoaBaoGia', { idPhieu }).then(() => {
+    showToast('Đã hoàn tác: báo giá vừa tạo đã bị xoá.');
+    STATE.baoGiaList = (STATE.baoGiaList || []).filter(x => x.IDPhieu !== idPhieu);
+    drawBaoGiaTable();
+  }).catch(err => showToast('Lỗi: không hoàn tác được — ' + err.message));
+}
+async function xoaBaoGiaUI(idPhieu) {
   const p = (STATE.baoGiaList || []).find(x => x.IDPhieu === idPhieu);
-  if (!confirm(`Xoá báo giá ${p ? p.SoBaoGia : ''}?${p && p.TrangThai === 'DaChot' ? '\n(Phiếu xuất đã tạo từ báo giá này vẫn giữ nguyên.)' : ''}`)) return;
+  const ok = await xacNhan({
+    tieuDe: `Xoá báo giá ${p ? p.SoBaoGia : ''}?`, kieu: 'nguyHiem',
+    noiDung: `${p ? `${fmtDate(p.Ngay)} — ${p.TenKH || '—'} — ${vnd(p.TongTien)}\n\n` : ''}${p && p.TrangThai === 'DaChot' ? 'Phiếu xuất đã tạo từ báo giá này vẫn giữ nguyên. ' : ''}Báo giá đã xoá không khôi phục được.`,
+    nhanDongY: 'Xoá báo giá'
+  });
+  if (!ok) return;
   apiCall('xoaBaoGia', { idPhieu }).then(() => {
     showToast('Đã xoá báo giá.');
     STATE.baoGiaList = STATE.baoGiaList.filter(x => x.IDPhieu !== idPhieu);

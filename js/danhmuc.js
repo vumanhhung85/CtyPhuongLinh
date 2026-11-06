@@ -1,5 +1,6 @@
 /* ================= DANH MỤC HÀNG HOÁ ================= */
 function renderHangHoaTable() {
+  hienDangTai('hhTableWrap');
   apiCall('getHangHoaList').then(list => { STATE.hangHoaList = list; drawHangHoaTable(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function drawHangHoaTable() {
@@ -15,7 +16,11 @@ function drawHangHoaTable() {
     (!anDichVu || h.Loai !== 'DichVu')
   );
   const wrap = document.getElementById('hhTableWrap');
-  if (list.length === 0) { wrap.innerHTML = '<div class="empty">Không có hàng hoá / dịch vụ nào phù hợp.</div>'; return; }
+  if (list.length === 0) {
+    wrap.innerHTML = STATE.hangHoaList.length ? trangThaiKhongKhop('searchHH', '')
+      : trangThaiRong({ bieuTuong: 'hop', tieuDe: 'Danh mục còn trống', moTa: 'Thêm hàng hoá hoặc dịch vụ để bắt đầu lập phiếu bán/nhập.', nhan: '+ Thêm mới', hanhDong: "document.getElementById('btnAddHH').click()" });
+    return;
+  }
   wrap.innerHTML = `<table><thead><tr>${anCotMa ? '' : '<th style="width:1%;">Mã</th>'}<th>Tên</th><th>Loại</th><th>ĐVT</th><th>Giá vốn TB</th><th>Giá bán</th><th>Tồn kho</th><th></th></tr></thead><tbody>
     ${list.map(h => {
       const ton = Number(h.TonKho);
@@ -57,18 +62,18 @@ function openEditHH(maHH) {
       <div class="field span2"><label>Ghi chú</label><input id="fGhiChu" value="${item ? item.GhiChu || '' : ''}"></div>
     </div>
     ${item && item.Loai === 'HangHoa' ? `
-    <div class="panel" style="margin:14px 0 0;background:#f3fbf1;border-color:#cfe9c8;">
+    <div class="panel" style="margin:14px 0 0;background:var(--good-soft);border-color:var(--line);">
       <p class="muted" style="margin:0 0 8px;">Tồn kho hiện tại: <b>${tonKhoKep(item)}</b>. Số lượng tồn không gõ trực tiếp ở đây — tồn kho luôn tính từ các phiếu. Muốn có hàng để bán: hàng mua có hoá đơn dùng <b>phiếu Nhập kho</b>; hàng có sẵn / mua ngoài không hoá đơn dùng <b>Nhập tồn đầu kỳ</b>.</p>
       <button class="btn secondary small" type="button" onclick="moTonDauKyChoHang('${item.MaHH}')">📦 Nhập tồn đầu kỳ cho mặt hàng này</button>
     </div>` : ''}
     ${item ? `
-    <div class="panel" style="margin:14px 0 0;background:#f4f7ff;border-color:var(--brand-soft);">
+    <div class="panel" style="margin:14px 0 0;background:var(--info-soft);border-color:var(--line);">
       <p class="muted" style="margin:0 0 8px;">Nếu vừa đổi Loại (Hàng hoá ↔ Dịch vụ) hoặc nghi ngờ tồn kho sai — bấm nút này để quét lại toàn bộ lịch sử phiếu Nhập/Xuất/Sửa chữa/Gia công và tính lại đúng tồn kho + giá vốn từ đầu.</p>
       <button class="btn secondary small" type="button" onclick="tinhLaiTonKhoUI('${item.MaHH}')">🔄 Tính lại tồn kho từ lịch sử</button>
       <div id="ketQuaTinhLaiTon" style="margin-top:8px;font-size:13px;"></div>
     </div>
     ${item.Loai === 'HangHoa' ? `
-    <div class="panel" style="margin:10px 0 0;background:#fffaf0;border-color:#f3dfb4;">
+    <div class="panel" style="margin:10px 0 0;background:var(--warn-soft);border-color:var(--line);">
       <p class="muted" style="margin:0 0 8px;">Phiếu cũ ghi sai đơn vị (VD hoá đơn nhập <b>1 Cuộn</b> nhưng kho chỉ tăng <b>1 Mét</b> vì lúc đó chưa khai "Đơn vị nhập lớn") — bấm để xem từng dòng và chọn lại đúng đơn vị. Tồn kho, giá vốn và giá vốn các dòng bán sẽ được tính lại.</p>
       <button class="btn secondary small" type="button" onclick="moDongTheoDonVi('${item.MaHH}')">📐 Kiểm tra đơn vị các phiếu đã ghi</button>
       <div id="dsDongDonVi" style="margin-top:8px;"></div>
@@ -86,7 +91,7 @@ function saveHH(maHH) {
     DVTNhap: document.getElementById('fDVTNhap').value.trim(),
     HeSoQuyDoi: Number(document.getElementById('fHeSoQuyDoi').value) || 0
   };
-  if (!data.TenHH) { showToast('Vui lòng nhập tên.'); return; }
+  if (baoLoiForm(!data.TenHH ? [{ el: 'fTenHH', msg: 'Nhập tên hàng hoá / dịch vụ' }] : [])) return;
   apiCall('saveHangHoa', { data }).then(res => {
     closeModal(); showToast('Đã lưu.');
     // Gộp trực tiếp bản ghi vừa lưu vào STATE và vẽ lại bảng ngay — khỏi gọi mạng lại getHangHoaList.
@@ -94,13 +99,16 @@ function saveHH(maHH) {
       const idx = STATE.hangHoaList.findIndex(h => h.MaHH === res.hangHoa.MaHH);
       if (idx >= 0) STATE.hangHoaList[idx] = res.hangHoa; else STATE.hangHoaList.unshift(res.hangHoa);
       drawHangHoaTable();
+      nhayDong(res.hangHoa.MaHH);
     } else {
       renderHangHoaTable();
     }
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function deleteHH(maHH) {
-  if (!confirm('Xoá mục này khỏi danh mục?')) return;
+async function deleteHH(maHH) {
+  const h = STATE.hangHoaList.find(x => x.MaHH === maHH);
+  if (!(await xacNhan({ tieuDe: 'Xoá khỏi danh mục?', kieu: 'nguyHiem',
+    noiDung: `${h ? `${h.TenHH} (${h.MaHH})\n\n` : ''}Chỉ xoá được khi chưa có phiếu nào dùng mặt hàng này. Mục đã xoá không khôi phục được.`, nhanDongY: 'Xoá mục này' }))) return;
   apiCall('deleteHangHoa', { maHH }).then(() => { showToast('Đã xoá.'); renderHangHoaTable(); }).catch(baoLoiXoaDanhMuc);
 }
 /* ---- Chọn lại đơn vị cho dòng phiếu cũ (áp hệ số quy đổi) ---- */
@@ -134,7 +142,7 @@ function veDongTheoDonVi() {
     <div class="tableWrap"><table class="itemsTable"><thead><tr><th>Phiếu</th><th>Số lượng ghi</th><th>Đơn vị</th><th class="num">Quy ra ${h.DVT || 'ĐV chính'}</th><th class="num">Thành tiền</th></tr></thead><tbody>
     ${dong.map((d, i) => {
       const nghiVan = coDonViLon && Number(d.HeSoQuyDoi) <= 1 && !d.DVT;
-      return `<tr style="${nghiVan ? 'background:#fff4d6;' : ''}">
+      return `<tr style="${nghiVan ? 'background:var(--warn-soft);' : ''}">
         <td>${d.TenBang} · ${fmtDate(d.Ngay)}${d.SoHD ? ' · HĐ ' + d.SoHD : ''}</td>
         <td data-label="Số lượng ghi">${fmtSoLuong(d.SoLuong)}${d.DVT ? ' ' + d.DVT : ''}</td>
         <td data-label="Đơn vị"><select data-i="${i}" onchange="capNhatXemTruocDonVi(this)" ${coDonViLon ? '' : 'disabled'} style="width:100%;padding:6px;">
@@ -155,7 +163,7 @@ function capNhatXemTruocDonVi(sel) {
   const doi = Math.abs(moi - Number(d.SoLuongQuyDoi)) > 1e-9;
   document.getElementById('xtDV' + i).innerHTML = doi ? `<span><s class="muted">${fmtSoLuong(d.SoLuongQuyDoi)}</s> → <b>${fmtSoLuong(moi)}</b></span>` : fmtSoLuong(d.SoLuongQuyDoi);
 }
-function luuDonViDongCu(maHH) {
+async function luuDonViDongCu(maHH) {
   const heSo = Number(_dongDonVi.hangHoa.HeSoQuyDoi) || 1;
   const doi = [...document.querySelectorAll('#dsDongDonVi select[data-i]')].map(sel => {
     const d = _dongDonVi.dong[Number(sel.dataset.i)];
@@ -163,7 +171,7 @@ function luuDonViDongCu(maHH) {
     return Math.abs(moi - Number(d.SoLuongQuyDoi)) > 1e-9 ? { Bang: d.Bang, ID: d.ID, DonVi: sel.value } : null;
   }).filter(Boolean);
   if (!doi.length) { showToast('Chưa đổi dòng nào.'); return; }
-  if (!confirm(`Ghi lại đơn vị cho ${doi.length} dòng phiếu cũ, rồi tính lại tồn kho + giá vốn (kể cả giá vốn các dòng đã bán)?`)) return;
+  if (!(await xacNhan({ tieuDe: `Ghi lại đơn vị cho ${doi.length} dòng phiếu cũ?`, kieu: 'canhBao', noiDung: 'Sau đó tồn kho và giá vốn sẽ được tính lại, kể cả giá vốn của các dòng đã bán.', nhanDongY: 'Ghi lại và tính lại', nhanHuy: 'Quay lại' }))) return;
   const kq = document.getElementById('kqDonVi');
   kq.textContent = 'Đang cập nhật...';
   apiCall('apDungDonViDongCu', { maHH, dong: doi }).then(res => {

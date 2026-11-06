@@ -3,6 +3,7 @@ const STATE_DA_TAI_HET = {}; // đánh dấu tab nào đã bấm "Xem toàn bộ
 const GIOI_HAN_MAC_DINH = 200; // tải 200 giao dịch gần đây nhất theo mặc định, đủ dùng đa số ngày làm việc
 
 function renderNhapKhoTable() {
+  hienDangTai('nhapTableWrap');
   apiCall('getNhapKhoList', { gioiHan: STATE_DA_TAI_HET.nhap ? null : GIOI_HAN_MAC_DINH }).then(list => {
     STATE.nhapKhoList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
     drawNhapKhoTable();
@@ -33,10 +34,11 @@ function locDanhSach(list, oTim, oLoc, fnChu, fnLoc) {
 function drawNhapKhoTable() {
     veKpiNhap();
     const wrap = document.getElementById('nhapTableWrap');
-    if (STATE.nhapKhoList.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu nhập kho nào.</div>'; return; }
+    veChipLoc('locNhap', STATE.nhapKhoList, { conNo: n => (Number(n.TongTien) || 0) - (Number(n.DaTra) || 0) > 0, chuaHD: n => !n.SoHDMuaVao });
+    if (STATE.nhapKhoList.length === 0) { wrap.innerHTML = trangThaiRong({ bieuTuong: 'hop', tieuDe: 'Chưa có phiếu nhập kho nào', moTa: 'Nhập kho khi mua hàng về — tồn kho và giá vốn bình quân tự cập nhật.', nhan: '+ Tạo phiếu nhập', hanhDong: "document.getElementById('btnAddNhap').click()" }); return; }
     const hienThi = locDanhSach(STATE.nhapKhoList, 'timNhap', 'locNhap', n => [n.TenNCC, n.SoHDMuaVao, n.IDPhieu, n.GhiChu].join(' '),
       (n, loc) => loc === 'conNo' ? (Number(n.TongTien) || 0) - (Number(n.DaTra) || 0) > 0 : !n.SoHDMuaVao);
-    if (hienThi.length === 0) { wrap.innerHTML = '<div class="empty">Không có phiếu nào khớp bộ lọc.</div>'; return; }
+    if (hienThi.length === 0) { wrap.innerHTML = trangThaiKhongKhop('timNhap', 'locNhap'); return; }
     const goiYXemThem = !STATE_DA_TAI_HET.nhap ? `<p class="muted" style="margin:8px 0;">Đang hiện ${STATE.nhapKhoList.length} phiếu gần đây (+ các phiếu còn nợ dù cũ). <a href="#" onclick="xemToanBoLichSu('nhap');return false;">Xem toàn bộ lịch sử</a></p>` : '';
     wrap.innerHTML = `${goiYXemThem}<table><thead><tr><th>Ngày</th><th>Nhà cung cấp</th><th>Số HĐ mua vào</th><th>Tổng thanh toán</th><th>Đã trả</th><th>Còn nợ</th><th>Người tạo</th><th></th></tr></thead><tbody>
       ${hienThi.map(n => { const conNo = (Number(n.TongTien) || 0) - (Number(n.DaTra) || 0); return `<tr>
@@ -67,10 +69,12 @@ function openPhieuNhapForm() {
   renderItemsTableInto('nhapItemsContainer', 'gia_von');
   addItemRowInto('nhapItemsContainer', 'gia_von');
 }
-function submitPhieuNhap() {
+async function submitPhieuNhap() {
+  const loi = loiDongHang('nhapItemsContainer');
+  if (!document.getElementById('fNgay').value) loi.unshift({ el: 'fNgay', msg: 'Chọn ngày lập phiếu' });
+  if (baoLoiForm(loi)) return;
   const items = readItemsFrom('nhapItemsContainer');
-  if (items.length === 0) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
-  if (!xacNhanDonGiaKhong(items)) return;
+  if (!(await xacNhanDonGiaKhong(items))) return;
   const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
   const data = {
     Ngay: document.getElementById('fNgay').value, GhiChu: document.getElementById('fGhiChuPhieu').value,
@@ -81,22 +85,23 @@ function submitPhieuNhap() {
 }
 function guiPhieuNhap(data) {
   apiCall('saveNhapKho', { data }).then(res => {
-    closeModal(); showToast('Đã lưu phiếu nhập kho.');
+    closeModal(); showToast('Đã lưu phiếu nhập kho.', thamSoHoanTac('nhap', res && res.phieu ? res.phieu.IDPhieu : res && res.idPhieu));
     // Gộp thẳng phiếu + tồn kho mới vào STATE và vẽ lại — khỏi phải gọi mạng lại 2 lần (getNhapKhoList + getHangHoaList).
     if (res && res.phieu) {
       STATE.nhapKhoList.unshift(res.phieu);
       mergeTonKhoVaoState(res.tonKhoCapNhat);
       drawNhapKhoTable();
       drawHangHoaTable();
+      nhayDong(res.phieu.IDPhieu);
     } else {
       renderNhapKhoTable(); renderHangHoaTable();
     }
-  }).catch(err => {
+  }).catch(async err => {
     // Số HĐ mua vào đã có phiếu nhập của cùng nhà cung cấp (VD đã nhập từ bảng kê) -> hỏi trước, tránh cộng tồn 2 lần
     const msg = String(err.message || '');
     if (msg.startsWith('HOA_DON_DA_NHAP')) {
       const lyDo = msg.replace(/^HOA_DON_DA_NHAP:\s*/, '');
-      if (confirm(`⚠️ ${lyDo}\n\nBấm OK CHỈ KHI chắc chắn đây là hoá đơn KHÁC (VD khác ký hiệu). Bấm Huỷ để không lưu.`)) {
+      if (await xacNhan({ tieuDe: 'Số hoá đơn này đã có phiếu nhập', noiDung: lyDo + '\n\nChỉ lưu tiếp khi chắc chắn đây là hoá đơn KHÁC (ví dụ khác ký hiệu). Nếu không, tồn kho sẽ bị cộng 2 lần.', kieu: 'canhBao', nhanDongY: 'Đây là hoá đơn khác — vẫn lưu', nhanHuy: 'Không lưu' })) {
         guiPhieuNhap({ ...data, choPhepTrungSoHD: true });
       }
       return;
@@ -107,6 +112,7 @@ function guiPhieuNhap(data) {
 
 /* ================= XUẤT BÁN ================= */
 function renderXuatBanTable() {
+  hienDangTai('xuatTableWrap');
   apiCall('getXuatBanList', { gioiHan: STATE_DA_TAI_HET.xuat ? null : GIOI_HAN_MAC_DINH }).then(list => {
     STATE.xuatBanList = list.sort((a, b) => (b.Timestamp || '').localeCompare(a.Timestamp || ''));
     drawXuatBanTable();
@@ -129,10 +135,11 @@ function veKpiXuat() {
 function drawXuatBanTable() {
     veKpiXuat();
     const wrap = document.getElementById('xuatTableWrap');
-    if (STATE.xuatBanList.length === 0) { wrap.innerHTML = '<div class="empty">Chưa có phiếu xuất bán nào.</div>'; return; }
+    veChipLoc('locXuat', STATE.xuatBanList, { conNo: x => (Number(x.TongTien) || 0) - (Number(x.DaThu) || 0) > 0, chuaHD: x => x.TrangThaiHD !== 'DaXuat' });
+    if (STATE.xuatBanList.length === 0) { wrap.innerHTML = trangThaiRong({ bieuTuong: 'giay', tieuDe: 'Chưa có phiếu bán hàng nào', moTa: 'Lập phiếu xuất bán hoặc chốt từ một báo giá — tồn kho tự trừ.', nhan: '+ Tạo phiếu xuất', hanhDong: "document.getElementById('btnAddXuat').click()" }); return; }
     const hienThi = locDanhSach(STATE.xuatBanList, 'timXuat', 'locXuat', x => [x.TenKH || 'Khách lẻ', x.SoHDDT, x.IDPhieu, x.MSTKhachHang, x.GhiChu].join(' '),
       (x, loc) => loc === 'conNo' ? (Number(x.TongTien) || 0) - (Number(x.DaThu) || 0) > 0 : x.TrangThaiHD !== 'DaXuat');
-    if (hienThi.length === 0) { wrap.innerHTML = '<div class="empty">Không có phiếu nào khớp bộ lọc.</div>'; return; }
+    if (hienThi.length === 0) { wrap.innerHTML = trangThaiKhongKhop('timXuat', 'locXuat'); return; }
     const goiYXemThem = !STATE_DA_TAI_HET.xuat ? `<p class="muted" style="margin:8px 0;">Đang hiện ${STATE.xuatBanList.length} phiếu gần đây (+ các phiếu còn nợ/chưa xuất HĐ dù cũ). <a href="#" onclick="xemToanBoLichSu('xuat');return false;">Xem toàn bộ lịch sử</a></p>` : '';
     wrap.innerHTML = `${goiYXemThem}<table><thead><tr><th>Ngày</th><th>Khách hàng</th><th>Số HĐĐT</th><th>Tổng thanh toán</th><th>Đã thu</th><th>Còn nợ</th><th>Trạng thái HĐ</th><th>Người tạo</th><th></th></tr></thead><tbody>
       ${hienThi.map(x => { const conNo = (Number(x.TongTien) || 0) - (Number(x.DaThu) || 0); return `<tr>
@@ -170,10 +177,12 @@ function openPhieuXuatForm() {
   renderItemsTableInto('xuatItemsContainer', 'gia_ban');
   addItemRowInto('xuatItemsContainer', 'gia_ban');
 }
-function submitPhieuXuat() {
+async function submitPhieuXuat() {
+  const loi = loiDongHang('xuatItemsContainer');
+  if (!document.getElementById('fNgay').value) loi.unshift({ el: 'fNgay', msg: 'Chọn ngày lập phiếu' });
+  if (baoLoiForm(loi)) return;
   const items = readItemsFrom('xuatItemsContainer');
-  if (items.length === 0) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
-  if (!xacNhanDonGiaKhong(items)) return;
+  if (!(await xacNhanDonGiaKhong(items))) return;
   const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
   const data = {
     Ngay: document.getElementById('fNgay').value, GhiChu: document.getElementById('fGhiChuPhieu').value,
@@ -182,7 +191,7 @@ function submitPhieuXuat() {
   };
   if (_baoGiaDangChuyen) data.IDBaoGia = _baoGiaDangChuyen;
   apiCall('saveXuatBan', { data }).then(res => {
-    closeModal(); showToast(res && res.idBaoGia ? 'Đã lưu phiếu xuất bán — báo giá chuyển sang "Đã chốt".' : 'Đã lưu phiếu xuất bán.');
+    closeModal(); showToast(res && res.idBaoGia ? 'Đã lưu phiếu xuất bán — báo giá chuyển sang "Đã chốt".' : 'Đã lưu phiếu xuất bán.', thamSoHoanTac('xuat', res && (res.idPhieu || (res.phieu && res.phieu.IDPhieu))));
     if (res && res.idBaoGia) daChotBaoGiaTrongState(res.idBaoGia, res.idPhieu);
     _baoGiaDangChuyen = null;
     if (res && res.phieu) {
@@ -190,10 +199,25 @@ function submitPhieuXuat() {
       mergeTonKhoVaoState(res.tonKhoCapNhat);
       drawXuatBanTable();
       drawHangHoaTable();
+      nhayDong(res.phieu.IDPhieu);
     } else {
       renderXuatBanTable(); renderHangHoaTable();
     }
   }).catch(err => showToast('Lỗi: ' + err.message));
+}
+
+// Nút "Hoàn tác" trên thông báo sau khi TẠO phiếu: xoá lại đúng phiếu vừa tạo (server tự hoàn tồn kho, mở lại báo giá nếu có).
+// Chỉ có cho thao tác tạo mới; xoá phiếu thì không hoàn tác được (xem xoaPhieuUI).
+function thamSoHoanTac(loai, idPhieu) {
+  if (!idPhieu) return undefined;
+  return { nhan: 'Hoàn tác', ms: 9000, fn: () => hoanTacTaoPhieu(loai, idPhieu) };
+}
+function hoanTacTaoPhieu(loai, idPhieu) {
+  apiCall(loai === 'nhap' ? 'xoaPhieuNhap' : 'xoaPhieuXuat', { idPhieu }).then(() => {
+    showToast('Đã hoàn tác: phiếu vừa tạo đã bị xoá, tồn kho trả về như cũ.');
+    if (loai === 'nhap') renderNhapKhoTable(); else renderXuatBanTable();
+    renderHangHoaTable();
+  }).catch(err => showToast('Lỗi: không hoàn tác được — ' + err.message));
 }
 
 // Chỉ cho sửa khi CHƯA xuất hoá đơn điện tử (TrangThaiHD !== 'DaXuat') — hoá đơn đã xuất thì số liệu đã
@@ -223,10 +247,12 @@ function openSuaPhieuXuatForm(idPhieu) {
     recalcGrandTotalGeneric('xuatItemsContainer');
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function submitSuaPhieuXuat(idPhieu, daThuCu) {
+async function submitSuaPhieuXuat(idPhieu, daThuCu) {
+  const loi = loiDongHang('xuatItemsContainer');
+  if (!document.getElementById('fNgay').value) loi.unshift({ el: 'fNgay', msg: 'Chọn ngày lập phiếu' });
+  if (baoLoiForm(loi)) return;
   const items = readItemsFrom('xuatItemsContainer');
-  if (items.length === 0) { showToast('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ.'); return; }
-  if (!xacNhanDonGiaKhong(items)) return;
+  if (!(await xacNhanDonGiaKhong(items))) return;
   const doiTacSel = document.getElementById('fDoiTac'); const doiTacOpt = doiTacSel.selectedOptions[0];
   const data = {
     Ngay: document.getElementById('fNgay').value, GhiChu: document.getElementById('fGhiChuPhieu').value,
@@ -235,7 +261,8 @@ function submitSuaPhieuXuat(idPhieu, daThuCu) {
   };
   const tongTienMoi = items.reduce((s, it) => { const t = it.SoLuong * it.DonGia; return s + t + tinhTienThueJS(t, it.ThueSuat); }, 0);
   if (daThuCu > tongTienMoi + 1) {
-    if (!confirm(`⚠️ Phiếu này đã thu ${fmtMoney(daThuCu)}, nhưng sau khi sửa tổng tiền chỉ còn ${fmtMoney(tongTienMoi)} — sẽ dư ${fmtMoney(daThuCu - tongTienMoi)}.\n\nVẫn muốn lưu? (Anh tự đối chiếu lại với khách sau.)`)) return;
+    if (!(await xacNhan({ tieuDe: 'Số đã thu lớn hơn tổng tiền mới', kieu: 'canhBao',
+      noiDung: `Phiếu này đã thu ${vnd(daThuCu)}, nhưng sau khi sửa tổng tiền chỉ còn ${vnd(tongTienMoi)} — dư ${vnd(daThuCu - tongTienMoi)}.\n\nVẫn lưu? Anh tự đối chiếu lại với khách sau.`, nhanDongY: 'Vẫn lưu', nhanHuy: 'Quay lại sửa' }))) return;
   }
   apiCall('suaPhieuXuat', { idPhieu, data }).then(res => {
     closeModal(); showToast('Đã lưu thay đổi phiếu xuất bán.');
@@ -245,6 +272,7 @@ function submitSuaPhieuXuat(idPhieu, daThuCu) {
       mergeTonKhoVaoState(res.tonKhoCapNhat);
       drawXuatBanTable();
       drawHangHoaTable();
+      nhayDong(idPhieu);
     } else {
       renderXuatBanTable(); renderHangHoaTable();
     }
@@ -314,7 +342,7 @@ function viewPhieuNhapXuat(loai, idPhieu) {
 }
 function ghiNhanThanhToanNX(loai, idPhieu) {
   const soTien = parseSoTien(document.getElementById('fSoTienTT').value);
-  if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  if (baoLoiForm(soTien <= 0 ? [{ el: 'fSoTienTT', msg: 'Nhập số tiền lớn hơn 0' }] : [])) return;
   const phuongThuc = document.getElementById('fPhuongThucTT').value;
   const action = loai === 'nhap' ? 'capNhatDaTraNCC' : 'capNhatDaThuKH';
   apiCall(action, { idPhieu, soTien, phuongThuc }).then(() => {
@@ -323,12 +351,24 @@ function ghiNhanThanhToanNX(loai, idPhieu) {
     renderCongNo();
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function xoaPhieuUI(loai, idPhieu) {
-  if (!confirm('Xoá phiếu này? Tồn kho các mặt hàng liên quan sẽ tự động được hoàn lại đúng chiều.')) return;
+function vnd(n) { return (Math.round(Number(n) || 0)).toLocaleString('vi-VN') + ' đ'; } // tiền dạng chữ thường (dùng trong hộp xác nhận, không chèn HTML)
+function moTaPhieuNX(loai, idPhieu) {
+  const l = (loai === 'nhap' ? STATE.nhapKhoList : STATE.xuatBanList) || [];
+  const p = l.find(x => x.IDPhieu === idPhieu);
+  return p ? `${fmtDate(p.Ngay)} — ${loai === 'nhap' ? (p.TenNCC || 'chưa chọn NCC') : (p.TenKH || 'Khách lẻ')} — ${vnd(p.TongTien)}` : idPhieu;
+}
+async function xoaPhieuUI(loai, idPhieu) {
+  const ok = await xacNhan({
+    tieuDe: loai === 'nhap' ? 'Xoá phiếu nhập kho?' : 'Xoá phiếu bán hàng?', kieu: 'nguyHiem',
+    noiDung: `Phiếu: ${moTaPhieuNX(loai, idPhieu)}\n\nTồn kho các mặt hàng trong phiếu được hoàn lại, giá vốn tự tính lại.${loai === 'xuat' ? ' Nếu phiếu được chốt từ một báo giá, báo giá đó được mở lại.' : ''} Phiếu đã xoá không khôi phục được.`,
+    nhanDongY: 'Xoá phiếu'
+  });
+  if (!ok) return;
   const action = loai === 'nhap' ? 'xoaPhieuNhap' : 'xoaPhieuXuat';
   apiCall(action, { idPhieu }).then(() => { showToast('Đã xoá phiếu.'); if (loai === 'nhap') renderNhapKhoTable(); else renderXuatBanTable(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function xoaPhieuGeneric(action, idPhieu, rerender) {
-  if (!confirm('Xoá phiếu này? Tồn kho các mặt hàng liên quan sẽ tự động được hoàn lại đúng chiều.')) return;
+async function xoaPhieuGeneric(action, idPhieu, rerender) {
+  const ok = await xacNhan({ tieuDe: 'Xoá phiếu này?', kieu: 'nguyHiem', noiDung: `Phiếu ${idPhieu}\n\nTồn kho các mặt hàng liên quan được hoàn lại đúng chiều. Phiếu đã xoá không khôi phục được.`, nhanDongY: 'Xoá phiếu' });
+  if (!ok) return;
   apiCall(action, { idPhieu }).then(() => { showToast('Đã xoá phiếu.'); rerender(); }).catch(err => showToast('Lỗi: ' + err.message));
 }

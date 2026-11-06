@@ -1196,9 +1196,24 @@ async function importLichSuTuBangKe(env, items, user) {
 const TRUOC_THUE = `COALESCE("TongTienTruocThue","TongTien",0)`;
 const GC_TRUOC_THUE = `COALESCE("ChiPhiGiaCongTruocThue","ChiPhiGiaCong",0)`;
 
+// Lùi N ngày so với hôm nay (giờ VN), trả 'YYYY-MM-DD'.
+function ngayLuiVN(soNgay) {
+  const d = new Date(homNayVN() + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - soNgay);
+  return d.toISOString().slice(0, 10);
+}
+const SO_NGAY_NO_QUA_HAN = 30; // khoản phải thu quá 30 ngày kể từ ngày lập phiếu thì tính là "quá hạn" (app chưa có ngày hẹn thanh toán)
+const SO_NGAY_BAO_GIA_CHO = 7; // báo giá "Đã gửi khách" quá 7 ngày chưa có phản hồi
+
 async function getDashboard(env) {
   const thang = thangVN();
+  const thangDau = thangVN(-11); // chuỗi 12 tháng gần nhất (gồm tháng này)
+  const hanNo = ngayLuiVN(SO_NGAY_NO_QUA_HAN), hanBaoGia = ngayLuiVN(SO_NGAY_BAO_GIA_CHO);
   const db = env.DB;
+  // Các khoản còn nợ của khách (bán hàng + sửa chữa + nhận gia công) — dùng chung cho đếm và liệt kê nợ quá hạn
+  const PHAI_THU = `SELECT 'Bán hàng' loai, "Ngay" ngay, COALESCE(NULLIF("TenKH",''),'Khách lẻ') doiTac, COALESCE("TongTien",0) - COALESCE("DaThu",0) no FROM "XuatBan"
+                    UNION ALL SELECT 'Sửa chữa', "Ngay", COALESCE(NULLIF("TenKH",''),'Khách lẻ'), COALESCE("TongTien",0) - COALESCE("DaThu",0) FROM "SuaChua"
+                    UNION ALL SELECT 'Gia công', "Ngay", COALESCE(NULLIF("TenDoiTac",''),'Khách lẻ'), COALESCE("ChiPhiGiaCong",0) - COALESCE("DaThu",0) FROM "GiaCong" WHERE "Loai" = 'NhanGiaCongChoKhach'`;
   const r = await db.batch([
     db.prepare(`SELECT COALESCE(SUM(${TRUOC_THUE}),0) v, COUNT(*) n FROM "XuatBan" WHERE substr("Ngay",1,7) = ?1`).bind(thang),
     db.prepare(`SELECT COALESCE(SUM(${TRUOC_THUE}),0) v FROM "SuaChua" WHERE substr("Ngay",1,7) = ?1`).bind(thang),
@@ -1214,14 +1229,45 @@ async function getDashboard(env) {
     db.prepare(`SELECT (SELECT COUNT(*) FROM "XuatBan" WHERE COALESCE("TrangThaiHD",'') <> 'DaXuat')
                      + (SELECT COUNT(*) FROM "SuaChua" WHERE COALESCE("TrangThaiHD",'') <> 'DaXuat' AND "TrangThai" = 'DaGiaoTra') v`),
     db.prepare(`SELECT COUNT(*) v FROM "SuaChua" WHERE "TrangThai" IN ('TiepNhan','DangSua','ChoLinhKien')`),
-    db.prepare(`SELECT COUNT(*) v FROM "GiaCong" WHERE "TrangThai" IN ('TiepNhan','DangGiaCong')`)
+    db.prepare(`SELECT COUNT(*) v FROM "GiaCong" WHERE "TrangThai" IN ('TiepNhan','DangGiaCong')`),
+    // ---- chuỗi 12 tháng: doanh thu, giá vốn, nhập kho theo tháng (10..15) ----
+    db.prepare(`SELECT substr("Ngay",1,7) t, COALESCE(SUM(${TRUOC_THUE}),0) v FROM "XuatBan" WHERE substr("Ngay",1,7) >= ?1 GROUP BY t`).bind(thangDau),
+    db.prepare(`SELECT substr("Ngay",1,7) t, COALESCE(SUM(${TRUOC_THUE}),0) v FROM "SuaChua" WHERE substr("Ngay",1,7) >= ?1 GROUP BY t`).bind(thangDau),
+    db.prepare(`SELECT substr("Ngay",1,7) t, COALESCE(SUM(${GC_TRUOC_THUE}),0) v FROM "GiaCong" WHERE "Loai" = 'NhanGiaCongChoKhach' AND substr("Ngay",1,7) >= ?1 GROUP BY t`).bind(thangDau),
+    db.prepare(`SELECT substr(h."Ngay",1,7) t, COALESCE(SUM(COALESCE(c."SoLuongQuyDoi", c."SoLuong", 0) * COALESCE(c."GiaVon",0)),0) v
+                FROM "XuatBanCT" c JOIN "XuatBan" h ON h."IDPhieu" = c."IDPhieu" WHERE substr(h."Ngay",1,7) >= ?1 GROUP BY t`).bind(thangDau),
+    db.prepare(`SELECT substr("Ngay",1,7) t, COALESCE(SUM(${GC_TRUOC_THUE}),0) v FROM "GiaCong" WHERE "Loai" = 'ThueNgoaiGiaCong' AND substr("Ngay",1,7) >= ?1 GROUP BY t`).bind(thangDau),
+    db.prepare(`SELECT substr("Ngay",1,7) t, COALESCE(SUM(${TRUOC_THUE}),0) v FROM "NhapKho" WHERE substr("Ngay",1,7) >= ?1 GROUP BY t`).bind(thangDau),
+    // ---- "cần xử lý" (16..19) ----
+    db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(COALESCE("TongTien",0)),0) v FROM "XuatBan" WHERE COALESCE("TrangThaiHD",'') <> 'DaXuat'`),
+    db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(no),0) v FROM (${PHAI_THU}) WHERE no > 0 AND ngay <= ?1`).bind(hanNo),
+    db.prepare(`SELECT loai, ngay, doiTac, no FROM (${PHAI_THU}) WHERE no > 0 AND ngay <= ?1 ORDER BY ngay ASC, no DESC LIMIT 5`).bind(hanNo),
+    db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(COALESCE("TongTien",0)),0) v FROM "BaoGia" WHERE "TrangThai" = 'DaGui' AND "Ngay" <= ?1`).bind(hanBaoGia)
   ]);
   const v = i => Number(r[i].results[0].v) || 0;
+  const theoThang = i => { const m = {}; r[i].results.forEach(x => { m[x.t] = Number(x.v) || 0; }); return m; };
+  const [xb, sc, gcThu, giaVon, gcTra, nhap] = [10, 11, 12, 13, 14, 15].map(theoThang);
+  const chuoi12Thang = [];
+  for (let k = -11; k <= 0; k++) {
+    const t = thangVN(k);
+    const doanhThu = (xb[t] || 0) + (sc[t] || 0) + (gcThu[t] || 0);
+    chuoi12Thang.push({ thang: t, doanhThu, loiNhuan: doanhThu - ((giaVon[t] || 0) + (gcTra[t] || 0)), nhapKho: nhap[t] || 0 });
+  }
+  const namHienTai = thang.slice(0, 4);
+  const thangNay = chuoi12Thang[11];
   return {
-    doanhThuThangNay: v(0) + v(1), nhapKhoThangNay: v(2), congNoPhaiThu: v(3), congNoPhaiTra: v(4),
+    // doanh thu tháng này tính cả gia công (khớp tab Báo cáo)
+    doanhThuThangNay: thangNay.doanhThu, nhapKhoThangNay: v(2), congNoPhaiThu: v(3), congNoPhaiTra: v(4),
     soLuongHangHoa: Number(r[6].results[0].hh) || 0, soLuongDichVu: Number(r[6].results[0].dv) || 0,
     hangSapHet: r[5].results.map(chuanHoaDong), soHoaDonChuaXuat: v(7),
-    soPhieuXuatThangNay: Number(r[0].results[0].n) || 0, suaChuaDangXuLy: v(8), giaCongDangXuLy: v(9)
+    soPhieuXuatThangNay: Number(r[0].results[0].n) || 0, suaChuaDangXuLy: v(8), giaCongDangXuLy: v(9),
+    chuoi12Thang, namHienTai,
+    doanhThuNam: chuoi12Thang.filter(m => m.thang.startsWith(namHienTai)).reduce((s, m) => s + m.doanhThu, 0),
+    soThangDaQuaTrongNam: Number(thang.slice(5, 7)),
+    tienChuaXuatHD: v(16),
+    noQuaHan: { soNgay: SO_NGAY_NO_QUA_HAN, so: Number(r[17].results[0].n) || 0, tong: Number(r[17].results[0].v) || 0,
+      ds: r[18].results.map(x => ({ loai: x.loai, ngay: x.ngay, doiTac: x.doiTac, conNo: Number(x.no) || 0 })) },
+    baoGiaCho: { soNgay: SO_NGAY_BAO_GIA_CHO, so: Number(r[19].results[0].n) || 0, tong: Number(r[19].results[0].v) || 0 }
   };
 }
 

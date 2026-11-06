@@ -2,24 +2,25 @@
 // popup trên màn hình điện thoại, xuất Excel. Bắt mọi lỗi JS trên trang.
 // Chạy: (Worker đã chạy ở :8787, web tĩnh ở :8000) node test/ui-test.mjs
 import { createRequire } from 'node:module';
-const require = createRequire('/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/tools/package.json');
-const { chromium } = require('playwright-core');
+const TOOLS = process.env.PL_TOOLS || '/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/tools'; // thư mục có node_modules/xlsx (+ playwright-core nếu không đặt PL_PLAYWRIGHT)
+const require = createRequire(TOOLS + '/package.json');
+const { chromium } = process.env.PL_PLAYWRIGHT ? createRequire(process.env.PL_PLAYWRIGHT)('playwright') : require('playwright-core');
 const XLSX = require('xlsx');
 import { mkdirSync } from 'node:fs';
 
 const WEB = 'http://localhost:8000', API = 'http://localhost:8787';
-const SHOT = '/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/shots';
+const SHOT = process.env.PL_SHOTS || '/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/shots';
 mkdirSync(SHOT, { recursive: true });
 let pass = 0, fail = 0;
 const ok = (dk, ten, ct) => { if (dk) { pass++; console.log('  ✓', ten); } else { fail++; console.log('  ✗', ten, ct !== undefined ? JSON.stringify(ct).slice(0, 300) : ''); } };
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: process.env.PL_CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 async function moTrang(viewport) {
   const ctx = await browser.newContext({ viewport, acceptDownloads: true });
   await ctx.route('**/js/config.js*', r => r.fulfill({ contentType: 'application/javascript', body: `window.PL_CONFIG={API_URL:'${API}'};` }));
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
   await ctx.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx/, r => r.fulfill({ contentType: 'application/javascript',
-    path: '/tmp/claude-0/-home-claude/2c28eb33-5af1-55c1-9ee2-5fa2e7bcef5e/scratchpad/tools/node_modules/xlsx/dist/xlsx.full.min.js' }));
+    path: TOOLS + '/node_modules/xlsx/dist/xlsx.full.min.js' }));
   const page = await ctx.newPage();
   const loi = [];
   page.on('pageerror', e => loi.push('pageerror: ' + e.message));
@@ -28,7 +29,7 @@ async function moTrang(viewport) {
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) loi.push('console: ' + m.text()); });
   page.on('response', r => { if (r.status() >= 400 && !BO_QUA.test(r.url())) loi.push('HTTP ' + r.status() + ': ' + r.url()); });
   page.on('requestfailed', r => { if (!BO_QUA.test(r.url())) loi.push('requestfailed: ' + r.url()); });
-  page.on('dialog', d => d.accept());
+  page.on('dialog', d => { loi.push('dialog trình duyệt: ' + d.message().slice(0, 80)); d.accept(); }); // app dùng hộp riêng, không còn confirm()/alert()
   return { ctx, page, loi };
 }
 const cho = ms => new Promise(r => setTimeout(r, ms));
@@ -104,11 +105,13 @@ const cotTien = await page.$$eval('#xuatTableWrap thead th', ths => ths.filter(t
 ok(cotTien.includes('Tổng thanh toán') && !cotTien.includes('Khách hàng'), 'cột tiền căn phải, cột chữ giữ căn trái', cotTien);
 ok((await page.textContent('#xuatTableWrap thead th:last-child')).trim() === 'Chức năng', 'cột nút có tiêu đề "Chức năng"');
 await page.fill('#timXuat', 'khong-co-khach-nay'); await cho(300);
-ok((await page.textContent('#xuatTableWrap')).includes('Không có phiếu nào khớp'), 'ô tìm kiếm lọc danh sách');
-await page.fill('#timXuat', ''); await cho(300);
-await page.selectOption('#locXuat', 'chuaHD'); await cho(300);
+ok((await page.textContent('#xuatTableWrap')).includes('Không có kết quả khớp') && await page.isVisible('#xuatTableWrap .empty.rong .btn'), 'ô tìm kiếm lọc danh sách + trang trống có nút "Xoá bộ lọc"');
+await page.click('#xuatTableWrap .empty.rong .btn'); await cho(300);
+ok((await page.inputValue('#timXuat')) === '' && await page.isVisible('#xuatTableWrap tbody tr'), 'bấm "Xoá bộ lọc" -> danh sách trở lại');
+ok(!(await page.isVisible('#locXuat')) && (await page.$$('#chip_locXuat .chip')).length >= 3 && (await page.textContent('#chip_locXuat .chip.on b')).length > 0, 'bộ lọc là các chip kèm số đếm (ô chọn cũ ẩn đi)');
+await page.click('#chip_locXuat .chip[data-v="chuaHD"]'); await cho(300);
 ok((await page.textContent('#xuatTableWrap tbody')).includes('Chưa xuất HĐ') && !(await page.textContent('#xuatTableWrap tbody')).includes('Đã xuất HĐ'), 'lọc "Chưa xuất hoá đơn"');
-await page.selectOption('#locXuat', ''); await cho(300);
+await page.click('#chip_locXuat .chip[data-v=""]'); await cho(300);
 await moTab(page, 'doitac'); await cho(800);
 ok(await page.isVisible('#khTableWrap') && !(await page.isVisible('#nccTableWrap')), 'Đối tác: mặc định tab Khách hàng');
 await page.click('.pillTabs[data-nhom="doitac"] button[data-pane="ncc"]'); await cho(200);
@@ -134,6 +137,82 @@ const o = wb.Sheets.KhachHang; const oMST = Object.keys(o).find(k => o[k].v === 
 ok(oMST && o[oMST].t === 's', 'MST xuất ra Excel là ô CHỮ, giữ số 0 đầu', kh[0]);
 ok(!XLSX.utils.sheet_to_json(wb.Sheets.NguoiDung)[0].MatKhauHash, 'không xuất mật khẩu băm');
 ok((await page.textContent('#xuatExcelTrangThai')).includes('Đã xuất'), 'báo đã xuất xong');
+
+console.log('G. Cải tiến UX: Tổng quan, phím tắt, hộp xác nhận, lỗi biểu mẫu, mật độ, tối');
+await moTab(page, 'dashboard'); await cho(1200);
+ok((await page.$$('#dashChart svg.bieuDo .cot')).length === 12 && (await page.$$('#dashChart .vungChon')).length === 12, 'Tổng quan: biểu đồ 12 cột doanh thu + vùng chọn');
+ok((await page.$$('#dashCards .kSpark')).length >= 2, 'Tổng quan: thẻ KPI có đường nhỏ (sparkline)');
+ok(await page.isVisible('#dashMoc .mocThanh') && /\d/.test(await page.textContent('#dashMoc .mocPct')), 'Tổng quan: thanh mốc doanh thu năm có phần trăm');
+ok((await page.$$('#dashViec .viec')).length > 0 || (await page.textContent('#dashViec')).includes('Không có việc tồn đọng'), 'Tổng quan: khối "Cần xử lý hôm nay" có nội dung');
+await page.hover('#dashChart .vungChon[data-i="11"]'); await cho(200);
+ok(await page.isVisible('#dashTip') && (await page.textContent('#dashTip')).includes('Doanh thu'), 'rê chuột lên cột -> hiện chú thích số liệu tháng');
+await page.click('#btnBangDoanhThu'); await cho(200);
+ok(await page.isVisible('#dashChartBang table') && !(await page.isVisible('#dashChart')), '"Xem dạng bảng" hiện bảng số liệu thay biểu đồ');
+await page.click('#btnBangDoanhThu'); await cho(200);
+await page.screenshot({ path: SHOT + '/4-tong-quan.png' });
+// việc cần xử lý: bấm nút nhảy tới đúng tab (và bật sẵn bộ lọc nếu có)
+const nutViec = await page.$('#dashViec .viecNut[data-den]');
+if (nutViec) { await nutViec.click(); await cho(500); ok(!(await page.isVisible('#view-dashboard')), 'bấm một việc cần xử lý -> chuyển sang đúng chức năng'); await moTab(page, 'dashboard'); await cho(400); }
+// Tìm nhanh Ctrl+K
+await page.keyboard.press('Control+k'); await cho(250);
+ok(await page.isVisible('.tnCard'), 'Ctrl+K mở ô tìm nhanh');
+await page.fill('#tnInput', 'cáp'); await cho(250);
+ok((await page.textContent('#tnDs')).toLowerCase().includes('cáp'), 'tìm nhanh "cáp" ra hàng hoá liên quan');
+await page.keyboard.press('Escape'); await cho(200);
+ok(!(await page.isVisible('.tnCard')), 'Esc đóng ô tìm nhanh');
+// Alt+N + lỗi biểu mẫu + Ctrl+S
+await moTab(page, 'xuatban'); await cho(600);
+await page.keyboard.press('Alt+n'); await cho(500);
+ok(await page.evaluate(() => document.getElementById('modalBg').classList.contains('active')), 'Alt+N mở form tạo phiếu bán hàng');
+await page.fill('#fNgay', ''); await page.keyboard.press('Control+s'); await cho(500);
+ok(await page.isVisible('#modalCard .tomTatLoi') && (await page.$$('#modalCard .loiO')).length >= 1, 'Ctrl+S khi form thiếu thông tin -> khung tóm tắt lỗi + lỗi ngay dưới ô');
+ok(await page.$eval('#modalCard .coLoi input, #modalCard .coLoi select', el => el.getAttribute('aria-invalid') === 'true').catch(() => false), 'ô lỗi có aria-invalid');
+await page.click('#modalCard .tomTatLoi a'); await cho(200);
+ok(await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('aria-invalid') === 'true'), 'bấm mục trong khung lỗi -> nhảy tới đúng ô');
+await page.keyboard.press('Escape'); await cho(300);
+if (await page.isVisible('.xnCard')) { await page.click('.xnCard [data-xn="ok"]'); await cho(300); }
+ok(!(await page.evaluate(() => document.getElementById('modalBg').classList.contains('active'))), 'Esc đóng form');
+// Hộp xác nhận xoá
+const soDong = (await page.$$('#xuatTableWrap tbody tr')).length;
+await page.click('#xuatTableWrap tbody tr:first-child .iconDanger, #xuatTableWrap tbody tr:first-child button.danger'); await cho(300);
+ok(await page.isVisible('.xnCard.xn-nguyHiem') && (await page.textContent('.xnCard')).length > 30, 'bấm xoá -> hộp xác nhận kiểu app nêu hậu quả');
+ok(await page.evaluate(() => document.activeElement && document.activeElement.dataset.xn === 'huy'), 'hộp xoá mặc định đứng ở nút Huỷ (Enter không xoá nhầm)');
+await page.screenshot({ path: SHOT + '/5-xac-nhan-xoa.png' });
+await page.keyboard.press('Escape'); await cho(300);
+ok(!(await page.isVisible('.xnCard')) && (await page.$$('#xuatTableWrap tbody tr')).length === soDong, 'Esc = Huỷ, không mất phiếu nào');
+// Toast có nút Hoàn tác
+await page.evaluate(() => { window.__hoanTac = 0; showToast('Đã tạo phiếu thử', { nhan: 'Hoàn tác', fn: () => { window.__hoanTac++; } }); });
+await cho(300);
+ok(await page.isVisible('#toast .tNut'), 'thông báo có nút "Hoàn tác"');
+await page.click('#toast .tNut'); await cho(200);
+ok(await page.evaluate(() => window.__hoanTac === 1), 'bấm "Hoàn tác" chạy đúng hành động');
+// Mật độ bảng
+const caoDong = () => page.$eval('#xuatTableWrap tbody tr:first-child', el => el.getBoundingClientRect().height);
+const cao1 = await caoDong(); await page.click('#btnMatDo'); await cho(200);
+const cao2 = await caoDong();
+ok(await page.evaluate(() => document.body.classList.contains('matDoGon')) && cao2 < cao1, 'nút mật độ: bảng gọn hơn', { cao1, cao2 });
+await page.click('#btnMatDo'); await cho(200);
+// Cố định 2 cột đầu khi bảng rộng hơn khung
+await page.setViewportSize({ width: 900, height: 800 }); await cho(500);
+await moTab(page, 'xuatban'); await cho(500);
+const dinh = await page.$eval('#xuatTableWrap', w => { const t = w.querySelector('table'); return { tran: w.scrollWidth > w.clientWidth + 2, cls: t.classList.contains('cotDauDinh'), pos: getComputedStyle(t.querySelector('tbody td:nth-child(2)')).position }; });
+ok(!dinh.tran || (dinh.cls && dinh.pos === 'sticky'), 'bảng tràn ngang -> 2 cột đầu dính khi kéo', dinh);
+await page.setViewportSize({ width: 1280, height: 800 }); await cho(400);
+// Giảm chuyển động
+await page.emulateMedia({ reducedMotion: 'reduce' }); await moTab(page, 'dashboard'); await cho(500);
+const dur = await page.$eval('#dashCards .statCard', el => parseFloat(getComputedStyle(el).animationDuration));
+ok(dur < 0.01, 'prefers-reduced-motion: hoạt ảnh gần như tắt', dur);
+await page.emulateMedia({ reducedMotion: 'no-preference' });
+// Giao diện tối
+await page.click('#btnTheme'); await cho(400);
+const toi = await page.evaluate(() => ({ t: document.documentElement.dataset.theme, bg: getComputedStyle(document.body).backgroundColor, ls: localStorage.getItem('pl_theme') }));
+ok(toi.t === 'dark' && toi.bg === 'rgb(19, 21, 27)' && toi.ls === 'toi', 'nút giao diện tối: đổi màu nền + nhớ lựa chọn', toi);
+await page.screenshot({ path: SHOT + '/6-tong-quan-toi.png' });
+await moTab(page, 'xuatban'); await cho(600);
+await page.screenshot({ path: SHOT + '/7-ban-hang-toi.png' });
+await page.click('#btnTheme'); await cho(300);
+ok(await page.evaluate(() => document.documentElement.dataset.theme === 'light' && localStorage.getItem('pl_theme') === 'sang'), 'bấm lần nữa -> về giao diện sáng');
+ok(loi.length === 0, 'không có lỗi JavaScript / hộp thoại trình duyệt ở phần G', loi);
 await ctx.close();
 
 console.log('E. Điện thoại (390x844): popup chi tiết không tràn ngang');
@@ -149,8 +228,8 @@ ok(tran.sw <= tran.cw + 1 && tran.w <= 390, 'popup vừa khít màn hình điệ
 await m.page.screenshot({ path: SHOT + '/2-mobile-popup.png' });
 await m.page.click('#modalCard button:has-text("Đóng")');
 await m.page.evaluate(() => window.scrollTo(0, 600)); await cho(300);
-const thead = await m.page.$eval('#xuatTableWrap thead th', th => getComputedStyle(th).position);
-ok(thead !== 'sticky', 'tiêu đề bảng không còn sticky (đã bỏ theo yêu cầu)', thead);
+const thead = await m.page.$eval('#xuatTableWrap thead th', th => getComputedStyle(th).top);
+ok(thead === 'auto', 'tiêu đề bảng không còn sticky (đã bỏ theo yêu cầu)', thead);
 const hdrTop = await m.page.$eval('header.topbar', el => el.getBoundingClientRect().top);
 ok(Math.abs(hdrTop) <= 1, 'thanh đầu trang (nút ☰) vẫn dính trên cùng khi cuộn', { hdrTop });
 const menuAn = await m.page.$eval('#sidebar', el => el.getBoundingClientRect().right);

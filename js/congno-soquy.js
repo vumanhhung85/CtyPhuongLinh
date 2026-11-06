@@ -1,5 +1,6 @@
 /* ================= CÔNG NỢ ================= */
 function renderCongNo() {
+  hienDangTai('phaiThuWrap', 4); hienDangTai('phaiTraWrap', 4);
   apiCall('getCongNo').then(res => {
     const tongThu = tongTien(res.phaiThu, x => x.conNo), tongTra = tongTien(res.phaiTra, x => x.conNo);
     veKpi('kpiCongNo', [
@@ -8,14 +9,14 @@ function renderCongNo() {
       { label: 'Chênh lệch (thu − trả)', val: fmtMoney(tongThu - tongTra), mau: tongThu - tongTra >= 0 ? 'green' : 'red' }
     ]);
     const thuWrap = document.getElementById('phaiThuWrap');
-    if (!res.phaiThu.length) { thuWrap.innerHTML = '<div class="empty">Không có công nợ phải thu.</div>'; }
+    if (!res.phaiThu.length) { thuWrap.innerHTML = trangThaiRong({ bieuTuong: 'tick', tieuDe: 'Không có khoản phải thu', moTa: 'Khách đã thanh toán đủ mọi phiếu.' }); }
     else {
       thuWrap.innerHTML = `<table><thead><tr><th>Loại</th><th>Ngày</th><th>Khách hàng</th><th>Tổng tiền</th><th>Đã thu</th><th>Còn nợ</th></tr></thead><tbody>
         ${res.phaiThu.map(x => `<tr><td><span class="tag info">${x.loai}</span></td><td>${fmtDate(x.ngay)}</td><td>${x.doiTac || 'Khách lẻ'}</td><td>${fmtMoney(x.tongTien)}</td><td>${fmtMoney(x.daNhan)}</td><td><span class="tag warn">${fmtMoney(x.conNo)}</span></td></tr>`).join('')}
       </tbody></table>`;
     }
     const traWrap = document.getElementById('phaiTraWrap');
-    if (!res.phaiTra.length) { traWrap.innerHTML = '<div class="empty">Không có công nợ phải trả.</div>'; }
+    if (!res.phaiTra.length) { traWrap.innerHTML = trangThaiRong({ bieuTuong: 'tick', tieuDe: 'Không có khoản phải trả', moTa: 'Đã thanh toán đủ cho nhà cung cấp.' }); }
     else {
       traWrap.innerHTML = `<table><thead><tr><th>Loại</th><th>Ngày</th><th>Đối tác</th><th>Tổng tiền</th><th>Đã trả</th><th>Còn nợ</th></tr></thead><tbody>
         ${res.phaiTra.map(n => `<tr><td><span class="tag info">${n.loai}</span></td><td>${fmtDate(n.ngay)}</td><td>${n.doiTac || '—'}</td><td>${fmtMoney(n.tongTien)}</td><td>${fmtMoney(n.daTra)}</td><td><span class="tag bad">${fmtMoney(n.conNo)}</span></td></tr>`).join('')}
@@ -69,6 +70,7 @@ function toggleQR(idPhieu, soTien) {
 }
 
 function renderSoQuy() {
+  hienDangTai('soQuyTableWrap');
   Promise.all([apiCall('getSoDuQuy'), apiCall('getSoQuyList', {
     tuNgay: document.getElementById('quyTuNgay').value,
     denNgay: document.getElementById('quyDenNgay').value,
@@ -85,7 +87,7 @@ function renderSoQuy() {
     ]);
 
     const wrap = document.getElementById('soQuyTableWrap');
-    if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có khoản thu chi nào trong khoảng đã chọn.</div>'; return; }
+    if (!list.length) { wrap.innerHTML = trangThaiRong({ bieuTuong: 'vi', tieuDe: 'Chưa có khoản thu chi trong khoảng đã chọn', moTa: 'Đổi khoảng ngày ở trên, hoặc ghi nhận một khoản mới.', nhan: '+ Thu tiền', hanhDong: "document.getElementById('btnThuTien').click()" }); return; }
     wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Nhóm mục</th><th>Số tiền</th><th>Phương thức</th><th>Nguồn gốc</th><th>Ghi chú</th><th></th></tr></thead><tbody>
       ${list.map(r => `<tr>
         <td>${fmtDate(r.Ngay)}</td>
@@ -110,7 +112,7 @@ function moFormThuChi(loai) {
     <div class="formGrid">
       <div class="field"><label>Ngày</label><input type="date" id="fNgay" value="${todayISO()}"></div>
       <div class="field"><label>Nhóm mục</label><select id="fNhomMuc">${nhomOptions}</select></div>
-      <div class="field"><label>Số tiền</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTien" placeholder="Số tiền"></div>
+      <div class="field"><label>Số tiền</label><input type="text" inputmode="numeric" class="moneyInput" id="fSoTien" placeholder="Số tiền" data-so-duong="Nhập số tiền lớn hơn 0"></div>
       <div class="field"><label>Phương thức</label><select id="fPhuongThuc"><option value="TienMat">Tiền mặt</option><option value="ChuyenKhoan">Chuyển khoản</option><option value="The">Thẻ</option></select></div>
       <div class="field span2"><label>Ghi chú</label><input id="fMoTa" placeholder="VD: Lương tháng 8, tiền điện T8..."></div>
     </div>
@@ -122,16 +124,29 @@ document.getElementById('btnChiTien').addEventListener('click', () => moFormThuC
 
 function submitThuChi(loai) {
   const soTien = parseSoTien(document.getElementById('fSoTien').value);
-  if (soTien <= 0) { showToast('Nhập số tiền hợp lệ.'); return; }
+  const loi = [];
+  if (!document.getElementById('fNgay').value) loi.push({ el: 'fNgay', msg: 'Chọn ngày' });
+  if (soTien <= 0) loi.push({ el: 'fSoTien', msg: 'Nhập số tiền lớn hơn 0' });
+  if (baoLoiForm(loi)) return;
   const data = {
     Loai: loai, Ngay: document.getElementById('fNgay').value,
     NhomMuc: document.getElementById('fNhomMuc').value, SoTien: soTien,
     PhuongThuc: document.getElementById('fPhuongThuc').value,
     MoTa: document.getElementById('fMoTa').value.trim()
   };
-  apiCall('saveThuChi', { data }).then(() => { closeModal(); showToast('Đã ghi nhận.'); renderSoQuy(); }).catch(err => showToast('Lỗi: ' + err.message));
+  apiCall('saveThuChi', { data }).then(res => {
+    closeModal();
+    showToast(`Đã ghi nhận ${loai === 'Thu' ? 'khoản thu' : 'khoản chi'}.`, res && res.idPhieu ? { nhan: 'Hoàn tác', ms: 9000, fn: () => hoanTacThuChi(res.idPhieu) } : undefined);
+    renderSoQuy();
+    if (res && res.idPhieu) setTimeout(() => nhayDong(res.idPhieu), 500); // chờ bảng tải xong rồi mới nháy
+  }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function xoaThuChiUI(idPhieu) {
-  if (!confirm('Xoá khoản thu chi này?')) return;
+function hoanTacThuChi(idPhieu) {
+  apiCall('xoaThuChi', { idPhieu }).then(() => { showToast('Đã hoàn tác: khoản vừa ghi đã bị xoá.'); renderSoQuy(); }).catch(err => showToast('Lỗi: không hoàn tác được — ' + err.message));
+}
+async function xoaThuChiUI(idPhieu) {
+  const r = (STATE.soQuyList || []).find(x => x.IDPhieu === idPhieu);
+  if (!(await xacNhan({ tieuDe: 'Xoá khoản thu chi này?', kieu: 'nguyHiem',
+    noiDung: `${r ? `${fmtDate(r.Ngay)} — ${r.Loai === 'Thu' ? 'Thu' : 'Chi'} ${vnd(r.SoTien)}${r.MoTa ? ' — ' + r.MoTa : ''}\n\n` : ''}Số dư quỹ sẽ được tính lại. Khoản đã xoá không khôi phục được.`, nhanDongY: 'Xoá khoản này' }))) return;
   apiCall('xoaThuChi', { idPhieu }).then(() => { showToast('Đã xoá.'); renderSoQuy(); }).catch(err => showToast('Lỗi: ' + err.message));
 }

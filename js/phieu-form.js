@@ -155,7 +155,7 @@ function hhComboFilter(input) {
   }
   listEl.style.display = 'block';
 }
-function hhComboSelect(el) {
+async function hhComboSelect(el) {
   const wrap = el.closest('.itemRowSearch');
   const row = el.closest('.itemRow');
   const input = wrap.querySelector('.itemHHSearch');
@@ -166,7 +166,8 @@ function hhComboSelect(el) {
   }
   const daDungDongKhac = Number(el.dataset.daudungdongkhac) || 0;
   if (daDungDongKhac > 0) {
-    const tiepTuc = confirm(`Mặt hàng "${el.dataset.ten}" đã có trong phiếu này ở dòng khác (số lượng: ${daDungDongKhac}).\n\nNên xoá dòng này và tăng số lượng ở dòng đã có thay vì tách thành 2 dòng riêng.\n\nVẫn muốn thêm dòng riêng cho mặt hàng này?`);
+    const tiepTuc = await xacNhan({ tieuDe: 'Mặt hàng đã có trong phiếu', kieu: 'canhBao',
+      noiDung: `“${el.dataset.ten}” đã có ở dòng khác của phiếu này (số lượng ${daDungDongKhac}).\n\nNên tăng số lượng ở dòng đã có thay vì tách thành 2 dòng riêng. Vẫn thêm dòng riêng?`, nhanDongY: 'Vẫn thêm dòng riêng', nhanHuy: 'Không thêm' });
     if (!tiepTuc) {
       wrap.querySelector('.hhComboList').style.display = 'none';
       return;

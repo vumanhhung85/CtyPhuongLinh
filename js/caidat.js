@@ -90,7 +90,7 @@ document.getElementById('btnLuuThongTinCongTy').addEventListener('click', () => 
   const data = {};
   Object.keys(O_CONG_TY).forEach(k => { data[k] = document.getElementById(O_CONG_TY[k]).value.trim(); });
   data.TenNganHang = document.getElementById('fCtTenNganHang').value.trim();
-  if (!data.Ten || !data.MST) { showToast('Tên công ty và mã số thuế không được để trống.'); return; }
+  if (baoLoiForm([...(!data.Ten ? [{ el: 'fCtTen', msg: 'Nhập tên công ty' }] : []), ...(!data.MST ? [{ el: 'fCtMST', msg: 'Nhập mã số thuế' }] : [])])) return;
   apiCall('capNhatThongTinCongTy', { data }).then(ct => {
     _ttCongTyPromise = Promise.resolve(ct);
     dienFormThongTinCongTy(ct);

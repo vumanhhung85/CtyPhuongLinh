@@ -19,7 +19,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QL Phương Linh">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="css/app.css?v=20261105a">
+<script>/* Áp giao diện sáng/tối trước khi vẽ trang để không bị nháy trắng */try{var _m=localStorage.getItem('pl_theme');document.documentElement.dataset.theme=(_m==='toi'||(_m!=='sang'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches))?'dark':'light';}catch(e){}</script>
+<link rel="stylesheet" href="css/app.css?v=20261106a">
 <!-- xlsx / pdf.js / tesseract.js tải khi cần (caiThuVien) — không nạp sẵn ở đây để app mở nhanh. -->
 </head>
 <body>
@@ -81,7 +82,10 @@
     <header class="topbar">
       <button class="tbIcon" id="btnMenu" title="Thu gọn / mở menu" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <div class="brand"><span id="companyNameLabel">CÔNG TY TNHH DVCN PHƯƠNG LINH</span></div>
+      <button class="tbTim" id="btnTimNhanh" type="button" title="Tìm nhanh hàng hoá, khách hàng, phiếu, chức năng (Ctrl+K)" aria-label="Tìm nhanh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>Tìm nhanh</span><kbd>Ctrl K</kbd></button>
       <span class="tbPill" id="tbThang"><i></i><span></span></span>
+      <button class="tbIcon" id="btnMatDo" type="button" aria-pressed="false" title="Mật độ dòng của bảng" aria-label="Đổi mật độ dòng của bảng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg></button>
+      <button class="tbIcon" id="btnTheme" type="button" title="Giao diện sáng / tối" aria-label="Đổi giao diện sáng hoặc tối"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
       <div class="userInfo">
         <span class="avatar" id="tbAvatar">?</span>
         <div class="who"><span id="userHoTenLabel"></span><span id="userVaiTroLabel"></span></div>
@@ -95,6 +99,24 @@
       <section class="view active" id="view-dashboard">
         <div class="subhead"><h2 class="viewTitle">Tổng quan</h2></div>
         <div class="cardGrid kpiRow" id="dashCards"></div>
+        <div class="dashMain">
+          <div class="dashCol">
+            <div class="panel chartPanel">
+              <div class="panelHead">
+                <h3>Doanh thu 12 tháng gần nhất</h3>
+                <div class="chartLegend"><span><i class="sw cotSw"></i>Doanh thu</span><span><i class="sw lnSw"></i>Lợi nhuận gộp</span></div>
+                <button class="btn secondary small" id="btnBangDoanhThu" type="button" aria-pressed="false">Xem dạng bảng</button>
+              </div>
+              <div id="dashChart" class="chartBox"></div>
+              <div id="dashChartBang" class="tableWrap" style="display:none;"></div>
+            </div>
+            <div class="panel mocPanel"><div id="dashMoc" class="mocNam"></div></div>
+          </div>
+          <div class="panel canXuLy">
+            <h3>Cần xử lý hôm nay</h3>
+            <div id="dashViec"></div>
+          </div>
+        </div>
         <div class="dashGrid">
           <div class="panel">
             <h3>Tình hình hoạt động</h3>
@@ -540,23 +562,25 @@
 </div>
 
 <div class="modalBg" id="modalBg"><div class="modalCard" id="modalCard"></div></div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <!-- Thứ tự nạp quan trọng: config -> core (hàm dùng chung) -> shell (đăng nhập, chuyển tab) -> các nghiệp vụ. -->
-<script src="js/config.js?v=20261105a"></script>
-<script src="js/core.js?v=20261105a"></script>
-<script src="js/shell.js?v=20261105a"></script>
-<script src="js/danhmuc.js?v=20261105a"></script>
-<script src="js/phieu-form.js?v=20261105a"></script>
-<script src="js/in-an.js?v=20261105a"></script>
-<script src="js/nhap-xuat.js?v=20261105a"></script>
-<script src="js/baogia.js?v=20261105a"></script>
-<script src="js/kiemke.js?v=20261105a"></script>
-<script src="js/suachua-giacong.js?v=20261105a"></script>
-<script src="js/congno-soquy.js?v=20261105a"></script>
-<script src="js/baocao.js?v=20261105a"></script>
-<script src="js/doitac-nguoidung.js?v=20261105a"></script>
-<script src="js/dongbo-hd.js?v=20261105a"></script>
-<script src="js/caidat.js?v=20261105a"></script>
+<script src="js/config.js?v=20261106a"></script>
+<script src="js/core.js?v=20261106a"></script>
+<script src="js/giao-dien.js?v=20261106a"></script>
+<script src="js/shell.js?v=20261106a"></script>
+<script src="js/tong-quan.js?v=20261106a"></script>
+<script src="js/danhmuc.js?v=20261106a"></script>
+<script src="js/phieu-form.js?v=20261106a"></script>
+<script src="js/in-an.js?v=20261106a"></script>
+<script src="js/nhap-xuat.js?v=20261106a"></script>
+<script src="js/baogia.js?v=20261106a"></script>
+<script src="js/kiemke.js?v=20261106a"></script>
+<script src="js/suachua-giacong.js?v=20261106a"></script>
+<script src="js/congno-soquy.js?v=20261106a"></script>
+<script src="js/baocao.js?v=20261106a"></script>
+<script src="js/doitac-nguoidung.js?v=20261106a"></script>
+<script src="js/dongbo-hd.js?v=20261106a"></script>
+<script src="js/caidat.js?v=20261106a"></script>
 </body>
 </html>

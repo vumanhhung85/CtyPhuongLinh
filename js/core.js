@@ -112,10 +112,7 @@ function fmtDate(d) { if (!d) return ''; const dt = new Date(d); if (isNaN(dt)) 
 // nên trước 7h sáng ra ngày hôm qua, và "ngày 1 đầu tháng" bị lùi thành ngày cuối tháng trước.
 function ngayISO(d) { const x = d || new Date(); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; }
 function todayISO() { return ngayISO(new Date()); }
-function showToast(msg) {
-  const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block';
-  clearTimeout(window._toastTimer); window._toastTimer = setTimeout(() => (t.style.display = 'none'), 3200);
-}
+// showToast() nay nằm trong js/giao-dien.js (hỗ trợ nút "Hoàn tác", kiểu lỗi/thành công).
 // Số lượng gọn: tối đa 2 chữ số thập phân, dấu chấm hàng nghìn kiểu VN.
 function fmtSoLuong(n) { n = Number(n) || 0; return (Math.round(n * 100) / 100).toLocaleString('vi-VN'); }
 // Tồn kho dạng kép, VD "150 Mét (≈ 1 Cuộn + 50 Mét)". CHỈ để hiển thị/đối chiếu khi đếm kho — tồn thật luôn
@@ -136,16 +133,22 @@ function tonKhoKep(h, ton) {
 // Xoá mặt hàng/đối tác còn phiếu -> server báo DANG_DUOC_SU_DUNG kèm lý do; hiện hộp thoại rõ ràng thay vì mã lỗi.
 function baoLoiXoaDanhMuc(err) {
   const msg = String((err && err.message) || '');
-  if (msg.startsWith('DANG_DUOC_SU_DUNG')) { alert(msg.replace(/^DANG_DUOC_SU_DUNG:\s*/, '')); return; }
+  if (msg.startsWith('DANG_DUOC_SU_DUNG')) { thongBaoHop('Chưa thể xoá', msg.replace(/^DANG_DUOC_SU_DUNG:\s*/, '')); return; }
   showToast('Lỗi: ' + msg);
 }
+// Trả về Promise<boolean> — nơi gọi phải `await`.
 function xacNhanDonGiaKhong(items) {
   const ds = (items || []).filter(it => !(Number(it.DonGia) > 0));
-  if (!ds.length) return true;
-  return confirm(`Có ${ds.length} dòng đơn giá = 0 đ:\n- ${ds.slice(0, 5).map(i => i.TenHH || i.MaHH).join('\n- ')}${ds.length > 5 ? '\n...' : ''}\n\nĐơn giá 0 làm sai giá vốn/doanh thu. Vẫn lưu phiếu?`);
+  if (!ds.length) return Promise.resolve(true);
+  return xacNhan({
+    tieuDe: `Có ${ds.length} dòng đơn giá = 0 đ`, kieu: 'canhBao',
+    noiDung: 'Đơn giá 0 làm sai giá vốn và doanh thu. Vẫn lưu phiếu?',
+    danhSach: ds.slice(0, 5).map(i => i.TenHH || i.MaHH).concat(ds.length > 5 ? ['… và ' + (ds.length - 5) + ' dòng khác'] : []),
+    nhanDongY: 'Vẫn lưu', nhanHuy: 'Quay lại sửa'
+  });
 }
 // className đặt lại 'modalCard' mỗi lần mở: popup xem trước bản in thêm class 'modalIn' (rộng hơn) không dính sang popup sau.
-function openModal(html) { const c = document.getElementById('modalCard'); c.className = 'modalCard'; c.innerHTML = html; document.getElementById('modalBg').classList.add('active'); }
+function openModal(html) { const c = document.getElementById('modalCard'); c.className = 'modalCard'; c.innerHTML = html; document.getElementById('modalBg').classList.add('active'); if (typeof danhDauModalSach === 'function') danhDauModalSach(); }
 function closeModal() { document.getElementById('modalBg').classList.remove('active'); document.getElementById('modalCard').classList.remove('modalIn'); }
 // Chỉ đóng modal khi CẢ mousedown lẫn click đều nhắm đúng vào nền mờ (không phải bôi đen text
 // trong ô rồi lỡ thả chuột ra ngoài — trường hợp đó click.target cũng là modalBg nhưng không phải ý định đóng).
@@ -165,10 +168,29 @@ function trangThaiSCTag(v) {
 /* ================= GIAO DIỆN DÙNG CHUNG ================= */
 // Hàng thẻ số liệu màu đặc (đầu mỗi trang). items: [{ label, val, mau: 'blue'|'navy'|'orange'|'gray'|'green'|'red'|'teal', phu }]
 // Giữ class "statCard" để các chỗ khác (và bộ test) vẫn nhận ra thẻ số liệu như cũ.
+// Tuỳ chọn thêm: k.delta = { pct, nhan } (mũi tên ▲/▼ so kỳ trước, "xuoi: false" nếu tăng là xấu),
+// k.spark = [số...] (đường nhỏ cuối thẻ).
 function veKpi(elId, items) {
   const el = document.getElementById(elId);
   if (!el) return;
-  el.innerHTML = items.map(k => `<div class="statCard kpi k-${k.mau || 'blue'}"><div class="label">${k.label}</div><div class="val">${k.val}</div>${k.phu ? `<div class="phu">${k.phu}</div>` : ''}</div>`).join('');
+  el.innerHTML = items.map((k, i) => {
+    let delta = '';
+    if (k.delta && k.delta.pct != null && isFinite(k.delta.pct)) {
+      const tang = k.delta.pct >= 0, tot = k.delta.xuoi === false ? !tang : tang;
+      delta = `<div class="kDelta ${k.delta.pct === 0 ? 'bang' : k.delta.trungTinh ? 'trung' : tot ? 'tot' : 'xau'}" title="${thoat(k.delta.nhan || '')}"><span aria-hidden="true">${k.delta.pct === 0 ? '▬' : tang ? '▲' : '▼'}</span> ${Math.abs(k.delta.pct).toLocaleString('vi-VN')}% <small>${thoat(k.delta.nhan || '')}</small></div>`;
+    }
+    const spark = k.spark ? veSparkline(k.spark) : '';
+    return `<div class="statCard kpi k-${k.mau || 'blue'}" style="--i:${i}"><div class="label">${k.label}</div><div class="val">${k.val}</div>${delta}${k.phu ? `<div class="phu">${k.phu}</div>` : ''}${spark}</div>`;
+  }).join('');
+}
+// Đường nhỏ (sparkline) SVG, tự co theo chiều rộng thẻ; chỉ trang trí nên ẩn khỏi trình đọc màn hình.
+function veSparkline(arr) {
+  arr = (arr || []).map(Number);
+  if (arr.length < 2) return '';
+  const W = 120, H = 28, max = Math.max(...arr), min = Math.min(...arr), kc = (max - min) || 1;
+  const pts = arr.map((v, i) => [Math.round(i * W / (arr.length - 1) * 10) / 10, Math.round((H - 3 - (v - min) / kc * (H - 8)) * 10) / 10]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ' ' + p[1]).join(' ');
+  return `<svg class="kSpark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d} L${W} ${H} L0 ${H} Z" class="kSparkFill"/><path d="${d}" class="kSparkLine"/><circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1]}" r="2.4" class="kSparkDot"/></svg>`;
 }
 function laThangNay(ngay) { return String(ngay || '').slice(0, 7) === todayISO().slice(0, 7); }
 function tongTien(list, fn) { return list.reduce((s, x) => s + (Number(fn(x)) || 0), 0); }
@@ -211,6 +233,7 @@ function lamDepBang(table) {
   const coCotNut = rows.some(tr => tr.lastElementChild && tr.lastElementChild.classList.contains('rowActions'));
   if (coCotNut) table.classList.add('coCotThaoTac'); // CSS giữ cột này dính mép phải khi phải kéo ngang
   if (!thCuoi.textContent.trim() && coCotNut) thCuoi.textContent = 'Chức năng';
+  if (typeof canCotDauDinh === 'function') canCotDauDinh(table); // bảng rộng hơn khung: giữ 2 cột đầu khi kéo ngang
   const wrap = table.parentElement;
   if (wrap && wrap.classList.contains('tableWrap') && !wrap.querySelector(':scope > .chanBang')) {
     const chan = document.createElement('div');

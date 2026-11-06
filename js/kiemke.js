@@ -8,12 +8,13 @@ const GIOI_HAN_DONG_KK = 150;
 const LOAI_KK = { KiemKe: ['Kiểm kê', 'info'], TonDauKy: ['Tồn đầu kỳ', 'hh'] };
 
 function renderKiemKeTable() {
+  hienDangTai('kiemKeTableWrap');
   apiCall('getKiemKeList').then(list => { STATE.kiemKeList = list; drawKiemKeTable(); }).catch(err => showToast('Lỗi: ' + err.message));
 }
 function drawKiemKeTable() {
   const wrap = document.getElementById('kiemKeTableWrap');
   const list = STATE.kiemKeList || [];
-  if (!list.length) { wrap.innerHTML = '<div class="empty">Chưa có phiếu kiểm kê / tồn đầu kỳ nào.</div>'; return; }
+  if (!list.length) { wrap.innerHTML = trangThaiRong({ bieuTuong: 'hop', tieuDe: 'Chưa có phiếu kiểm kê hay tồn đầu kỳ', moTa: 'Dùng khi đếm lại kho, hoặc khi nhập số tồn có sẵn của hàng mua ngoài không có hoá đơn.', nhan: 'Lập phiếu kiểm kê', hanhDong: "document.getElementById('btnKiemKe') && document.getElementById('btnKiemKe').click()" }); return; }
   wrap.innerHTML = `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Số mặt hàng</th><th>Giá trị chênh lệch</th><th>Ghi chú</th><th>Người lập</th><th></th></tr></thead><tbody>
     ${list.map(p => `<tr>
       <td>${fmtDate(p.Ngay)}</td><td><span class="tag ${(LOAI_KK[p.Loai] || ['', 'info'])[1]}">${(LOAI_KK[p.Loai] || [p.Loai])[0]}</span></td>
@@ -144,28 +145,33 @@ function dienSoSachKiemKe() {
   veBangKiemKe();
   showToast(`Đã điền số sổ sách cho ${n} mặt hàng — sửa lại dòng nào đếm ra khác.`);
 }
-function submitKiemKe() {
+async function submitKiemKe() {
   const laKK = _kk.loai === 'KiemKe';
   const ds = dongKiemKeDaNhap();
-  if (!ds.length) { showToast(laKK ? 'Chưa nhập số thực tế cho mặt hàng nào.' : 'Chưa nhập số lượng cho mặt hàng nào.'); return; }
-  if (ds.length > GIOI_HAN_DONG_KK) { showToast(`Tối đa ${GIOI_HAN_DONG_KK} mặt hàng/phiếu — lọc theo tên để chia làm nhiều phiếu.`); return; }
+  if (!ds.length) { showToast(laKK ? 'Chưa nhập số thực tế cho mặt hàng nào.' : 'Chưa nhập số lượng cho mặt hàng nào.', { loai: 'loi' }); return; }
+  if (ds.length > GIOI_HAN_DONG_KK) { showToast(`Tối đa ${GIOI_HAN_DONG_KK} mặt hàng/phiếu — lọc theo tên để chia làm nhiều phiếu.`, { loai: 'loi' }); return; }
   const loi = ds.find(x => !(Number(x.v.sl) >= 0));
-  if (loi) { showToast('Số lượng không hợp lệ: ' + loi.h.TenHH); return; }
+  if (loi) { showToast('Số lượng không hợp lệ: ' + loi.h.TenHH, { loai: 'loi' }); return; }
   if (!laKK) {
     const giaKhong = ds.filter(x => !(parseSoTien(x.v.gia) > 0));
-    if (giaKhong.length && !confirm(`Có ${giaKhong.length} dòng giá vốn = 0 đ:\n- ${giaKhong.slice(0, 5).map(x => x.h.TenHH).join('\n- ')}\n\nGiá vốn 0 làm báo cáo lãi lỗ sai khi bán ra. Vẫn lưu?`)) return;
+    if (giaKhong.length && !(await xacNhan({ tieuDe: `Có ${giaKhong.length} dòng giá vốn = 0 đ`, kieu: 'canhBao', noiDung: 'Giá vốn 0 làm báo cáo lãi lỗ sai khi bán ra. Vẫn lưu?',
+      danhSach: giaKhong.slice(0, 5).map(x => x.h.TenHH).concat(giaKhong.length > 5 ? ['… và ' + (giaKhong.length - 5) + ' dòng khác'] : []), nhanDongY: 'Vẫn lưu', nhanHuy: 'Quay lại sửa' }))) return;
   }
   const items = ds.map(x => ({ MaHH: x.ma, TenHH: x.h.TenHH, SoLuong: Number(x.v.sl), DonGia: laKK ? undefined : parseSoTien(x.v.gia), LyDo: x.v.lyDo || '' }));
   const lech = laKK ? ds.filter(x => Math.abs(Number(x.v.sl) - (Number(x.h.TonKho) || 0)) > 1e-9).length : ds.length;
-  if (!confirm(laKK ? `Lưu phiếu kiểm kê ${ds.length} mặt hàng — ${lech} mặt hàng lệch sẽ được điều chỉnh tồn kho. Tiếp tục?` : `Cộng tồn đầu kỳ cho ${ds.length} mặt hàng. Tiếp tục?`)) return;
+  if (!(await xacNhan({
+    tieuDe: laKK ? `Lưu phiếu kiểm kê ${ds.length} mặt hàng?` : `Cộng tồn đầu kỳ cho ${ds.length} mặt hàng?`, kieu: 'canhBao',
+    noiDung: laKK ? `${lech} mặt hàng lệch sẽ được điều chỉnh tồn kho theo số thực tế. Có thể xoá phiếu ở tab Kiểm kê kho để gỡ điều chỉnh.` : 'Số lượng nhập sẽ được CỘNG THÊM vào tồn kho hiện tại, kèm giá vốn đã nhập. Có thể xoá phiếu ở tab Kiểm kê kho để gỡ.',
+    nhanDongY: 'Lưu phiếu', nhanHuy: 'Quay lại'
+  }))) return;
   const data = { Loai: _kk.loai, Ngay: document.getElementById('fNgayKK').value, GhiChu: document.getElementById('fGhiChuKK').value.trim(), items };
   apiCall('saveKiemKe', { data }).then(res => {
     closeModal();
-    showToast(laKK ? `Đã lưu phiếu kiểm kê — điều chỉnh ${res.soDongDieuChinh} mặt hàng.` : 'Đã cộng tồn đầu kỳ.');
+    showToast(laKK ? `Đã lưu phiếu kiểm kê — điều chỉnh ${res.soDongDieuChinh} mặt hàng.` : 'Đã cộng tồn đầu kỳ.', { nhan: 'Hoàn tác', ms: 9000, fn: () => hoanTacKiemKe(res.phieu.IDPhieu) });
     mergeTonKhoVaoState(res.tonKhoCapNhat);
     drawHangHoaTable();
     STATE.kiemKeList = [res.phieu, ...(STATE.kiemKeList || [])];
-    if (document.getElementById('view-kiemke').classList.contains('active')) drawKiemKeTable();
+    if (document.getElementById('view-kiemke').classList.contains('active')) { drawKiemKeTable(); nhayDong(res.phieu.IDPhieu); }
   }).catch(err => {
     const m = String(err.message || '');
     showToast(m === 'KHONG_CO_QUYEN' ? 'Chỉ Admin được lập phiếu kiểm kê / tồn đầu kỳ.' : 'Lỗi: ' + m);
@@ -190,8 +196,19 @@ function xemPhieuKiemKe(idPhieu) {
     `);
   }).catch(err => showToast('Lỗi: ' + err.message));
 }
-function xoaKiemKeUI(idPhieu) {
-  if (!confirm('Xoá phiếu này? Các điều chỉnh tồn kho của phiếu sẽ được gỡ bỏ, tồn kho và giá vốn tính lại như trước khi lập phiếu.')) return;
+function hoanTacKiemKe(idPhieu) {
+  apiCall('xoaKiemKe', { idPhieu }).then(res => {
+    showToast('Đã hoàn tác: phiếu vừa lập đã bị xoá, tồn kho và giá vốn về như cũ.');
+    mergeTonKhoVaoState(res.tonKhoCapNhat);
+    drawHangHoaTable();
+    STATE.kiemKeList = (STATE.kiemKeList || []).filter(x => x.IDPhieu !== idPhieu);
+    if (document.getElementById('view-kiemke').classList.contains('active')) drawKiemKeTable();
+  }).catch(err => showToast('Lỗi: không hoàn tác được — ' + err.message));
+}
+async function xoaKiemKeUI(idPhieu) {
+  const p = (STATE.kiemKeList || []).find(x => x.IDPhieu === idPhieu);
+  if (!(await xacNhan({ tieuDe: 'Xoá phiếu kiểm kê / tồn đầu kỳ?', kieu: 'nguyHiem',
+    noiDung: `${p ? `${fmtDate(p.Ngay)} — ${(LOAI_KK[p.Loai] || [p.Loai])[0]} — ${p.SoMatHang != null ? p.SoMatHang + ' mặt hàng' : ''}\n\n` : ''}Các điều chỉnh tồn kho của phiếu được gỡ bỏ; tồn kho và giá vốn tính lại như trước khi lập phiếu.`, nhanDongY: 'Xoá phiếu' }))) return;
   apiCall('xoaKiemKe', { idPhieu }).then(res => {
     showToast('Đã xoá phiếu.');
     mergeTonKhoVaoState(res.tonKhoCapNhat);

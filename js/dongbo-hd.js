@@ -167,7 +167,7 @@ function renderMatchTable(wrap, matches, showLoaiFixed) {
   </tbody></table>`;
 }
 
-function apDungKhop(matches, selectClass, rerenderFns) {
+async function apDungKhop(matches, selectClass, rerenderFns) {
   const selects = document.querySelectorAll('.' + selectClass);
   const items = []; let soGhiDe = 0;
   selects.forEach(sel => {
@@ -182,7 +182,7 @@ function apDungKhop(matches, selectClass, rerenderFns) {
     }
   });
   if (!items.length) { showToast('Không có dòng nào cần ghi (có thể đã đồng bộ từ trước hoặc chưa chọn).'); return; }
-  if (soGhiDe > 0 && !confirm(`Có ${soGhiDe} phiếu đang GHI ĐÈ số hoá đơn khác đã có sẵn. Anh chắc chắn muốn tiếp tục?`)) return;
+  if (soGhiDe > 0 && !(await xacNhan({ tieuDe: `${soGhiDe} phiếu sẽ bị ghi đè số hoá đơn`, kieu: 'canhBao', noiDung: `Có ${soGhiDe} phiếu đang có sẵn một số hoá đơn KHÁC với số trong file. Ghi vào sẽ thay số cũ bằng số mới.`, nhanDongY: 'Vẫn ghi đè', nhanHuy: 'Quay lại kiểm tra' }))) return;
   apiCall('bulkCapNhatHoaDon', { items }).then(res => {
     showToast(`Đã ghi ${res.thanhCong}/${res.tongSo} hoá đơn.`);
     rerenderFns.forEach(fn => fn());
@@ -642,10 +642,10 @@ function toggleAllLichSu(cb) {
   renderLichSuPreview();
 }
 
-document.getElementById('btnTaoPhieuLichSu').addEventListener('click', () => {
+document.getElementById('btnTaoPhieuLichSu').addEventListener('click', async () => {
   const items = LICHSU_ROWS_PARSED.filter(r => r.chon);
-  if (!items.length) { showToast('Chưa chọn dòng nào để tạo.'); return; }
-  if (!confirm(`Tạo mới ${items.length} phiếu trong hệ thống? Hành động này không thể tự động huỷ hàng loạt, chỉ xoá được từng phiếu.`)) return;
+  if (!items.length) { showToast('Chưa chọn dòng nào để tạo.', { loai: 'loi' }); return; }
+  if (!(await xacNhan({ tieuDe: `Tạo mới ${items.length} phiếu?`, kieu: 'canhBao', noiDung: 'Các phiếu sẽ được tạo trong hệ thống. Không thể huỷ hàng loạt — chỉ xoá được từng phiếu một.', nhanDongY: 'Tạo phiếu', nhanHuy: 'Quay lại' }))) return;
   // Gửi theo lô 20 hoá đơn/lần (máy chủ gói miễn phí giới hạn số lệnh mỗi lần gọi), cộng dồn kết quả.
   const LO = 20;
   let tongThanhCong = 0, tongLoi = [];
@@ -1004,9 +1004,9 @@ function renderBkClassifyTable() {
   }));
 }
 document.getElementById('bkClassifySearch').addEventListener('input', renderBkClassifyTable);
-document.getElementById('btnXoaDanhSachCho').addEventListener('click', () => {
+document.getElementById('btnXoaDanhSachCho').addEventListener('click', async () => {
   if (!BK_INVOICES.length) { lamTrongDanhSachCho(false); return; }
-  if (!confirm(`Xoá ${BK_INVOICES.length} hoá đơn khỏi danh sách chờ nhập? (Chỉ xoá danh sách đang xem trước, KHÔNG ảnh hưởng phiếu đã có trong hệ thống.)`)) return;
+  if (!(await xacNhan({ tieuDe: `Xoá ${BK_INVOICES.length} hoá đơn khỏi danh sách chờ?`, kieu: 'nguyHiem', noiDung: 'Chỉ xoá danh sách đang xem trước. KHÔNG ảnh hưởng các phiếu đã có trong hệ thống.', nhanDongY: 'Xoá danh sách chờ' }))) return;
   lamTrongDanhSachCho(false);
   showToast('Đã làm trống danh sách chờ nhập.');
 });
@@ -1050,9 +1050,9 @@ function renderBkSummary() {
   }
 }
 
-document.getElementById('btnBatDauNhapBK').addEventListener('click', () => {
-  if (!BK_INVOICES.length) { showToast('Chưa có dữ liệu để nhập.'); return; }
-  if (!confirm(`Sẽ tạo tối đa ${BK_INVOICES.length} phiếu (bỏ qua tự động các hoá đơn đã tồn tại trong hệ thống). Tiếp tục?`)) return;
+document.getElementById('btnBatDauNhapBK').addEventListener('click', async () => {
+  if (!BK_INVOICES.length) { showToast('Chưa có dữ liệu để nhập.', { loai: 'loi' }); return; }
+  if (!(await xacNhan({ tieuDe: `Tạo tối đa ${BK_INVOICES.length} phiếu?`, kieu: 'canhBao', noiDung: 'Hoá đơn đã tồn tại trong hệ thống sẽ được bỏ qua tự động.', nhanDongY: 'Bắt đầu nhập', nhanHuy: 'Quay lại' }))) return;
   const nutNhap = document.getElementById('btnBatDauNhapBK');
   if (nutNhap.disabled) return; // chống bấm 2 lần khi đang chạy
   nutNhap.disabled = true;
